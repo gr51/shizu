@@ -1,15 +1,15 @@
 // 成长曲线模拟：用真实 core/ 跑 N 局，对照《噬祖-数值平衡表》八章的成长曲线表。
 // 用法：node tools/simulate.mjs [局数]
 
-import { createDefaultSave, createMemoryStorage, createSaveRepo } from '../src/core/save.js';
-import { computePower, dungeonDifficulty } from '../src/core/balance.js';
-import { gearItemPower } from '../src/core/gear.js';
-import { generateDungeon } from '../src/core/dungeon.js';
-import { rollPlane } from '../src/core/planePool.js';
-import { Run, RunState } from '../src/core/run.js';
-import { rngFactory } from '../src/core/rng.js';
-import { activatedRoutes } from '../src/core/geneLock.js';
-import { ROUTES } from '../src/data/routes.js';
+import { createDefaultSave, createMemoryStorage, createSaveRepo } from '../shizu-cocos/assets/scripts/core/save.js';
+import { computePower, dungeonDifficulty } from '../shizu-cocos/assets/scripts/core/balance.js';
+import { gearItemPower } from '../shizu-cocos/assets/scripts/core/gear.js';
+import { generateDungeon } from '../shizu-cocos/assets/scripts/core/dungeon.js';
+import { rollPlane } from '../shizu-cocos/assets/scripts/core/planePool.js';
+import { Run, RunState } from '../shizu-cocos/assets/scripts/core/run.js';
+import { rngFactory } from '../shizu-cocos/assets/scripts/core/rng.js';
+import { activatedRoutes } from '../shizu-cocos/assets/scripts/core/geneLock.js';
+import { ROUTES } from '../shizu-cocos/assets/scripts/data/routes.js';
 
 const RUNS = Number(process.argv[2] ?? 300);
 const rng = rngFactory(20240815);

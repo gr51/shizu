@@ -3,7 +3,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PITY_CAP, PRD_PARAMS, prdChance, prdCurrentChance, prdPityCap, prdRoll } from '../src/core/prd.js';
+import { PITY_CAP, PRD_PARAMS, prdChance, prdCurrentChance, prdPityCap, prdRoll } from '../shizu-cocos/assets/scripts/core/prd.js';
 import { freshSave, rng } from './helpers.mjs';
 
 test('PRD 参数与平衡表 7.4 一致', () => {

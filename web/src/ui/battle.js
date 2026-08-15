@@ -1,9 +1,9 @@
 // ===== ui/battle.js · 局内战斗界面 / 三选一 / 槽位冲突 / 结算 =====
 
-import { RunState } from '../core/run.js';
-import { SLOT_LABEL } from '../core/skillSlots.js';
-import { DIFFICULTY_LABEL } from '../core/balance.js';
-import { ROUTES } from '../data/routes.js';
+import { RunState } from '../../../shizu-cocos/assets/scripts/core/run.js';
+import { SLOT_LABEL } from '../../../shizu-cocos/assets/scripts/core/skillSlots.js';
+import { DIFFICULTY_LABEL } from '../../../shizu-cocos/assets/scripts/core/balance.js';
+import { ROUTES } from '../../../shizu-cocos/assets/scripts/data/routes.js';
 import { gearCard, gearItemHtml, geneCard, metaLine, playerCard, slotsCard } from './cards.js';
 import * as view from './view.js';
 

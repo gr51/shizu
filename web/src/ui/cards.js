@@ -1,11 +1,11 @@
 // ===== ui/cards.js · 侧栏四张卡的渲染 =====
 
-import { combatStats, computePower, geneLockPowerBonus, DIFFICULTY_LABEL } from '../core/balance.js';
-import { gearPowerBonus, affixText } from '../core/gear.js';
-import { activatedRoutes, chargeToNextSegment, geneLockLevel } from '../core/geneLock.js';
-import { SLOT_KEYS, SLOT_LABEL } from '../core/skillSlots.js';
-import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY } from '../data/attrPool.js';
-import { ROUTES } from '../data/routes.js';
+import { combatStats, computePower, geneLockPowerBonus, DIFFICULTY_LABEL } from '../../../shizu-cocos/assets/scripts/core/balance.js';
+import { gearPowerBonus, affixText } from '../../../shizu-cocos/assets/scripts/core/gear.js';
+import { activatedRoutes, chargeToNextSegment, geneLockLevel } from '../../../shizu-cocos/assets/scripts/core/geneLock.js';
+import { SLOT_KEYS, SLOT_LABEL } from '../../../shizu-cocos/assets/scripts/core/skillSlots.js';
+import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY } from '../../../shizu-cocos/assets/scripts/data/attrPool.js';
+import { ROUTES } from '../../../shizu-cocos/assets/scripts/data/routes.js';
 
 export function metaLine(save, extra = '') {
   const p = save.player;

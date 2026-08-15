@@ -4,7 +4,7 @@
 
 import { chromium } from 'playwright';
 
-const URL = process.env.URL ?? 'http://localhost:8123/';
+const URL = process.env.URL ?? 'http://localhost:8123/web/';
 const errors = [];
 let step = 0;
 const ok = (msg) => console.log(`  ✓ ${msg}`);

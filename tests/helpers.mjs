@@ -1,6 +1,6 @@
 // 测试公共夹具
-import { createDefaultSave, createMemoryStorage, createSaveRepo } from '../src/core/save.js';
-import { rngFactory } from '../src/core/rng.js';
+import { createDefaultSave, createMemoryStorage, createSaveRepo } from '../shizu-cocos/assets/scripts/core/save.js';
+import { rngFactory } from '../shizu-cocos/assets/scripts/core/rng.js';
 
 export function freshSave(patch = {}) {
   const s = createDefaultSave();

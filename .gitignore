@@ -18,7 +18,8 @@ shizu-cocos/profiles/
 .DS_Store
 Thumbs.db
 
-# web 开发期产物
-web/node_modules/
-web/package-lock.json
-web/tools/screenshot-*.png
+# 开发期产物
+node_modules/
+package-lock.json
+.tmp/
+tools/screenshot-*.png

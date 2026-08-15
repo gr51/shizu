@@ -2,17 +2,17 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateDungeon, spawnStyleHpMul } from '../src/core/dungeon.js';
-import { computePower, STAGE_COEF, UNIT_BASE } from '../src/core/balance.js';
-import { activateRoute, chargeGeneLock, GENE_LOCK_MAX, isSealed, segmentForCharge } from '../src/core/geneLock.js';
-import { applyHiddenSkill, learnSkill, SLOT_KEYS, allSlotsEngraved, rollHiddenSkill } from '../src/core/skillSlots.js';
-import { Run, RunState } from '../src/core/run.js';
-import { migrate, createDefaultSave, DYN_FACTOR_MAX } from '../src/core/save.js';
-import { generateGear } from '../src/core/gear.js';
-import { planes } from '../src/data/planes.js';
-import { CHARGE_THRESHOLDS, skills, skillsByRoute } from '../src/data/skills.js';
-import { ALL_ROUTES } from '../src/data/routes.js';
-import { ALL_HIDDEN_SKILLS } from '../src/data/hiddenSkills.js';
+import { generateDungeon, spawnStyleHpMul } from '../shizu-cocos/assets/scripts/core/dungeon.js';
+import { computePower, STAGE_COEF, UNIT_BASE } from '../shizu-cocos/assets/scripts/core/balance.js';
+import { activateRoute, chargeGeneLock, GENE_LOCK_MAX, isSealed, segmentForCharge } from '../shizu-cocos/assets/scripts/core/geneLock.js';
+import { applyHiddenSkill, learnSkill, SLOT_KEYS, allSlotsEngraved, rollHiddenSkill } from '../shizu-cocos/assets/scripts/core/skillSlots.js';
+import { Run, RunState } from '../shizu-cocos/assets/scripts/core/run.js';
+import { migrate, createDefaultSave, DYN_FACTOR_MAX } from '../shizu-cocos/assets/scripts/core/save.js';
+import { generateGear } from '../shizu-cocos/assets/scripts/core/gear.js';
+import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
+import { CHARGE_THRESHOLDS, skills, skillsByRoute } from '../shizu-cocos/assets/scripts/data/skills.js';
+import { ALL_ROUTES } from '../shizu-cocos/assets/scripts/data/routes.js';
+import { ALL_HIDDEN_SKILLS } from '../shizu-cocos/assets/scripts/data/hiddenSkills.js';
 import { freshSave, repo, rng } from './helpers.mjs';
 
 const plane = (id) => planes.find((p) => p.id === id);

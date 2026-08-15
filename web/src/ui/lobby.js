@@ -1,13 +1,13 @@
 // ===== ui/lobby.js · 虫巢主界面 / 裂缝选择 / 装备背包 / 进化图鉴 =====
 
-import { DIFFICULTY_COEF, DIFFICULTY_LABEL, computePower, dungeonDifficulty } from '../core/balance.js';
-import { craftGear, enhanceGear, salvageGear } from '../core/gear.js';
-import { previewPlane, rollPlane } from '../core/planePool.js';
-import { activatableRoutes, activatedRoutes, geneLockLevel, isSealed } from '../core/geneLock.js';
-import { GEAR_RARITY, RARITY_ORDER } from '../data/attrPool.js';
-import { ALL_ROUTES, ROUTES, mutexOf } from '../data/routes.js';
-import { planes } from '../data/planes.js';
-import { nestLine } from '../data/lines.js';
+import { DIFFICULTY_COEF, DIFFICULTY_LABEL, computePower, dungeonDifficulty } from '../../../shizu-cocos/assets/scripts/core/balance.js';
+import { craftGear, enhanceGear, salvageGear } from '../../../shizu-cocos/assets/scripts/core/gear.js';
+import { previewPlane, rollPlane } from '../../../shizu-cocos/assets/scripts/core/planePool.js';
+import { activatableRoutes, activatedRoutes, geneLockLevel, isSealed } from '../../../shizu-cocos/assets/scripts/core/geneLock.js';
+import { GEAR_RARITY, RARITY_ORDER } from '../../../shizu-cocos/assets/scripts/data/attrPool.js';
+import { ALL_ROUTES, ROUTES, mutexOf } from '../../../shizu-cocos/assets/scripts/data/routes.js';
+import { planes } from '../../../shizu-cocos/assets/scripts/data/planes.js';
+import { nestLine } from '../../../shizu-cocos/assets/scripts/data/lines.js';
 import { gearCard, gearItemHtml, geneCard, metaLine, playerCard, slotsCard } from './cards.js';
 import * as view from './view.js';
 

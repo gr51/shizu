@@ -2,13 +2,13 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planeChannel, planeWeight, previewPlane, resolveConflict, rollPlane } from '../src/core/planePool.js';
-import { generateDungeon } from '../src/core/dungeon.js';
-import { rollUpgradeOptions } from '../src/core/upgrade.js';
-import { rollCommonGear, ATTR_CHANNEL_GEAR_MULT } from '../src/core/drop.js';
-import { activateRoute } from '../src/core/geneLock.js';
-import { planes, TUTORIAL_PLANE_ID } from '../src/data/planes.js';
-import { ALL_ROUTES, ROUTES, mutexOf } from '../src/data/routes.js';
+import { planeChannel, planeWeight, previewPlane, resolveConflict, rollPlane } from '../shizu-cocos/assets/scripts/core/planePool.js';
+import { generateDungeon } from '../shizu-cocos/assets/scripts/core/dungeon.js';
+import { rollUpgradeOptions } from '../shizu-cocos/assets/scripts/core/upgrade.js';
+import { rollCommonGear, ATTR_CHANNEL_GEAR_MULT } from '../shizu-cocos/assets/scripts/core/drop.js';
+import { activateRoute } from '../shizu-cocos/assets/scripts/core/geneLock.js';
+import { planes, TUTORIAL_PLANE_ID } from '../shizu-cocos/assets/scripts/data/planes.js';
+import { ALL_ROUTES, ROUTES, mutexOf } from '../shizu-cocos/assets/scripts/data/routes.js';
 import { freshSave, rng } from './helpers.mjs';
 
 const plane = (id) => planes.find((p) => p.id === id);

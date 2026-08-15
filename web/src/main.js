@@ -1,10 +1,10 @@
 // ===== main.js · 装配（唯一的入口）=====
 // 职责边界：本文件与 ui/ 依赖 DOM；src/core 与 src/data 完全不依赖 —— 移植时只换 ui/ 与本文件。
 
-import { createSaveRepo, createWebStorage } from './core/save.js';
-import { generateDungeon } from './core/dungeon.js';
-import { Run } from './core/run.js';
-import { rngFactory } from './core/rng.js';
+import { createSaveRepo, createWebStorage } from '../../shizu-cocos/assets/scripts/core/save.js';
+import { generateDungeon } from '../../shizu-cocos/assets/scripts/core/dungeon.js';
+import { Run } from '../../shizu-cocos/assets/scripts/core/run.js';
+import { rngFactory } from '../../shizu-cocos/assets/scripts/core/rng.js';
 import { renderLobby } from './ui/lobby.js';
 import { renderBattle } from './ui/battle.js';
 import * as view from './ui/view.js';

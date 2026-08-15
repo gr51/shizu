@@ -1,48 +1,68 @@
-# shizu-cocos —— Cocos Creator 工程壳（尚未接入代码）
+# shizu-cocos —— Cocos Creator 3.8 工程
 
-> 当前状态：**空壳**。原先这里的脚本已在重建时全部删除，游戏逻辑现位于 `../web/`。
-
-## 这里现在有什么
+《噬祖·诸天噬灵》的**产品工程**。游戏逻辑与配表就在这里（`assets/scripts/core` 与 `data`），
+仓库根目录的 `tests/` 与 `web/` 都是直接引用这份代码，不是副本。
 
 ```
 shizu-cocos/
-├── package.json                  # 工程清单（Creator 3.8.8）
-├── settings/v2/packages/         # 引擎模块 / 设计分辨率 / 构建配置
+├── package.json                    工程清单（Creator 3.8.8）
+├── tsconfig.json                   allowJs（core/data 是 JS，game 是 TS）
+├── types/cc.d.ts                   ⚠ 编辑器外类型检查用的**声明桩**，非官方定义
+├── settings/v2/packages/           引擎模块 / 设计分辨率 640×960 竖屏
 └── assets/
-    └── scenes/Main.scene         # 手写的最小场景：Canvas + Camera，未挂任何脚本
+    ├── scenes/Main.scene           Canvas + Camera + GameRoot 组件
+    └── scripts/
+        ├── core/    *.js           零 DOM、零 cc 依赖的游戏逻辑（65 项测试守护）
+        ├── data/    *.js           位面 / 路线 / 技能 / 隐藏技能 / 装备 / 文案 配表
+        ├── platform/storage.ts     Web · 微信 · 抖音 三端存档适配（注入式）
+        └── game/                   Cocos 组件层
+            ├── GameRoot.ts         主控：大厅 / 局内 / 结算 / 图鉴 / 背包
+            ├── UiKit.ts            程序化 UI 构件（Graphics + Label，无预制体）
+            └── ModalLayer.ts       全屏弹层
 ```
 
-## 为什么是空的
+## 第一次在编辑器里打开时
 
-重建前这里有两套互不相干的东西：
+1. Cocos Dashboard → 导入本目录。
+2. 编辑器会为缺 `.meta` 的文件生成 meta。`GameRoot.ts.meta` **已手工写好并被
+   `Main.scene` 引用**（uuid `65b58870-54c5-4d3c-807d-bc94533ed1b0`），不要删。
+3. 打开 `assets/scenes/Main.scene` 另存一次 —— 现有场景是手写的最小 JSON，
+   编辑器另存后会规范化。
+4. 点预览。当前无任何美术资源，界面全部由 `UiKit.ts` 用 `Graphics` + `Label` 画出，
+   所以能直接跑，不会缺资源报错。
 
-- 一个与《噬祖》毫无关系的双摇杆射击 Demo（`GameController/GameModel/GameRenderer`），
-  是照《以撒的结合》做的手感验证，却被 README 描述成了本游戏的主控；
-- 一层照策划文档写的 `core/` + `data/`，编译得过，但**没有任何代码路径引用它**，
-  从未被执行过。
+## 当前完成度
 
-两者都已删除。逻辑重写在 `../web/src/core/`，那一层零 DOM、零 `cc` 依赖，
-配有 65 项针对《开发实现指南》九条编码红线的测试，可直接整体搬进本工程。
+| 部分 | 状态 |
+|---|---|
+| 核心逻辑（基因锁 / 三通道 / 掉落 / 装备 / 存档 / 难度进化） | 完成，65 项测试 |
+| Cocos 组件层（大厅 / 裂缝卡 / 局内 / 三选一 / 槽位冲突 / 结算 / 图鉴 / 背包） | 完成，冒烟测试跑通整局 |
+| 实时动作战斗（单摇杆 / 自动索敌 / 闪避无敌帧 / 吞噬爆发） | **未做** —— 见下 |
+| 美术 · 音频 · 特效 | **未做**，全部程序化占位 |
 
-## 移植步骤（下一阶段）
+## 下一步：接实时战斗
 
-1. Cocos Dashboard 导入本目录，让编辑器**重新生成** `.meta` 与场景
-   （现有 `Main.scene` 是手写 stub，编辑器打开后另存一次即可规范化）。
-2. 把 `../web/src/core/` 与 `../web/src/data/` 整层复制到 `assets/scripts/`，
-   `.js` 改 `.ts` 并补类型标注 —— 这两层不含任何浏览器 API，改动量只有类型。
-   唯一需要适配的是 `core/save.js` 的存储适配器：
-   ```ts
-   // web:    localStorage
-   // 微信:   wx.getStorageSync / wx.setStorageSync
-   // 抖音:   tt.getStorageSync / tt.setStorageSync
-   ```
-   适配器已经是**注入式**的（`createSaveRepo(storage)`），换实现即可，不动业务逻辑。
-3. `../web/src/ui/` **不移植** —— 那是 DOM 渲染层，Cocos 侧重写为组件/预制体。
-4. `../web/src/core/combatModel.js` **不移植** —— 那是把实时战斗压成回合制的抽象层，
-   Cocos 侧改由真实碰撞 + 无敌帧决定，该文件届时废弃。
+现在的战斗是**回合交锋**（点「前进」推进一次），由 `core/combatModel.js` 把
+文档的实时数值压成回合概率。这是网页原型阶段的权宜之计。
 
-## 待办：与文档不符的配置
+接实时战斗时：
+1. 新建 `game/battle/` 实现单摇杆 + 自动索敌 + 闪避无敌帧 + 吞噬爆发（整体策划 2.3）。
+2. 敌人数值仍从 `core/dungeon.js` 的 `generateDungeon()` 取 —— 那层已经按红线 1/2 生成好了，不要另起炉灶。
+3. `core/run.js` 的三选一、结算、基因锁充能全部复用，只把 `step()` 换成实时伤害结算。
+4. **删除 `core/combatModel.js`**，同时删掉 `run.js` 里对它的引用。
 
-`settings/v2/packages/project.json` 目前是 **960×640 横屏**，
-而《噬祖-整体策划》1.1 指定的是**竖屏**（微信 + 抖音小游戏）。
-移植时需在编辑器里改为竖屏设计分辨率。
+`core/combatModel.js` 顶部记了一个有用的反推结论：
+文档的 HP/攻击比例要求玩家**被有效命中率 ≤ 8%**，
+这直接量化了实时战斗里闪避该有多强，可作为手感调参的起点。
+
+## 验证
+
+本工程的验证命令在仓库根目录：
+
+```bash
+npm run verify   # 单元测试 + 类型检查 + 组件层冒烟测试
+```
+
+`npm run smoke` 会用 `tools/cc-shim` 顶替 `cc` 模块，在 Node 里真的实例化
+`GameRoot`、建节点树、开裂缝、打完整局、走结算、验证落盘。
+它验证不了像素，但能保证这层代码**被执行过** —— 上一版工程最缺的就是这个。

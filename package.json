@@ -1,0 +1,20 @@
+{
+  "name": "shizu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "噬祖 · 诸天噬灵 —— 核心层在 shizu-cocos/assets/scripts/，web/ 为验证用 DOM 原型壳",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "typecheck": "tsc -p shizu-cocos/tsconfig.json --noEmit",
+    "smoke": "node tools/smoke-cocos.mjs",
+    "serve": "node tools/serve.mjs",
+    "e2e": "node tools/e2e.mjs",
+    "sim": "node tools/simulate.mjs",
+    "verify": "npm run test && npm run typecheck && npm run smoke"
+  },
+  "devDependencies": {
+    "playwright": "1.49",
+    "typescript": "5.6"
+  }
+}

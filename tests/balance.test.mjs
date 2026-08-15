@@ -7,9 +7,9 @@ import {
   BASE_STATS, DIFFICULTY_COEF, STAGE_COEF, buildEnemy, computePower,
   dungeonDifficulty, geneLockPowerBonus, bossStageCoef, applyPermGrowth,
   adjustDynamicFactor, GENES_PER_GROWTH,
-} from '../src/core/balance.js';
-import { generateGear, gearPowerBonus } from '../src/core/gear.js';
-import { DYN_FACTOR_MAX, DYN_FACTOR_MIN, PERM_GROWTH_CAP_PCT } from '../src/core/save.js';
+} from '../shizu-cocos/assets/scripts/core/balance.js';
+import { generateGear, gearPowerBonus } from '../shizu-cocos/assets/scripts/core/gear.js';
+import { DYN_FACTOR_MAX, DYN_FACTOR_MIN, PERM_GROWTH_CAP_PCT } from '../shizu-cocos/assets/scripts/core/save.js';
 import { freshSave, rng, withPower } from './helpers.mjs';
 
 test('新档战力 = 1.0（平衡表 一章「巢灵初始战力 1」）', () => {

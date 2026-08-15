@@ -43,6 +43,9 @@
       },
       {
         "__id__": 4
+      },
+      {
+        "__id__": 8
       }
     ],
     "_prefab": null,
@@ -207,5 +210,16 @@
     "_visibility": 33554432,
     "_targetTexture": null,
     "_id": "b1camcomp2000000000000000009"
+  },
+  {
+    "__type__": "65b58hwVMVNPIB9vJRTPtGw",
+    "_name": "",
+    "_objFlags": 0,
+    "node": {
+      "__id__": 2
+    },
+    "_enabled": true,
+    "__prefab": null,
+    "_id": "shizuGameRoot0000000000001"
   }
 ]
