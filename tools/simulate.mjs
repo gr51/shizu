@@ -38,10 +38,12 @@ let losses = 0;
 const channelCount = { skill: 0, attr: 0 };
 let gearDropped = 0;
 let hiddenFound = 0;
+let totalKills = 0;
+let totalSeconds = 0;
 
 console.log(`模拟 ${RUNS} 局（真实 core/ 逻辑，非近似）\n`);
-console.log('局数   战力      D值       位面          通道  结果  基因   评级');
-console.log('─'.repeat(74));
+console.log('局数   战力      D值      位面        通道 结果 击杀  只/分 基因   评级');
+console.log('─'.repeat(78));
 
 for (let i = 1; i <= RUNS; i++) {
   const plane = rollPlane(save, rng);
@@ -62,6 +64,8 @@ for (let i = 1; i <= RUNS; i++) {
   if (res.victory) wins += 1; else losses += 1;
   gearDropped += res.gear.length;
   if (res.hiddenSkill) hiddenFound += 1;
+  totalKills += res.kills;
+  totalSeconds += res.survivedSec;
 
   autoEquip(save);
 
@@ -70,12 +74,14 @@ for (let i = 1; i <= RUNS; i++) {
     console.log(
       String(i).padEnd(6),
       power.toFixed(3).padEnd(9),
-      dungeon.D.toFixed(1).padEnd(9),
-      plane.name.padEnd(12),
-      (dungeon.channel === 'skill' ? '技能' : '属性').padEnd(5),
-      (res.victory ? '通关' : '身陨').padEnd(5),
-      String(res.genes).padEnd(6),
-      res.grade,
+      dungeon.D.toFixed(1).padEnd(8),
+      plane.name.padEnd(11),
+      (dungeon.channel === 'skill' ? '技能' : '属性').padEnd(4),
+      (res.victory ? '通关' : '身陨').padEnd(4),
+      String(res.kills).padStart(5),
+      (res.kills / (res.survivedSec / 60)).toFixed(0).padStart(5),
+      String(res.genes).padStart(6),
+      ' ' + res.grade,
     );
   }
 
@@ -92,6 +98,7 @@ console.log('终局状态');
 console.log(`  战力            ${power.toFixed(3)}（起始 1.000）`);
 console.log(`  D 值（中等）    ${dungeonDifficulty(power, 'normal').toFixed(1)}`);
 console.log(`  通关 / 身陨     ${wins} / ${losses}`);
+console.log(`  割草节奏        平均 ${Math.round(totalKills / RUNS)} 只/局 · ${(totalKills / (totalSeconds / 60)).toFixed(0)} 只/分钟 · 单局 ${(totalSeconds / RUNS / 60).toFixed(1)} 分钟`);
 console.log(`  永久属性        攻+${p.permAtkPct}% 血+${p.permHpPct}% 速+${p.permSpeedPct}%`);
 console.log(`  已激活路线      ${activatedRoutes(save).map((r) => `${ROUTES[r].name}Lv${p.geneLocks[r]}`).join('、') || '无'}`);
 console.log(`  已封印路线      ${p.sealedRoutes.map((r) => ROUTES[r].name).join('、') || '无'}`);

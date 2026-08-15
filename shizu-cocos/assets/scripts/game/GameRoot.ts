@@ -11,7 +11,7 @@ import { createStorage } from '../platform/storage';
 
 import { createSaveRepo } from '../core/save';
 import { computePower, dungeonDifficulty, DIFFICULTY_COEF, DIFFICULTY_LABEL, combatStats, geneLockPowerBonus } from '../core/balance';
-import { generateDungeon } from '../core/dungeon';
+import { generateDungeon, MAX_ONSCREEN } from '../core/dungeon';
 import { previewPlane, rollPlane } from '../core/planePool';
 import { Run, RunState } from '../core/run';
 import { rngFactory } from '../core/rng';
@@ -207,8 +207,10 @@ export class GameRoot extends Component {
     makeLabel(s, `${d.plane.name} · ${d.plane.theme}`, 0, 386, {
       size: 24, color: C.gold, align: Label.HorizontalAlign.CENTER, bold: true,
     });
+    const mm = String(Math.floor(run.elapsed / 60)).padStart(2, '0');
+    const ss = String(run.elapsed % 60).padStart(2, '0');
     makeLabel(s,
-      `阶段 ${run.stageNo}/5　波次 ${run.waveIndex + 1}/${run.stage.waves.length}　`
+      `阶段 ${run.stageNo}/5　⏱ ${mm}:${ss}　`
       + (d.channel === 'skill' ? '技能通道' : '属性通道'),
       0, 354, { size: 15, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40 });
 
@@ -217,23 +219,28 @@ export class GameRoot extends Component {
     sizeOf(me, 580, 64);
     drawPanel(me, 580, 64, C.panelDeep);
     makeLabel(me, `巢灵　HP ${Math.round(run.hp)} / ${Math.round(run.stats.maxHp)}`, -270, 16, { size: 16, width: 400 });
-    makeLabel(me, `基因 ${run.genes}　击杀 ${run.kills}`, 110, 16, { size: 15, color: C.gene, width: 180 });
+    makeLabel(me, `基因 ${run.genes}　已割 ${run.kills}`, 100, 16, { size: 15, color: C.gene, width: 190 });
     const hpBar = makeNode('HpBar', me, 0, -12);
     drawBar(hpBar, 540, 12, run.hp / run.stats.maxHp, '#d06a7a');
 
-    // —— 当前目标 ——
-    const target = run.target;
-    const tgt = makeNode('Target', s, 0, 224);
+    // —— 同屏压力 / 阶段收尾单位 ——
+    const boss = run.boss;
+    const tgt = makeNode('Swarm', s, 0, 224);
     sizeOf(tgt, 580, 64);
     drawPanel(tgt, 580, 64, C.panelDeep);
-    if (target) {
-      const tag = target.kind === 'boss' ? '【位面之主】' : target.kind === 'elite' ? '【精英】' : '';
-      makeLabel(tgt, `${target.name} ${tag}`, -270, 16, { size: 16, color: target.kind === 'boss' ? C.gold : C.text, width: 400 });
-      makeLabel(tgt, `${Math.max(0, Math.round(target.hp))} / ${target.maxHp}`, 110, 16, { size: 15, color: C.dim, width: 180 });
-      const tb = makeNode('TgtBar', tgt, 0, -12);
-      drawBar(tb, 540, 12, target.hp / target.maxHp, '#a4574f', '#241a1a');
+    if (boss) {
+      const tag = boss.kind === 'boss' ? '【位面之主】' : '【精英】';
+      makeLabel(tgt, `${boss.name} ${tag}`, -270, 16, {
+        size: 16, color: boss.kind === 'boss' ? C.gold : C.text, width: 400,
+      });
+      makeLabel(tgt, `${Math.max(0, Math.round(boss.hp))} / ${boss.maxHp}`, 100, 16, { size: 15, color: C.dim, width: 190 });
+      const tb = makeNode('BossBar', tgt, 0, -12);
+      drawBar(tb, 540, 12, boss.hp / boss.maxHp, '#a4574f', '#241a1a');
     } else {
-      makeLabel(tgt, '本波已清空', -270, 0, { size: 16, color: C.dim, width: 540 });
+      makeLabel(tgt, `同屏敌人 ${run.onScreen} / ${MAX_ONSCREEN}`, -270, 16, { size: 16, width: 400 });
+      makeLabel(tgt, `本阶段剩余 ${run.stageRemain}s`, 100, 16, { size: 15, color: C.dim, width: 190 });
+      const sb = makeNode('SwarmBar', tgt, 0, -12);
+      drawBar(sb, 540, 12, run.onScreen / MAX_ONSCREEN, '#7a6a3a', '#241f1a');
     }
 
     // —— 战斗日志 ——
@@ -256,7 +263,7 @@ export class GameRoot extends Component {
           run.step();
           this.renderBattle();
         }, 'primary', 72);
-        makeLabel(s, '点击「前进」推进一次交锋', 0, -288, {
+        makeLabel(s, '每次「前进」= 3 秒战斗：刷怪 → 横扫 → 被围受击', 0, -288, {
           size: 14, color: C.dim, align: Label.HorizontalAlign.CENTER, width: 400,
         });
         break;
@@ -336,14 +343,15 @@ export class GameRoot extends Component {
   private showSettle(): void {
     const r = this.run.finalize(this.repo);
     const rows: ModalRow[] = [
-      { text: `评级 ${r.grade}　抵达阶段 ${r.stageReached}/5　击杀 ${r.kills}`, color: C.gold, size: 19 },
+      { text: `评级 ${r.grade}　抵达阶段 ${r.stageReached}/5`, color: C.gold, size: 19 },
+      { text: `噬灭 ${r.kills} 只（杂兵 ${r.minionKills}）　存活 ${Math.floor(r.survivedSec / 60)}:${String(r.survivedSec % 60).padStart(2, '0')}` },
       { text: `吞噬基因 ${r.genes}` },
     ];
 
     if (r.growth.grants.length) {
       rows.push({ text: `永久成长：${r.growth.grants.map((g: any) => `${g.label} +${g.pct}%`).join('，')}`, color: C.gene });
     } else {
-      rows.push({ text: '基因不足以兑换永久成长（每 600 基因 1 次）', size: 15, color: C.dim });
+      rows.push({ text: '基因不足以兑换永久成长（每 1500 基因 1 次）', size: 15, color: C.dim });
     }
     for (const a of r.activations) {
       rows.push({ text: `⟡ 永久激活基因锁：${ROUTES[a.route].name}`, color: C.gold });

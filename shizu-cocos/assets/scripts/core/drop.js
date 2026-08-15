@@ -11,12 +11,25 @@ import { randInt } from './rng.js';
 import { rollHiddenSkill } from './skillSlots.js';
 import { skillsByRoute } from '../data/skills.js';
 
-/** 基因掉落（平衡表 7.1） */
-export function geneDrop(kind, rng) {
+/**
+ * 基因掉落。
+ *
+ * ⚠【与平衡表 7.1 冲突 · 已按割草定位重标】
+ *   7.1 给的是「小怪 5-10 基因」+「基因产出速率 40-60/分钟」。
+ *   这两条本身就互相矛盾：5-10 × 任何合理击杀速率都远超 60/分钟。
+ *   而在割草形态下（100+ 只/分钟）矛盾放大到 20 倍。
+ *
+ *   此处取「小怪 1 基因」，让产出速率落在 ~100-150/分钟，
+ *   精英 / 阶段 BOSS / 位面之主的档位**保持 7.1 原值**不动 ——
+ *   于是「一只精英 = 上百只杂兵」的价值差被拉开，
+ *   正是割草里精英/BOSS 该有的分量。
+ *   配套调整：run.js 的升级阈值、balance.js 的 GENES_PER_GROWTH。
+ */
+export function geneDrop(kind, rng, minionRange = [1, 2]) {
   if (kind === 'boss') return randInt(200, 300, rng);
   if (kind === 'stageBoss') return randInt(80, 120, rng);
   if (kind === 'elite') return randInt(30, 50, rng);
-  return randInt(5, 10, rng);
+  return randInt(minionRange[0], minionRange[1], rng);
 }
 
 /** 属性通道装备掉率补偿倍率（平衡表 7.5） */
@@ -110,11 +123,11 @@ function rollLegendSkill(dungeon, save, rng) {
 }
 
 /** 普通击杀掉落（基因 + 可能的装备） */
-export function rollKillDrop(dungeon, save, kind, rng) {
+export function rollKillDrop(dungeon, save, kind, rng, minionRange) {
   const isAttrChannel = dungeon.channel === 'attr';
   const isZhutian = dungeon.plane.id === ZHUTIAN_ID;
   return {
-    genes: geneDrop(kind, rng),
+    genes: geneDrop(kind, rng, minionRange),
     gear: rollCommonGear(kind, isAttrChannel, isZhutian, rng),
   };
 }

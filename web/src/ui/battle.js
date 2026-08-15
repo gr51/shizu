@@ -10,7 +10,7 @@ import * as view from './view.js';
 export function renderBattle(ctx) {
   const { save, run } = ctx;
   const d = run.dungeon;
-  const target = run.target;
+  const boss = run.boss;
 
   view.setMeta(metaLine(save, `副本 D <b>${d.D.toFixed(1)}</b>`));
   view.setTitle(`${d.plane.name} · ${d.plane.theme}`);
@@ -18,13 +18,15 @@ export function renderBattle(ctx) {
   const channelText = d.channel === 'skill'
     ? `<b class="gold">技能通道</b>（${d.channelRoutes.map((r) => ROUTES[r].name).join('/')}）`
     : '<b>属性通道</b>（零技能 · 装备掉率 ×1.5）';
-  const targetText = target
-    ? `　当前目标：<b>${target.name}</b> HP ${Math.max(0, Math.round(target.hp))}/${target.maxHp}`
-      + (target.kind === 'boss' ? ' <span class="gold">【位面之主】</span>' : target.kind === 'elite' ? ' 【精英】' : '')
-    : '';
+  const mm = String(Math.floor(run.elapsed / 60)).padStart(2, '0');
+  const ss = String(run.elapsed % 60).padStart(2, '0');
+  const bossText = boss
+    ? `　<b class="${boss.kind === 'boss' ? 'gold' : ''}">${boss.name}</b> HP ${Math.max(0, Math.round(boss.hp))}/${boss.maxHp}`
+      + (boss.kind === 'boss' ? ' <span class="gold">【位面之主】</span>' : ' 【精英】')
+    : `　本阶段剩余 ${run.stageRemain}s`;
   view.setDesc(
-    `阶段 ${run.stageNo}/5 · 波次 ${run.waveIndex + 1}/${run.stage.waves.length}`
-    + ` · ${DIFFICULTY_LABEL[d.difficultyLevel]} · ${channelText}${targetText}`,
+    `阶段 ${run.stageNo}/5 · ⏱ ${mm}:${ss} · 同屏 <b>${run.onScreen}</b> 只 · 已割 <b>${run.kills}</b>`
+    + ` · ${DIFFICULTY_LABEL[d.difficultyLevel]} · ${channelText}${bossText}`,
   );
 
   view.setCards({
@@ -39,7 +41,7 @@ export function renderBattle(ctx) {
   switch (run.state) {
     case RunState.FIGHTING:
       view.setAdvance(true, '前 进 ▶', () => { run.step(); renderBattle(ctx); });
-      view.setHint('点击「前进」推进一次交锋');
+      view.setHint('每次「前进」= 3 秒战斗：刷怪 → 横扫 → 被围受击');
       break;
     case RunState.CHOOSING:
       view.setAdvance(false);
@@ -102,13 +104,16 @@ function showSettle(ctx) {
   const r = run.finalize(repo);
 
   const lines = [];
-  lines.push(`<div class="diff-row">评级 <b class="gold" style="font-size:18px">${r.grade}</b>　抵达阶段 ${r.stageReached}/5　击杀 ${r.kills}</div>`);
+  const mm = Math.floor(r.survivedSec / 60);
+  const ss = String(r.survivedSec % 60).padStart(2, '0');
+  lines.push(`<div class="diff-row">评级 <b class="gold" style="font-size:18px">${r.grade}</b>　抵达阶段 ${r.stageReached}/5　存活 ${mm}:${ss}</div>`);
+  lines.push(`<div class="diff-row">噬灭 <b class="gold">${r.kills}</b> 只（杂兵 ${r.minionKills}）</div>`);
   lines.push(`<div class="diff-row">吞噬基因 <b class="gold">${r.genes}</b></div>`);
 
   if (r.growth.grants.length) {
     lines.push(`<div class="diff-row">永久成长：${r.growth.grants.map((g) => `${g.label} +${g.pct}%`).join('，')}</div>`);
   } else {
-    lines.push(`<div class="diff-row small">基因不足以兑换永久成长（每 600 基因 1 次）</div>`);
+    lines.push(`<div class="diff-row small">基因不足以兑换永久成长（每 1500 基因 1 次）</div>`);
   }
 
   for (const a of r.activations) {

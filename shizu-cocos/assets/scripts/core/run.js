@@ -1,20 +1,54 @@
-// ===== core/run.js · 单局状态机（5 阶段连打 → 结算）=====
-// 来源：《噬祖-开发实现指南》13.1 / 13.2 / 13.3；《噬祖-整体策划》2.2 / 4.3
+// ===== core/run.js · 单局状态机（15 分钟割草时间轴 → 结算）=====
+// 来源：《噬祖-开发实现指南》13.1 / 13.2 / 13.3；《噬祖-整体策划》2.2 / 2.4 / 3.2 / 4.3
+//
+// 【形态：割草生存，不是逐波清怪】
+//   一次 step() = 一个 TICK_SECONDS 的时间片：刷怪 → 横扫 → 被围受击 → 推进时钟。
+//   小怪源源不断，阶段内有若干次**涌潮**（大波）；阶段计时到点刷出精英/阶段BOSS，
+//   击杀它才过阶段（整体策划 2.4）。第 5 阶段的收尾单位是位面之主。
 //
 // 红线 2：D 已在 generateDungeon 快照，局内 Build 只改玩家，不改敌人。
-// 红线 6：所有跨局写入集中在 finalizeRun 末尾**一次** persist。
+// 红线 6：所有跨局写入集中在 finalize 末尾**一次** persist。
 
 import { activateRoute, chargeGeneLock } from './geneLock.js';
 import { adjustDynamicFactor, applyPermGrowth, calcDamage, combatStats } from './balance.js';
-import { enemyHits, resolveAttackCount } from './combatModel.js';
+import { TICK_SECONDS, contactHits, sweepTargets } from './combatModel.js';
+import { MAX_ONSCREEN } from './dungeon.js';
 import { applyAttrOption, rollUpgradeOptions } from './upgrade.js';
 import { applyHiddenSkill, engravedSkills, learnSkill } from './skillSlots.js';
 import { rollBossDrop, rollKillDrop } from './drop.js';
 import { ZHUTIAN_ID } from '../data/planes.js';
+import { skillsByRoute } from '../data/skills.js';
+import { activatedRoutes, geneLockLevel } from './geneLock.js';
 import { rngFactory } from './rng.js';
 
-/** 局内升级基因阈值（平衡表 7.1：80 → 120 → 170 → 230 → 300 …递增） */
-export const UPGRADE_GENE_STEPS = [80, 120, 170, 230, 300, 380, 470, 570];
+/**
+ * 局内升级的累计基因阈值。
+ * 平衡表 7.1 给的是 80→120→170→230→300 递增，但那套数是按
+ * 「小怪掉 5-10 基因、6-10 只/分钟」标的；割草下击杀量高一个量级，
+ * 小怪改为掉 1 基因（见 drop.js），故阈值同比重标，
+ * 保持整体策划 4.3「单局总计 6-12 次升级」的节奏不变。
+ */
+export const UPGRADE_GENE_STEPS = [120, 260, 420, 600, 800, 1020, 1260, 1520, 1800, 2100];
+
+/**
+ * 主动技折算成「持续贡献」的权重。
+ *
+ * 单纯按占空比（duration / cd）会**严重低估割草里的爆发清场**：
+ * 九重雷劫 3s/CD60s 占空比只有 5%，但一局 15 分钟能放 15 次，
+ * 每次清空整屏（同屏上限 60）≈ 900 次击杀，占全局击杀的三分之一。
+ * 在同屏有上限的割草里，「周期性清空屏幕」的价值与它的持续时间无关。
+ *
+ * 故取 max(占空比, BURST_FLOOR)。实测支撑：不给这个下限时，
+ * 单路线 Lv1→Lv6 的通关率会从 13% 倒挂到 3%（越深越弱），
+ * 因为 Lv5/Lv6 恰好都是主动终极技，只抬 D 不给战力。
+ */
+export const BURST_FLOOR = 0.35;
+
+export function dutyCycle(skill) {
+  if (skill.kind !== 'active' || !skill.cd) return 1;
+  const duration = skill.eff?.duration ?? skill.eff?.summonDuration ?? 0;
+  return Math.max(BURST_FLOOR, Math.min(1, duration / skill.cd));
+}
 
 export const RunState = {
   FIGHTING: 'fighting',
@@ -38,23 +72,30 @@ export class Run {
     this.log = [];
 
     const base = combatStats(save.player);
-    this.stats = { ...base, maxHp: base.hp };
+    this.stats = { ...base, maxHp: base.hp, aoe: 0 };
     this.hp = base.hp;
 
-    this.stageIndex = 0;   // 0-4 对应阶段 1-5
-    this.waveIndex = 0;
-    this.enemies = [];
+    this.stageIndex = 0;
+    this.stageElapsed = 0;      // 本阶段已过秒数
+    this.elapsed = 0;           // 全局已过秒数
+    this.enemies = [];          // 同屏敌人
+    this.spawnCarry = 0;        // 刷怪小数累积
+    this.minionsFaced = 0;      // 本时间片里出现过的杂兵数（被围压力的输入）
+    this.surgeDone = 0;         // 本阶段已触发的涌潮数
+    this.closerSpawned = false; // 本阶段收尾单位是否已刷出
+
     this.genes = 0;
     this.geneStep = 0;
     this.kills = 0;
+    this.minionKills = 0;
     this.gearFound = [];
     this.learnedSkills = new Set();
     this.takenAttrs = new Set();
     this.pendingOptions = null;
     this.pendingSkill = null;
-    this.pendingHidden = null;
     this.state = RunState.FIGHTING;
     this.result = null;
+    this.bossDrop = null;
 
     // 指南 13.1 onRunStart：隐藏刻印开局自动装载，永不入三选一池
     this.engraved = engravedSkills(save);
@@ -63,12 +104,57 @@ export class Run {
       this.emit(`【刻印生效】${s.name}`, 'hidden');
     }
 
+    // ★ 基因锁：已解锁段位开局自动生效 —— 这是本作的核心特色，不是抽卡池深度
+    this.geneLockSkills = this.equipGeneLockSkills();
+
     this.emit(`裂缝开启 —— 【${dungeon.plane.name}】${dungeon.plane.theme}`, 'stage');
     this.emit(
-      `通道：${dungeon.channel === 'skill' ? '技能通道（可学路线技能）' : '属性通道（零技能，装备掉率 ×1.5）'}`,
+      dungeon.channel === 'skill'
+        ? '通道：技能通道（可学该路线技能）'
+        : '通道：属性通道（零技能，装备掉率 ×1.5）',
       'info',
     );
-    this.loadWave();
+    this.emit(`—— 阶段 1 · ${dungeon.plane.theme} ——`, 'wave');
+  }
+
+  /**
+   * 开局装载基因锁已解锁的全部段位能力。
+   *
+   * 【策划裁定 · 基因锁不占技能槽】
+   *   基因锁是本作核心特色：跨局永久、账号唯一的进化图谱（整体策划 4.1 / 设计支柱 2）。
+   *   它**整条线都不受技能槽位限制** —— 解锁即生效，被动叠属性、主动进循环。
+   *   技能槽（主动×2 + 被动×2）只承载**局内三选一**拿到的技能与**隐藏技能刻印**。
+   *
+   *   ⚠ 这与《数值平衡表》4.7 的表述冲突 —— 该表把「基因锁主动段（Lv5 召唤类、
+   *   Lv6 终极技）」也列为主动槽来源。按裁定以本实现为准，4.7 待修订。
+   *   理由（实测支撑）：6 条路线满段共 12 个主动段抢 2 个槽，10 个作废，
+   *   而战力公式仍按 36 段全额 +2% 抬升 D，导致「满段比半段更难」——
+   *   Lv3 通关率 54%，Lv6 反而掉到 14%。核心成长线不该有这种倒挂。
+   *
+   * 主动段按**占空比**折算持续贡献：终极技是爆发不是常驻，
+   * 九重雷劫 3s/CD60s ⇒ 只按 5% 权重计入，避免把爆发当常驻数值。
+   */
+  equipGeneLockSkills() {
+    const loaded = [];
+    for (const route of activatedRoutes(this.save)) {
+      const lv = geneLockLevel(this.save, route);
+      for (const skill of skillsByRoute(route)) {
+        if (skill.lv > lv) continue;
+        if (this.learnedSkills.has(skill.id)) continue;   // 隐藏刻印已覆盖同名能力
+        this.learnedSkills.add(skill.id);                 // 已生效 → 不再进三选一池
+        this.applySkillEff(skill, dutyCycle(skill));
+        loaded.push(skill);
+      }
+    }
+    if (loaded.length) {
+      const names = loaded.map((s) => s.name);
+      this.emit(
+        `【基因锁 ${loaded.length} 段生效】${names.slice(0, 6).join('、')}`
+        + (names.length > 6 ? ` 等 ${names.length} 项` : ''),
+        'gene',
+      );
+    }
+    return loaded;
   }
 
   emit(text, cls = '') {
@@ -76,66 +162,161 @@ export class Run {
     if (this.log.length > 200) this.log.shift();
   }
 
-  get stage() {
-    return this.dungeon.stages[this.stageIndex];
-  }
+  get stage() { return this.dungeon.stages[this.stageIndex]; }
+  get stageNo() { return this.stageIndex + 1; }
+  get onScreen() { return this.enemies.length; }
+  get minionCount() { return this.enemies.filter((e) => e.kind === 'minion').length; }
+  get boss() { return this.enemies.find((e) => e.kind === 'boss' || e.kind === 'elite') ?? null; }
 
-  get stageNo() {
-    return this.stageIndex + 1;
-  }
+  /** 剩余时间（秒），UI 展示用 */
+  get stageRemain() { return Math.max(0, this.stage.duration - this.stageElapsed); }
 
-  get target() {
-    return this.enemies.find((e) => e.hp > 0) ?? null;
-  }
+  // ===== 一个时间片 =====
 
-  loadWave() {
-    const wave = this.stage.waves[this.waveIndex];
-    this.enemies = wave.enemies.map((e) => ({ ...e, maxHp: e.hp }));
-    this.emit(
-      `—— 阶段 ${this.stageNo}/5 · 第 ${this.waveIndex + 1}/${this.stage.waves.length} 波 ——`,
-      'wave',
-    );
-  }
-
-  /** 推进一次战斗交换。UI 的「前进」按钮调它。 */
   step() {
     if (this.state !== RunState.FIGHTING) return;
-    const target = this.target;
-    if (!target) return;
+    const st = this.stage;
 
-    // —— 玩家攻击（攻速决定本次交锋的出手次数）——
-    const swings = Math.max(1, resolveAttackCount(this.stats, this.rng));
-    let totalDmg = 0;
-    let anyCrit = false;
-    for (let i = 0; i < swings && target.hp > 0; i++) {
+    this.elapsed += TICK_SECONDS;
+    this.stageElapsed += TICK_SECONDS;
+
+    this.spawnPhase(st);
+    // 被围压力要按「这一片里**出现过**的怪」算，而不是横扫后的幸存者 ——
+    // 否则只要清怪速度压过刷怪速度，屏幕恒空、压力归零，生存就变成二值的：
+    // 实测那样 2 路线基因锁通关率 13%、4 路线直接跳到 100%，中间没有过渡。
+    this.minionsFaced = this.enemies.filter((e) => e.kind === 'minion').length;
+    this.sweepPhase();
+    if (this.state !== RunState.FIGHTING) return;
+    this.contactPhase(st);
+    if (this.state !== RunState.FIGHTING) return;
+
+    if (this.stats.regen > 0) {
+      this.heal(Math.round(this.stats.maxHp * this.stats.regen * TICK_SECONDS), '再生');
+    }
+  }
+
+  /** 持续刷怪 + 涌潮 + 阶段收尾单位 */
+  spawnPhase(st) {
+    // 持续流
+    this.spawnCarry += st.spawnRate * TICK_SECONDS;
+    let n = Math.floor(this.spawnCarry);
+    this.spawnCarry -= n;
+
+    // 涌潮：到点成群涌入
+    while (this.surgeDone < st.surges.length && this.stageElapsed >= st.surges[this.surgeDone].atSec) {
+      const surge = st.surges[this.surgeDone];
+      n += surge.count;
+      this.surgeDone += 1;
+      this.emit(`⚠ 涌潮！${surge.count} 只 ${st.minionName} 从裂隙涌出`, 'wave');
+    }
+
+    // 阶段计时到点 → 刷出精英 / 阶段 BOSS / 位面之主
+    if (!this.closerSpawned && this.stageElapsed >= st.closerAt) {
+      this.closerSpawned = true;
+      this.enemies.push({ ...st.closer, maxHp: st.closer.hp });
+      if (st.extraElite) {
+        this.enemies.push({ ...st.closer, name: `${st.closer.name}·其二`, maxHp: st.closer.hp });
+        this.emit(`【精英夹击】${st.closer.name} ×2 绕过战线直扑巢灵！`, 'death');
+      } else if (st.closer.kind === 'boss') {
+        this.emit(`【位面之主】${st.closer.name} 降临 —— ${st.closer.desc ?? ''}`, 'death');
+      } else {
+        this.emit(`【${st.closer.name}】出现`, 'death');
+      }
+    }
+
+    const room = MAX_ONSCREEN - this.enemies.length;
+    const spawn = Math.max(0, Math.min(n, room));
+    for (let i = 0; i < spawn; i++) {
+      this.enemies.push({
+        kind: 'minion',
+        name: st.minionName,
+        hp: st.minion.hp,
+        maxHp: st.minion.hp,
+        atk: st.minion.atk,
+      });
+    }
+  }
+
+  /**
+   * 玩家横扫：割草的主循环。
+   *
+   * 精英 / 位面之主**每片必定吃一次伤害** —— 它们体型大、始终在攻击范围内，
+   * 不会因为同屏挤满杂兵就打不到。（早期版本让杂兵抢占了全部横扫名额，
+   * 结果同屏一满精英就永远杀不死，玩家必被耗死。）
+   * 横扫名额只用来清杂兵。
+   */
+  sweepPhase() {
+    if (this.enemies.length === 0) return;
+    let killed = 0;
+    let killedElite = 0;
+    let damage = 0;
+
+    const hit = (e) => {
       const isCrit = this.rng() < this.stats.crit;
-      anyCrit = anyCrit || isCrit;
-      const variance = 0.85 + this.rng() * 0.3;
-      const dmg = Math.round(calcDamage(this.stats.atk * variance, 1, isCrit));
-      target.hp -= dmg;
-      totalDmg += dmg;
-    }
-    this.emit(
-      `你${anyCrit ? '<b class="crit">暴击</b>' : ''}命中 ${target.name}${swings > 1 ? ` ×${swings}` : ''}，`
-        + `造成 <b>${totalDmg}</b> 伤害`
-        + (target.hp <= 0 ? '，<b>击杀</b>' : `（剩 ${Math.max(0, Math.round(target.hp))}）`),
-      'atk',
-    );
+      const dmg = Math.round(calcDamage(this.stats.atk * (0.85 + this.rng() * 0.3), 1, isCrit));
+      e.hp -= dmg;
+      damage += dmg;
+      if (e.hp <= 0) {
+        killed += 1;
+        if (e.kind !== 'minion') killedElite += 1;
+        this.onKill(e);
+        return true;
+      }
+      return false;
+    };
 
-    if (this.stats.lifesteal > 0) {
-      const heal = Math.round(totalDmg * this.stats.lifesteal);
-      if (heal > 0) this.heal(heal, '吸血');
-    }
-
-    if (target.hp <= 0) {
-      this.onKill(target);
-      if (this.state !== RunState.FIGHTING) return;
-    } else {
-      this.enemyTurn(target);
+    // 1) 大件：精英 / BOSS 恒定挨打
+    for (const e of this.enemies.filter((x) => x.kind !== 'minion')) {
+      if (e.hp > 0) hit(e);
       if (this.state !== RunState.FIGHTING) return;
     }
 
-    if (this.stats.regen > 0) this.heal(Math.round(this.stats.maxHp * this.stats.regen), '再生');
+    // 2) 杂兵：横扫范围内每只各吃一次攻击（AOE 是「同时打到多个」，不是「伤害翻倍」）
+    const sweep = sweepTargets(this.stats);
+    const minions = this.enemies.filter((e) => e.kind === 'minion' && e.hp > 0);
+    const swept = Math.min(sweep, minions.length);
+    for (let i = 0; i < swept; i++) {
+      hit(minions[i]);
+      if (this.state !== RunState.FIGHTING) return;
+    }
+
+    this.enemies = this.enemies.filter((e) => e.hp > 0);
+
+    if (this.stats.lifesteal > 0 && damage > 0) {
+      this.heal(Math.round(damage * this.stats.lifesteal), '吸血');
+    }
+    if (killed > 0) {
+      this.emit(
+        `横扫 ${swept} 只杂兵，击杀 <b>${killed}</b>`
+        + (killedElite ? `（含 ${killedElite} 个精锐）` : '')
+        + `　同屏剩 ${this.enemies.length}`,
+        'atk',
+      );
+    }
+  }
+
+  /** 被围受击 */
+  contactPhase(st) {
+    const hits = contactHits(this.enemies, this.stats, this.stageNo, this.rng, this.minionsFaced);
+    for (const h of hits) {
+      let dmg = h.enemy.atk * (0.85 + this.rng() * 0.3) * (1 - this.stats.dmgReduct);
+      // 杂兵是「被一群蹭到」，按同屏数量放大，但有上限
+      if (h.kind === 'minion') dmg *= 1 + Math.min(2, this.minionsFaced * 0.04);
+      dmg = Math.max(1, Math.round(dmg));
+      this.hp -= dmg;
+      this.emit(
+        h.kind === 'minion'
+          ? `被 ${st.minionName} 群围，受到 <b>${dmg}</b> 伤害`
+          : `${h.enemy.name} 突破走位，受到 <b>${dmg}</b> 伤害`,
+        'dmg',
+      );
+      if (this.hp <= 0) {
+        this.hp = 0;
+        this.state = RunState.LOST;
+        this.emit('生命耗尽，你倒在裂缝之中……', 'death');
+        return;
+      }
+    }
   }
 
   heal(amount, reason) {
@@ -146,40 +327,45 @@ export class Run {
     if (gained > 0) this.emit(`${reason} 回复 <b>${gained}</b> 生命`, 'heal');
   }
 
-  enemyTurn(enemy) {
-    // 走位 / 闪避 / 无敌帧的回合制抽象，见 core/combatModel.js
-    if (!enemyHits(enemy, this.stats, this.stageNo, this.rng)) return;
-    const variance = 0.85 + this.rng() * 0.3;
-    let dmg = enemy.atk * variance * (1 - this.stats.dmgReduct);
-    dmg = Math.max(1, Math.round(dmg));
-    this.hp -= dmg;
-    this.emit(`${enemy.name} 突破走位，你受到 <b>${dmg}</b> 伤害`, 'dmg');
-    if (this.hp <= 0) {
-      this.hp = 0;
-      this.state = RunState.LOST;
-      this.emit('生命耗尽，你倒在裂缝之中……', 'death');
-    }
-  }
-
   onKill(enemy) {
     this.kills += 1;
-    const kindForDrop = enemy.kind === 'boss' ? 'boss' : enemy.kind;
+    if (enemy.kind === 'minion') this.minionKills += 1;
 
-    if (kindForDrop === 'boss') {
+    if (enemy.kind === 'boss') {
       const drop = rollBossDrop(this.dungeon, this.save, this.rng);
+      this.bossDrop = drop;
       this.addGenes(drop.genes, false);
       for (const g of drop.gear) this.addGear(g);
-      this.bossDrop = drop;
-      this.emit(`击败位面之主 <b>${enemy.name}</b>！基因 +${drop.genes}`, 'win');
+      this.emit(`噬灭位面之主 <b>${enemy.name}</b>！基因 +${drop.genes}`, 'win');
       this.state = RunState.WON;
       return;
     }
 
+    const kindForDrop = enemy.kind === 'elite' ? 'stageBoss' : 'minion';
     const drop = rollKillDrop(this.dungeon, this.save, kindForDrop, this.rng);
     this.addGenes(drop.genes, true);
     if (drop.gear) this.addGear(drop.gear);
 
-    if (this.enemies.every((e) => e.hp <= 0)) this.onWaveCleared();
+    if (enemy.kind === 'elite') {
+      this.emit(`击破 <b>${enemy.name}</b>，基因 +${drop.genes}`, 'gene');
+      this.advanceStage();
+    }
+  }
+
+  /** 阶段收尾单位被击杀 → 进入下一阶段（整体策划 2.4） */
+  advanceStage() {
+    // 第 4 阶段是精英×2，两只都死才过
+    if (this.enemies.some((e) => e.kind === 'elite' && e.hp > 0)) return;
+    if (this.stageIndex + 1 >= this.dungeon.stages.length) return;
+
+    this.emit(`✨ 第 ${this.stageNo} 阶段肃清`, 'stage');
+    this.stageIndex += 1;
+    this.stageElapsed = 0;
+    this.surgeDone = 0;
+    this.closerSpawned = false;
+    this.spawnCarry = 0;
+    this.emit(`—— 阶段 ${this.stageNo} / 5 ——`, 'wave');
+    this.openChoice(`阶段 ${this.stageNo - 1} 完成`);
   }
 
   addGear(item) {
@@ -190,28 +376,13 @@ export class Run {
   addGenes(amount, allowUpgrade) {
     this.genes += amount;
     if (!allowUpgrade) return;
-    // 累积吞噬达阈值 → 三选一（整体策划 4.3）
     while (
-      this.geneStep < UPGRADE_GENE_STEPS.length &&
-      this.genes >= UPGRADE_GENE_STEPS[this.geneStep]
+      this.geneStep < UPGRADE_GENE_STEPS.length
+      && this.genes >= UPGRADE_GENE_STEPS[this.geneStep]
     ) {
       this.geneStep += 1;
       this.openChoice('吞噬充能已满');
     }
-  }
-
-  onWaveCleared() {
-    if (this.waveIndex + 1 < this.stage.waves.length) {
-      this.waveIndex += 1;
-      this.loadWave();
-      return;
-    }
-    this.emit(`✨ 第 ${this.stageNo} 阶段肃清`, 'stage');
-    if (this.stageIndex + 1 >= this.dungeon.stages.length) return;
-    this.stageIndex += 1;
-    this.waveIndex = 0;
-    this.openChoice(`阶段 ${this.stageNo - 1} 完成`);
-    this.loadWave();
   }
 
   // ===== 三选一 =====
@@ -228,7 +399,6 @@ export class Run {
     this.state = RunState.CHOOSING;
   }
 
-  /** 选择一个三选一选项 */
   choose(index) {
     if (this.state !== RunState.CHOOSING || !this.pendingOptions) return;
     const option = this.pendingOptions.options[index];
@@ -253,7 +423,6 @@ export class Run {
     this.commitSkill(option, res);
   }
 
-  /** 槽满时玩家选定要替换的槽位；slotKey 为 null = 放弃新技能 */
   resolveSlotConflict(slotKey) {
     if (this.state !== RunState.SLOT_CONFLICT || !this.pendingSkill) return;
     const { skill } = this.pendingSkill;
@@ -272,21 +441,25 @@ export class Run {
     } else {
       this.learnedSkills.add(skill.id);
       this.applySkillEff(skill);
-      const tail = res.replaced ? `（替换了 ${res.replaced.name}，旧技能销毁）` : '';
-      this.emit(`习得 <b>${skill.name}</b> · ${skill.route}·第${skill.lv}段${tail}`, 'learn');
+      const tail = res.replaced ? `（替换了 ${res.replaced.name}）` : '';
+      this.emit(`习得 <b>${skill.name}</b> · 第${skill.lv}段${tail}`, 'learn');
     }
     this.state = RunState.FIGHTING;
   }
 
-  /** 技能被动效果折算进局内战斗属性（主动技的释放留给 Cocos 实时战斗层） */
-  applySkillEff(skill) {
-    const e = skill.eff ?? {};
+  /**
+   * 技能被动效果折算进局内属性。
+   * 割草的关键：范围/溅射/弹幕类**统一进 aoe**，直接放大横扫宽度 ——
+   * 「一次清一片」的成长感就来自这里。
+   */
+  applySkillEff(skill, weight = 1) {
+    const e0 = skill.eff ?? {};
+    const e = weight === 1 ? e0 : Object.fromEntries(
+      Object.entries(e0).map(([k, v]) => [k, typeof v === 'number' ? v * weight : v]),
+    );
     if (e.atkPct) this.stats.atk *= 1 + e.atkPct;
     if (e.dmgPct) this.stats.atk *= 1 + e.dmgPct;
-    if (e.hpPct) {
-      this.stats.maxHp *= 1 + e.hpPct;
-      this.hp *= 1 + e.hpPct;
-    }
+    if (e.hpPct) { this.stats.maxHp *= 1 + e.hpPct; this.hp *= 1 + e.hpPct; }
     if (e.speedPct) this.stats.speed *= 1 + e.speedPct;
     if (e.aspdPct) this.stats.aspd *= 1 + e.aspdPct;
     if (e.crit) this.stats.crit += e.crit;
@@ -294,17 +467,28 @@ export class Run {
     if (e.regen) this.stats.regen += e.regen;
     if (e.dmgReduct) this.stats.dmgReduct = Math.min(0.9, this.stats.dmgReduct + e.dmgReduct);
     if (e.addFlatMul) this.stats.atk *= 1 + e.addFlatMul;
-    if (e.splashMul) this.stats.atk *= 1 + e.splashMul * 0.5;
     if (e.range) this.stats.range *= 1 + e.range;
+    // —— 割草成长：这些都变成「一次能扫到几只」——
+    if (e.splashMul) this.stats.aoe += e.splashMul;      // 践踏 / 震地
+    if (e.chain) this.stats.aoe += e.chain * 0.3;        // 雷链弹射
+    if (e.projectiles) this.stats.aoe += e.projectiles * 0.4; // 弹幕 +1
+    if (e.aoeMul) this.stats.aoe += e.aoeMul * 0.5;      // 九重雷劫 / 万剑归宗
+    if (e.corpseBlastMul) this.stats.aoe += e.corpseBlastMul; // 尸爆连锁
+    if (e.summon) this.stats.aoe += e.summon * 0.15;     // 召唤物帮着清
+    if (e.aoe) this.stats.aoe += e.aoe;
+    if (e.allStatsPct) {                       // 高达合体：全属性提升
+      this.stats.atk *= 1 + e.allStatsPct;
+      this.stats.maxHp *= 1 + e.allStatsPct;
+      this.hp *= 1 + e.allStatsPct;
+      this.stats.aspd *= 1 + e.allStatsPct;
+    }
+    if (e.burstMul) this.stats.aoe += e.burstMul * 0.5;   // 禁咒
+    if (e.devourHealPct) this.stats.lifesteal += e.devourHealPct;  // 饕餮巨口
+    if (e.killHealPct) this.stats.regen += e.killHealPct * 0.5;    // 度化
   }
 
   // ===== 结算（指南 13.3）=====
 
-  /**
-   * 结算本局。**唯一**跨局写入点。
-   * @param {object} repo createSaveRepo 的产物
-   * @returns {object} 结算摘要（供 UI 展示）
-   */
   finalize(repo) {
     if (this.state === RunState.SETTLED) return this.result;
     const victory = this.state === RunState.WON;
@@ -315,24 +499,20 @@ export class Run {
     p.totalRuns += 1;
     if (victory) p.wins += 1;
 
-    // 1) 首进激活（互斥封印随之生效）
     const activations = [];
     for (const r of plane.routes ?? []) {
       const ev = activateRoute(save, r);
       if (ev.newlyActivated) activations.push(ev);
     }
 
-    // 2) 基因锁充能（只给本副本的技能通道路线）
     const charges = [];
     for (const r of this.dungeon.channelRoutes) {
       const c = chargeGeneLock(save, r, this.genes);
       if (c.to > c.from) charges.push({ route: r, ...c });
     }
 
-    // 3) 永久属性转化
     const growth = applyPermGrowth(save, this.genes);
 
-    // 4) 传承 / 传说技能入库
     const drop = this.bossDrop;
     if (drop) {
       for (const relic of drop.relics) {
@@ -343,20 +523,13 @@ export class Run {
       }
     }
 
-    // 5) 装备入库
     for (const g of this.gearFound) p.gearBag.push(g);
 
-    // 6) 隐藏技能永久刻印
     let engraveResult = null;
-    if (drop?.hiddenSkill) {
-      engraveResult = applyHiddenSkill(save, drop.hiddenSkill.id);
-      if (engraveResult.result === 'needChoice') this.pendingHidden = engraveResult;
-    }
+    if (drop?.hiddenSkill) engraveResult = applyHiddenSkill(save, drop.hiddenSkill.id);
 
-    // 7) 难度进化
     const dyn = adjustDynamicFactor(save, victory, this.rng);
 
-    // 8) 首通诸天之心
     let firstClear = false;
     if (plane.id === ZHUTIAN_ID && victory && !save.stats.firstClear) {
       save.stats.firstClear = true;
@@ -364,8 +537,7 @@ export class Run {
       firstClear = true;
     }
 
-    // 9) 红线 6：一次性落盘
-    repo.persist(save);
+    repo.persist(save);   // 红线 6：一次性落盘
 
     this.state = RunState.SETTLED;
     this.result = {
@@ -373,6 +545,8 @@ export class Run {
       plane,
       stageReached: this.stageNo,
       kills: this.kills,
+      minionKills: this.minionKills,
+      survivedSec: this.elapsed,
       genes: this.genes,
       gear: this.gearFound,
       relics: drop?.relics ?? [],
@@ -390,9 +564,9 @@ export class Run {
   }
 }
 
-/** 结算评级 S/A/B/C（整体策划 6.1 结算页） */
+/** 结算评级 S/A/B/C（整体策划 6.1 结算页），割草下按击杀量给 S */
 export function gradeRun(victory, stageReached, kills) {
-  if (victory && kills >= 40) return 'S';
+  if (victory && kills >= 900) return 'S';
   if (victory) return 'A';
   if (stageReached >= 4) return 'B';
   return 'C';

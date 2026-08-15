@@ -2,7 +2,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateDungeon, spawnStyleHpMul } from '../shizu-cocos/assets/scripts/core/dungeon.js';
+import { generateDungeon, spawnStyleHpMul, spawnStyleRateMul } from '../shizu-cocos/assets/scripts/core/dungeon.js';
 import { computePower, STAGE_COEF, UNIT_BASE } from '../shizu-cocos/assets/scripts/core/balance.js';
 import { activateRoute, chargeGeneLock, GENE_LOCK_MAX, isSealed, segmentForCharge } from '../shizu-cocos/assets/scripts/core/geneLock.js';
 import { applyHiddenSkill, learnSkill, SLOT_KEYS, allSlotsEngraved, rollHiddenSkill } from '../shizu-cocos/assets/scripts/core/skillSlots.js';
@@ -40,7 +40,7 @@ test('位面表 = 12 个，图鉴号 1-12 连续', () => {
   assert.deepEqual(planes.map((p) => p.codex), [1,2,3,4,5,6,7,8,9,10,11,12]);
 });
 
-test('波次表与平衡表 五章一致（含尸海+1波 / 山海·巨神-1波已烘焙）', () => {
+test('涌潮次数表与平衡表 五章的「波次」列一致', () => {
   assert.deepEqual(plane('jiguan').waves, [3, 5, 3, 4]);
   assert.deepEqual(plane('shihai').waves, [5, 6, 4, 5]);
   assert.deepEqual(plane('shanhai').waves, [4, 4, 3, 4]);
@@ -53,16 +53,15 @@ test('红线1：12 个位面在同一 D 下，敌人数值完全相同（不得�
   const save = freshSave({ totalRuns: 5 });
   const statsOf = (p) => {
     const d = generateDungeon(p, save, 1);
-    const boss = d.stages[4].waves[0].enemies[0];
+    const boss = d.stages[4].closer;
     return {
-      minion: d.stages[0].waves[0].enemies.find((e) => e.kind === 'minion').hp,
-      elite: d.stages[2].waves.at(-1).enemies.find((e) => e.kind === 'elite').hp,
-      // BOSS 剥离掉「差一点」的 1.10~1.15 每局随机系数后再比
+      minion: d.stages[0].minion.hp,
+      elite: d.stages[2].closer.hp,
       bossNormalized: Math.round(boss.hp / d.stages[4].coef),
       bossCoef: d.stages[4].coef,
     };
   };
-  // 只比标准型位面：数量型/单体型对小怪 HP 有文档明许的 ×0.75 / ×1.5
+  // 只比标准型：数量型/单体型对小怪 HP 有文档明许的 ×0.75 / ×1.5
   const standard = planes.filter((p) => p.spawnStyle === 'standard');
   const baseline = statsOf(standard[0]);
   for (const p of standard.slice(1)) {
@@ -76,44 +75,43 @@ test('红线1：12 个位面在同一 D 下，敌人数值完全相同（不得�
 
 test('红线1：data/planes.js 里的逐位面 HP 表**不得**流入战斗数值', () => {
   const save = freshSave({ totalRuns: 5 });
-  // 巨神界模板标了 bossHp 900，机关城标 300；红线 1 要求两者实际一致
-  const jushen = generateDungeon(plane('jushen'), save, 1).stages[4].waves[0].enemies[0];
-  const jiguan = generateDungeon(plane('jiguan'), save, 1).stages[4].waves[0].enemies[0];
+  const jushen = generateDungeon(plane('jushen'), save, 1).stages[4].closer;
+  const jiguan = generateDungeon(plane('jiguan'), save, 1).stages[4].closer;
   assert.notEqual(plane('jushen').bossHp, plane('jiguan').bossHp, '前提：模板值确实不同');
-  assert.equal(jushen.hp, jiguan.hp, '模板值泄漏进了战斗数值 —— 违反红线 1');
+  assert.equal(
+    Math.round(jushen.hp / generateDungeon(plane('jushen'), save, 1).stages[4].coef),
+    Math.round(jiguan.hp / generateDungeon(plane('jiguan'), save, 1).stages[4].coef),
+    '模板值泄漏进了战斗数值 —— 违反红线 1',
+  );
 });
 
 test('红线1：敌人数值严格等于 通用基准 × D × 阶段系数 × dynFactor', () => {
   const save = freshSave({ totalRuns: 5 });
   const d = generateDungeon(plane('aofa'), save, 1);
-  const minion = d.stages[0].waves[0].enemies.find((e) => e.kind === 'minion');
-  assert.equal(minion.hp, Math.ceil(UNIT_BASE.minion.baseHp * d.D * STAGE_COEF[0] * d.dynFactor));
-  assert.equal(minion.atk, Math.ceil(UNIT_BASE.minion.baseAtk * d.D * STAGE_COEF[0] * d.dynFactor));
-
-  const boss = d.stages[4].waves[0].enemies[0];
-  assert.equal(boss.hp, Math.ceil(UNIT_BASE.boss.baseHp * d.D * d.stages[4].coef * d.dynFactor));
+  const st = d.stages[0];
+  assert.equal(st.minion.hp, Math.ceil(UNIT_BASE.minion.baseHp * d.D * STAGE_COEF[0] * d.dynFactor));
+  assert.equal(st.minion.atk, Math.ceil(UNIT_BASE.minion.baseAtk * d.D * STAGE_COEF[0] * d.dynFactor));
+  assert.equal(d.stages[4].closer.hp, Math.ceil(UNIT_BASE.boss.baseHp * d.D * d.stages[4].coef * d.dynFactor));
 });
 
-test('红线1：通用基准 = 平衡表 三章的 小怪20/3 · 精英150/8 · 之主300/12', () => {
-  assert.deepEqual(UNIT_BASE, {
-    minion: { baseHp: 20, baseAtk: 3 },
-    elite: { baseHp: 150, baseAtk: 8 },
-    boss: { baseHp: 300, baseAtk: 12 },
-  });
+test('红线1：精英与位面之主基准仍是平衡表三章的 150/8 与 300/12', () => {
+  assert.deepEqual(UNIT_BASE.elite, { baseHp: 150, baseAtk: 8 });
+  assert.deepEqual(UNIT_BASE.boss, { baseHp: 300, baseAtk: 12 });
 });
 
-test('红线1：数量型/单体型只改小怪 HP 倍率（0.75 / 1.5），是文档明许的唯一位面差异', () => {
+test('红线1：数量型/单体型只改小怪 HP 与配套刷怪速率，精英/BOSS 不受影响', () => {
   assert.equal(spawnStyleHpMul('horde'), 0.75);
   assert.equal(spawnStyleHpMul('single'), 1.5);
   assert.equal(spawnStyleHpMul('standard'), 1.0);
+  // 速率修正 = 1/HP修正 ⇒ 血量吞吐守恒，位面难度不因类型而变
+  assert.equal((spawnStyleHpMul('horde') * spawnStyleRateMul('horde')).toFixed(6), '1.000000');
+  assert.equal((spawnStyleHpMul('single') * spawnStyleRateMul('single')).toFixed(6), '1.000000');
 
   const save = freshSave({ totalRuns: 5 });
   const d = generateDungeon(plane('shihai'), save, 1);
-  const minion = d.stages[0].waves[0].enemies.find((e) => e.kind === 'minion');
-  assert.equal(minion.hp, Math.ceil(20 * 0.75 * d.D * STAGE_COEF[0] * d.dynFactor));
-  // 精英与 BOSS 不受 spawnStyle 影响
-  const boss = d.stages[4].waves[0].enemies[0];
-  assert.equal(boss.hp, Math.ceil(300 * d.D * d.stages[4].coef * d.dynFactor));
+  assert.equal(d.stages[0].minion.hp, Math.ceil(5 * 0.75 * d.D * STAGE_COEF[0] * d.dynFactor));
+  const std = generateDungeon(plane('aofa'), save, 1);
+  assert.equal(d.stages[2].closer.hp, std.stages[2].closer.hp, '精英不该受 spawnStyle 影响');
 });
 
 // ===== 红线 2：D 在开副本时快照 =====
@@ -122,15 +120,16 @@ test('红线2：开局后玩家变强，副本 D 与敌人数值一律不变', (
   const save = freshSave({ totalRuns: 5 });
   const d = generateDungeon(plane('aofa'), save, 1);
   const snapshotD = d.D;
-  const bossHp = d.stages[4].waves[0].enemies[0].hp;
+  const bossHp = d.stages[4].closer.hp;
+  const minionHp = d.stages[0].minion.hp;
 
-  // 局内暴富：穿满传说装备 + 拉满永久属性
   save.player.gear.claw = generateGear(rng(1), 'gold', 'claw');
   save.player.permAtkPct = 400;
   assert.ok(computePower(save.player) > d.power, '前提：玩家确实变强了');
 
   assert.equal(d.D, snapshotD, 'D 被局内成长污染了');
-  assert.equal(d.stages[4].waves[0].enemies[0].hp, bossHp, '敌人数值被局内成长污染了');
+  assert.equal(d.stages[4].closer.hp, bossHp, 'BOSS 数值被局内成长污染了');
+  assert.equal(d.stages[0].minion.hp, minionHp, '小怪数值被局内成长污染了');
 });
 
 test('同 seed 生成的副本完全一致（每日挑战可比性的前提）', () => {
