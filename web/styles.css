@@ -34,7 +34,7 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-width: 1180px;
+  max-width: 1280px; /* 横屏：960×640 设计分辨率的桌面验证壳 */
   margin: 0 auto;
 }
 
@@ -56,7 +56,7 @@ html, body {
 /* —— 主区 —— */
 #stage {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 340px;
   gap: 16px;
   padding: 16px 20px;
   flex: 1;

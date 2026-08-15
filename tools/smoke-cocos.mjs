@@ -15,6 +15,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, '.tmp/cocos-smoke');
+// tsc 的 include/rootDir 需用正斜杠，否则 Windows 反斜杠会被 JSON 读成转义、匹配不到文件
+const fwd = (p) => p.replace(/\\/g, '/');
 
 const errors = [];
 const ok = (m) => console.log(`  ✓ ${m}`);
@@ -29,14 +31,14 @@ const tsconfig = {
     target: 'ES2021', module: 'commonjs', moduleResolution: 'node',
     strict: false, experimentalDecorators: true, esModuleInterop: true,
     allowJs: true, checkJs: false, skipLibCheck: true,
-    outDir, rootDir: path.join(root, 'shizu-cocos'),
-    baseUrl: path.join(root, 'shizu-cocos'),
-    paths: { cc: [path.join(root, 'shizu-cocos/types/cc.d.ts')] },
+    outDir: fwd(outDir), rootDir: fwd(path.join(root, 'shizu-cocos')),
+    baseUrl: fwd(path.join(root, 'shizu-cocos')),
+    paths: { cc: [fwd(path.join(root, 'shizu-cocos/types/cc.d.ts'))] },
   },
   include: [
-    path.join(root, 'shizu-cocos/assets/**/*.ts'),
-    path.join(root, 'shizu-cocos/assets/**/*.js'),
-    path.join(root, 'shizu-cocos/types/**/*.d.ts'),
+    fwd(path.join(root, 'shizu-cocos/assets/**/*.ts')),
+    fwd(path.join(root, 'shizu-cocos/assets/**/*.js')),
+    fwd(path.join(root, 'shizu-cocos/types/**/*.d.ts')),
   ],
 };
 const tmpConfig = path.join(root, '.tmp/tsconfig.smoke.json');

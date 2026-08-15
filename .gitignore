@@ -26,3 +26,8 @@ tools/screenshot-*.png
 
 # local AI tooling
 .omo/
+.ace-tool/
+
+# Cocos 编辑器本地状态 & 预览截图
+.tmp-*.png
+shizu-cocos/.creator/

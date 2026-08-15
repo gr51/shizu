@@ -1,25 +1,13 @@
 {
   "general": {
     "design-resolution": {
-      "width": 640,
-      "height": 960,
+      "width": 960,
+      "height": 640,
       "fit-width": false,
       "fit-height": true
     },
     "simulator": {
-      "orientation": "portrait"
-    }
-  },
-  "engine": {
-    "include-modules": {
-      "2d": true,
-      "animation": true,
-      "audio": true,
-      "base": true,
-      "particle-2d": true,
-      "physics-2d-box2d": true,
-      "spine": false,
-      "ui": true
+      "orientation": "landscape"
     }
   },
   "physics": {

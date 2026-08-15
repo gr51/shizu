@@ -3,12 +3,12 @@
 // 好处：场景文件保持最小、可 diff、不依赖编辑器手工摆放；
 // 接素材阶段把这里的 drawPanel/drawButton 换成 Sprite 即可，调用方不用改。
 //
-// 设计分辨率 640×960（竖屏，整体策划 1.1）。Canvas 居中锚点 ⇒ x∈[-320,320], y∈[-480,480]。
+// 设计分辨率 960×640（横屏，本轮由竖屏改为横屏）。Canvas 居中锚点 ⇒ x∈[-480,480], y∈[-320,320]。
 
 import { Color, Graphics, Label, Node, UIOpacity, UITransform, Vec3, tween } from 'cc';
 
-export const DESIGN = { width: 640, height: 960 };
-export const SAFE = { top: 430, bottom: -440 };
+export const DESIGN = { width: 960, height: 640 };
+export const SAFE = { top: 280, bottom: -280 };
 
 /** 配色（对齐 web 原型的虫巢暗色底 + 基因青 + 位面金） */
 export const C = {
@@ -121,7 +121,7 @@ const BTN_LINE: Record<ButtonStyle, string> = {
 
 /**
  * 按钮。热区强制 ≥ 88×88pt 的一半高度（整体策划 2.3：可点区 ≥ 44×44pt，
- * 640×960 设计分辨率下 1pt ≈ 1px，故最小高度取 56 留余量）。
+ * 960×640 设计分辨率下 1pt ≈ 1px，故最小高度取 56 留余量）。
  */
 export function makeButton(
   parent: Node,

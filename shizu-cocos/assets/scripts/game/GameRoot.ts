@@ -9,23 +9,23 @@ import { C, DESIGN, clearChildren, drawBar, drawPanel, makeButton, makeDivider, 
 import { ModalLayer, ModalRow } from './ModalLayer';
 import { createStorage } from '../platform/storage';
 
-import { createSaveRepo } from '../core/save';
-import { computePower, dungeonDifficulty, DIFFICULTY_COEF, DIFFICULTY_LABEL, combatStats, geneLockPowerBonus } from '../core/balance';
-import { generateDungeon, MAX_ONSCREEN } from '../core/dungeon';
-import { previewPlane, rollPlane } from '../core/planePool';
-import { Run, RunState } from '../core/run';
-import { rngFactory } from '../core/rng';
-import { activatableRoutes, activatedRoutes, chargeToNextSegment, geneLockLevel, isSealed } from '../core/geneLock';
-import { affixText, gearPowerBonus, salvageGear } from '../core/gear';
-import { SLOT_KEYS, SLOT_LABEL } from '../core/skillSlots';
-import { ROUTES, ALL_ROUTES, mutexOf } from '../data/routes';
-import { planes } from '../data/planes';
-import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY } from '../data/attrPool';
-import { nestLine } from '../data/lines';
+import { createSaveRepo } from '../core/save.js';
+import { computePower, dungeonDifficulty, DIFFICULTY_COEF, DIFFICULTY_LABEL, combatStats, geneLockPowerBonus } from '../core/balance.js';
+import { generateDungeon, MAX_ONSCREEN } from '../core/dungeon.js';
+import { previewPlane, rollPlane } from '../core/planePool.js';
+import { Run, RunState } from '../core/run.js';
+import { rngFactory } from '../core/rng.js';
+import { activatableRoutes, activatedRoutes, chargeToNextSegment, geneLockLevel, isSealed } from '../core/geneLock.js';
+import { affixText, gearPowerBonus, salvageGear } from '../core/gear.js';
+import { SLOT_KEYS, SLOT_LABEL } from '../core/skillSlots.js';
+import { ROUTES, ALL_ROUTES, mutexOf } from '../data/routes.js';
+import { planes } from '../data/planes.js';
+import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY } from '../data/attrPool.js';
+import { nestLine } from '../data/lines.js';
 
 const { ccclass } = _decorator;
 
-const LOG_LINES = 9;
+const LOG_LINES = 7;
 
 @ccclass('GameRoot')
 export class GameRoot extends Component {
@@ -49,10 +49,10 @@ export class GameRoot extends Component {
     sizeOf(bg, DESIGN.width, DESIGN.height);
     drawPanel(bg, DESIGN.width, DESIGN.height, C.bg, '', 0);
 
-    this.header = makeLabel(this.node, '', 0, 448, {
+    this.header = makeLabel(this.node, '', 0, 296, {
       size: 16, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 24,
     });
-    makeDivider(this.node, 430, DESIGN.width - 40);
+    makeDivider(this.node, 276, DESIGN.width - 40);
 
     this.screen = makeNode('Screen', this.node);
     this.modal = new ModalLayer(this.node);
@@ -83,70 +83,70 @@ export class GameRoot extends Component {
     this.refreshHeader();
     const s = this.resetScreen();
 
-    makeLabel(s, '虫 巢', 0, 386, { size: 30, color: C.gold, align: Label.HorizontalAlign.CENTER, bold: true });
-    makeLabel(s, `「${nestLine(this.save, this.uiRng)}」　—— 噬祖`, 0, 348, {
-      size: 16, color: C.hidden, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40,
+    makeLabel(s, '虫 巢', 0, 238, { size: 28, color: C.gold, align: Label.HorizontalAlign.CENTER, bold: true });
+    makeLabel(s, `「${nestLine(this.save, this.uiRng)}」　—— 噬祖`, 0, 208, {
+      size: 16, color: C.hidden, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 60,
     });
 
     // —— 巢灵状态卡 ——
     const p = this.save.player;
     const stats = combatStats(p);
-    const card = makeNode('PlayerCard', s, 0, 232);
-    sizeOf(card, 580, 150);
-    drawPanel(card, 580, 150);
-    makeLabel(card, `巢灵 · ${p.nestlingName}`, -270, 52, { size: 19, color: C.gold, width: 300 });
-    makeLabel(card, `HP ${Math.round(stats.hp)}`, 100, 52, { size: 17, color: C.dim, width: 180 });
-    const bar = makeNode('Hp', card, 0, 26);
-    drawBar(bar, 540, 10, 1, '#d06a7a');
-    makeLabel(card, `攻 ${stats.atk.toFixed(1)}　速 ${stats.speed.toFixed(0)}　暴击 ${(stats.crit * 100).toFixed(1)}%`, -270, -2, { size: 16, width: 540 });
-    makeLabel(card, `永久 攻+${p.permAtkPct}% 血+${p.permHpPct}% 速+${p.permSpeedPct}%`, -270, -28, { size: 15, color: C.dim, width: 540 });
-    makeLabel(card, `基因锁 ×${geneLockPowerBonus(p.geneLocks).toFixed(2)}　装备 ×${gearPowerBonus(p.gear).toFixed(2)}`, -270, -52, { size: 15, color: C.dim, width: 540 });
+    const card = makeNode('PlayerCard', s, -245, 82);
+    sizeOf(card, 470, 170);
+    drawPanel(card, 470, 170);
+    makeLabel(card, `巢灵 · ${p.nestlingName}`, -215, 60, { size: 19, color: C.gold, width: 260 });
+    makeLabel(card, `HP ${Math.round(stats.hp)}`, 80, 60, { size: 17, color: C.dim, width: 160 });
+    const bar = makeNode('Hp', card, 0, 34);
+    drawBar(bar, 430, 10, 1, '#d06a7a');
+    makeLabel(card, `攻 ${stats.atk.toFixed(1)}　速 ${stats.speed.toFixed(0)}　暴击 ${(stats.crit * 100).toFixed(1)}%`, -215, 4, { size: 16, width: 430 });
+    makeLabel(card, `永久 攻+${p.permAtkPct}% 血+${p.permHpPct}% 速+${p.permSpeedPct}%`, -215, -22, { size: 15, color: C.dim, width: 430 });
+    makeLabel(card, `基因锁 ×${geneLockPowerBonus(p.geneLocks).toFixed(2)}　装备 ×${gearPowerBonus(p.gear).toFixed(2)}`, -215, -46, { size: 15, color: C.dim, width: 430 });
 
     // —— 基因锁卡 ——
     const active = activatedRoutes(this.save);
-    const gene = makeNode('GeneCard', s, 0, 96);
-    sizeOf(gene, 580, 106);
-    drawPanel(gene, 580, 106);
-    makeLabel(gene, '基因锁', -270, 34, { size: 18, color: C.gold, width: 300 });
+    const gene = makeNode('GeneCard', s, -245, -122);
+    sizeOf(gene, 470, 160);
+    drawPanel(gene, 470, 160);
+    makeLabel(gene, '基因锁', -215, 52, { size: 18, color: C.gold, width: 300 });
     if (active.length) {
       const text = active
         .map((r: string) => `${ROUTES[r].name} Lv${geneLockLevel(this.save, r)}`)
         .join('　');
-      makeLabel(gene, text, -270, 6, { size: 16, color: C.gene, width: 540 });
+      makeLabel(gene, text, -215, 18, { size: 16, color: C.gene, width: 430 });
       const next = chargeToNextSegment(this.save, active[0]);
-      makeLabel(gene, next === null ? '首条路线已满段' : `${ROUTES[active[0]].name} 距下一段还需 ${next} 基因`, -270, -20, { size: 14, color: C.dim, width: 540 });
+      makeLabel(gene, next === null ? '首条路线已满段' : `${ROUTES[active[0]].name} 距下一段还需 ${next} 基因`, -215, -12, { size: 14, color: C.dim, width: 430 });
     } else {
-      makeLabel(gene, '尚未激活任何路线', -270, 6, { size: 16, color: C.dim, width: 540 });
-      makeLabel(gene, '首次进入某位面副本即可永久激活其路线基因锁', -270, -20, { size: 14, color: C.dim, width: 540 });
+      makeLabel(gene, '尚未激活任何路线', -215, 18, { size: 16, color: C.dim, width: 430 });
+      makeLabel(gene, '首次进入某位面副本即可永久激活其路线基因锁', -215, -12, { size: 14, color: C.dim, width: 430 });
     }
     if (p.sealedRoutes.length) {
-      makeLabel(gene, `已永久封印：${p.sealedRoutes.map((r: string) => ROUTES[r].name).join('、')}`, -270, -42, { size: 14, color: '#7a5c62', width: 540 });
+      makeLabel(gene, `已永久封印：${p.sealedRoutes.map((r: string) => ROUTES[r].name).join('、')}`, -215, -58, { size: 14, color: '#7a5c62', width: 430 });
     }
 
     // —— 操作 ——
-    makeButton(s, '⚔  开 启 裂 缝', 0, -20, 480, () => this.openRift(), 'primary', 72);
-    makeButton(s, '🎒 装备背包', -125, -104, 230, () => this.openBag());
-    makeButton(s, '📖 进化图鉴', 125, -104, 230, () => this.openCodex());
-    makeButton(s, '⚙ 难度设置', -125, -176, 230, () => this.openDifficulty());
-    makeButton(s, '🗑 重置存档', 125, -176, 230, () => this.confirmReset(), 'danger');
+    makeButton(s, '⚔  开 启 裂 缝', 245, 210, 460, () => this.openRift(), 'primary', 80);
+    makeButton(s, '🎒 装备背包', 130, 115, 220, () => this.openBag());
+    makeButton(s, '📖 进化图鉴', 360, 115, 220, () => this.openCodex());
+    makeButton(s, '⚙ 难度设置', 130, 35, 220, () => this.openDifficulty());
+    makeButton(s, '🗑 重置存档', 360, 35, 220, () => this.confirmReset(), 'danger');
 
-    makeLabel(s, p.totalRuns === 0 ? '首次裂缝固定为「机关城」，用于熟悉基本操作' : '选择一项行动', 0, -240, {
+    makeLabel(s, p.totalRuns === 0 ? '首次裂缝固定为「机关城」，用于熟悉基本操作' : '选择一项行动', 0, -222, {
       size: 14, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40,
     });
 
     // —— 收藏摘要 ——
     const inv = this.save.inventory;
-    makeLabel(s, `传承 ${inv.relics.length}　传说技能 ${inv.comboSkills.length}　禁忌 ${inv.hiddenSkills.length}/10`, 0, -300, {
+    makeLabel(s, `传承 ${inv.relics.length}　传说技能 ${inv.comboSkills.length}　禁忌 ${inv.hiddenSkills.length}/10`, 0, -250, {
       size: 15, color: C.gene, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40,
     });
     const engraved = SLOT_KEYS.filter((k: string) => this.save.player.skillSlots[k]?.hidden);
     if (engraved.length) {
-      makeLabel(s, `已刻印：${engraved.map((k: string) => this.save.player.skillSlots[k].name).join('、')}`, 0, -328, {
+      makeLabel(s, `已刻印：${engraved.map((k: string) => this.save.player.skillSlots[k].name).join('、')}`, 0, -278, {
         size: 14, color: C.hidden, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40,
       });
     }
     if (this.save.stats.endlessUnlocked) {
-      makeLabel(s, '★ 无尽模式已解锁', 0, -356, { size: 15, color: C.gold, align: Label.HorizontalAlign.CENTER, width: 400 });
+      makeLabel(s, '★ 无尽模式已解锁', 0, -300, { size: 15, color: C.gold, align: Label.HorizontalAlign.CENTER, width: 400 });
     }
   }
 
@@ -204,7 +204,7 @@ export class GameRoot extends Component {
     this.refreshHeader(`副本 D ${d.D.toFixed(1)}`);
     const s = this.resetScreen();
 
-    makeLabel(s, `${d.plane.name} · ${d.plane.theme}`, 0, 386, {
+    makeLabel(s, `${d.plane.name} · ${d.plane.theme}`, 0, 296, {
       size: 24, color: C.gold, align: Label.HorizontalAlign.CENTER, bold: true,
     });
     const mm = String(Math.floor(run.elapsed / 60)).padStart(2, '0');
@@ -212,58 +212,58 @@ export class GameRoot extends Component {
     makeLabel(s,
       `阶段 ${run.stageNo}/5　⏱ ${mm}:${ss}　`
       + (d.channel === 'skill' ? '技能通道' : '属性通道'),
-      0, 354, { size: 15, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40 });
+      0, 266, { size: 15, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40 });
 
     // —— 巢灵血条 ——
-    const me = makeNode('Me', s, 0, 300);
-    sizeOf(me, 580, 64);
-    drawPanel(me, 580, 64, C.panelDeep);
-    makeLabel(me, `巢灵　HP ${Math.round(run.hp)} / ${Math.round(run.stats.maxHp)}`, -270, 16, { size: 16, width: 400 });
-    makeLabel(me, `基因 ${run.genes}　已割 ${run.kills}`, 100, 16, { size: 15, color: C.gene, width: 190 });
-    const hpBar = makeNode('HpBar', me, 0, -12);
-    drawBar(hpBar, 540, 12, run.hp / run.stats.maxHp, '#d06a7a');
+    const me = makeNode('Me', s, -245, 200);
+    sizeOf(me, 470, 110);
+    drawPanel(me, 470, 110, C.panelDeep);
+    makeLabel(me, `巢灵　HP ${Math.round(run.hp)} / ${Math.round(run.stats.maxHp)}`, -210, 30, { size: 16, width: 260 });
+    makeLabel(me, `基因 ${run.genes}　已割 ${run.kills}`, 60, 30, { size: 15, color: C.gene, width: 180 });
+    const hpBar = makeNode('HpBar', me, 0, -15);
+    drawBar(hpBar, 430, 12, run.hp / run.stats.maxHp, '#d06a7a');
 
     // —— 同屏压力 / 阶段收尾单位 ——
     const boss = run.boss;
-    const tgt = makeNode('Swarm', s, 0, 224);
-    sizeOf(tgt, 580, 64);
-    drawPanel(tgt, 580, 64, C.panelDeep);
+    const tgt = makeNode('Swarm', s, 245, 200);
+    sizeOf(tgt, 470, 110);
+    drawPanel(tgt, 470, 110, C.panelDeep);
     if (boss) {
       const tag = boss.kind === 'boss' ? '【位面之主】' : '【精英】';
-      makeLabel(tgt, `${boss.name} ${tag}`, -270, 16, {
-        size: 16, color: boss.kind === 'boss' ? C.gold : C.text, width: 400,
+      makeLabel(tgt, `${boss.name} ${tag}`, -210, 30, {
+        size: 16, color: boss.kind === 'boss' ? C.gold : C.text, width: 260,
       });
-      makeLabel(tgt, `${Math.max(0, Math.round(boss.hp))} / ${boss.maxHp}`, 100, 16, { size: 15, color: C.dim, width: 190 });
-      const tb = makeNode('BossBar', tgt, 0, -12);
-      drawBar(tb, 540, 12, boss.hp / boss.maxHp, '#a4574f', '#241a1a');
+      makeLabel(tgt, `${Math.max(0, Math.round(boss.hp))} / ${boss.maxHp}`, 60, 30, { size: 15, color: C.dim, width: 180 });
+      const tb = makeNode('BossBar', tgt, 0, -15);
+      drawBar(tb, 430, 12, boss.hp / boss.maxHp, '#a4574f', '#241a1a');
     } else {
-      makeLabel(tgt, `同屏敌人 ${run.onScreen} / ${MAX_ONSCREEN}`, -270, 16, { size: 16, width: 400 });
-      makeLabel(tgt, `本阶段剩余 ${run.stageRemain}s`, 100, 16, { size: 15, color: C.dim, width: 190 });
-      const sb = makeNode('SwarmBar', tgt, 0, -12);
-      drawBar(sb, 540, 12, run.onScreen / MAX_ONSCREEN, '#7a6a3a', '#241f1a');
+      makeLabel(tgt, `同屏敌人 ${run.onScreen} / ${MAX_ONSCREEN}`, -210, 30, { size: 16, width: 260 });
+      makeLabel(tgt, `本阶段剩余 ${run.stageRemain}s`, 60, 30, { size: 15, color: C.dim, width: 180 });
+      const sb = makeNode('SwarmBar', tgt, 0, -15);
+      drawBar(sb, 430, 12, run.onScreen / MAX_ONSCREEN, '#7a6a3a', '#241f1a');
     }
 
     // —— 战斗日志 ——
-    const logNode = makeNode('Log', s, 0, 8);
-    sizeOf(logNode, 580, 348);
-    drawPanel(logNode, 580, 348, C.panelDeep);
+    const logNode = makeNode('Log', s, 0, 35);
+    sizeOf(logNode, 900, 210);
+    drawPanel(logNode, 900, 210, C.panelDeep);
     const recent = run.log.slice(-LOG_LINES);
-    let ly = 150;
+    let ly = 78;
     for (const entry of recent) {
-      makeLabel(logNode, stripTags(entry.text), -270, ly, {
-        size: 15, color: logColor(entry.cls), width: 540, height: 26,
+      makeLabel(logNode, stripTags(entry.text), -430, ly, {
+        size: 15, color: logColor(entry.cls), width: 860, height: 26,
       });
-      ly -= 34;
+      ly -= 30;
     }
 
     // —— 推进 ——
     switch (run.state) {
       case RunState.FIGHTING:
-        makeButton(s, '前 进 ▶', 0, -230, 480, () => {
+        makeButton(s, '前 进 ▶', 0, -170, 480, () => {
           run.step();
           this.renderBattle();
         }, 'primary', 72);
-        makeLabel(s, '每次「前进」= 3 秒战斗：刷怪 → 横扫 → 被围受击', 0, -288, {
+        makeLabel(s, '每次「前进」= 3 秒战斗：刷怪 → 横扫 → 被围受击', 0, -230, {
           size: 14, color: C.dim, align: Label.HorizontalAlign.CENTER, width: 400,
         });
         break;
