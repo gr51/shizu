@@ -1,0 +1,12 @@
+{
+  "name": "shizu",
+  "uuid": "7f3b1c2e-9a4d-4f8e-b6a1-2c5d8e4f1a9b",
+  "creator": {
+    "version": "3.8.8"
+  },
+  "description": "噬祖 · 诸天噬灵 —— Cocos Creator 动作 Roguelite",
+  "version": "1.0.0",
+  "author": "shizu-dev",
+  "type": "2d",
+  "license": "UNLICENSED"
+}

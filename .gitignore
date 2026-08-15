@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# build & runtime artifacts
+build-log*.txt
+shizu-cocos/library/
+shizu-cocos/temp/
+shizu-cocos/build/
+shizu-cocos/.freebuff/
+shizu-cocos/profiles/
+
+# local reference / verify data (not part of the project)
+.reference-binding-of-isaac/
+.verify-profile/
+
+# logs & misc
+*.log
+.DS_Store
+Thumbs.db
