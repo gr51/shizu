@@ -1,77 +1,48 @@
-# 噬祖 · 诸天噬灵（Cocos Creator 工程）
+# shizu-cocos —— Cocos Creator 工程壳（尚未接入代码）
 
-动作 Roguelite：巢灵吞噬诸天位面，技能/属性/装备三通道成长。
+> 当前状态：**空壳**。原先这里的脚本已在重建时全部删除，游戏逻辑现位于 `../web/`。
 
-## 工程结构
+## 这里现在有什么
 
 ```
-cocos/
-├── package.json                      # 工程清单
-├── tsconfig.json                     # TS 配置
-├── creator.d.ts                      # cc API 类型声明（编辑器外 IDE 提示/类型检查）
-├── settings/
-│   └── v2/packages/project.json      # 引擎模块与设计分辨率（960×640）
+shizu-cocos/
+├── package.json                  # 工程清单（Creator 3.8.8）
+├── settings/v2/packages/         # 引擎模块 / 设计分辨率 / 构建配置
 └── assets/
-    ├── scenes/
-    │   └── Main.scene                # 主场景（Canvas + Camera + GameController）
-    └── scripts/
-        ├── core/
-        │   ├── Rng.ts                # 随机数（seed/PRD/加权抽取）
-        │   ├── Types.ts              # 数据类型（SaveData/GearItem/SkillSlot）
-        │   ├── SaveSystem.ts         # 跨局存档（localStorage）
-        │   └── Balance.ts            # 战力/D 值/掉落/阶段系数
-        ├── data/
-        │   ├── routes.ts             # 10 路线 × 5 组 + 组合技
-        │   ├── planes.ts             # 12 位面副本模板
-        │   ├── skills.ts             # 10 路线 × 6 段基因锁 + 充能表
-        │   ├── gear.ts               # 6 装备槽 × 5 稀有度 × 词条池
-        │   └── hidden-skills.ts      # 10 隐藏技能（禁忌级）
-        └── game/
-            └── GameController.ts     # 主控制：自动战斗/走位/三选一/结算/大厅
+    └── scenes/Main.scene         # 手写的最小场景：Canvas + Camera，未挂任何脚本
 ```
 
-## 玩法
+## 为什么是空的
 
-- **走位**：WASD / 方向键移动巢灵，躲避敌人接触。
-- **自动战斗**：靠近自动攻击最近敌人；暴击/吸血/尸爆/落雷等被动自动生效。
-- **三通道成长**：
-  - 技能通道：进入与已激活路线匹配的位面 → 三选一可学该路线技能。
-  - 属性通道：不匹配位面学不到技能 → 三选一给通用属性。
-  - 装备通道：全位面共享；不匹配位面掉率 ×1.5，位面之主 100% 保底蓝装。
-- **跨局成长**：基因→永久属性（1%=100 基因）、路线基因锁（每段+2% 战力）、装备栏（6 槽）、隐藏技能（永久刻印，跨局）。
-- **空格**：打开菜单（开启裂缝/难度/背包/图鉴/重置）。
+重建前这里有两套互不相干的东西：
 
-## 核心数值
+- 一个与《噬祖》毫无关系的双摇杆射击 Demo（`GameController/GameModel/GameRenderer`），
+  是照《以撒的结合》做的手感验证，却被 README 描述成了本游戏的主控；
+- 一层照策划文档写的 `core/` + `data/`，编译得过，但**没有任何代码路径引用它**，
+  从未被执行过。
 
-- 战力 = (攻/10 + 血/100 + 速/220) ÷ 3 × 基因锁加成 × 装备加成
-- 副本难度值 D = 战力 × 难度系数(简单0.9/中等1.5/困难2.0) × 动态系数
-- 敌人实际值 = 基准 × D × 阶段系数(0.9/1.0/1.15/1.3，BOSS×1.12)
-- 基因锁：单路线满 6 段 +12% 战力；装备全传说 6 槽 ≈ +187.5%
+两者都已删除。逻辑重写在 `../web/src/core/`，那一层零 DOM、零 `cc` 依赖，
+配有 65 项针对《开发实现指南》九条编码红线的测试，可直接整体搬进本工程。
 
-## 如何运行
+## 移植步骤（下一阶段）
 
-1. 打开 **Cocos Dashboard** → 导入本目录（`cocos/`）作为项目。
-2. Dashboard 会自动用 Creator 3.8.x 打开并生成 `.meta`、编译脚本。
-3. 在编辑器中打开 `assets/scenes/Main.scene`，点 **预览（▶）** 即可在浏览器运行。
+1. Cocos Dashboard 导入本目录，让编辑器**重新生成** `.meta` 与场景
+   （现有 `Main.scene` 是手写 stub，编辑器打开后另存一次即可规范化）。
+2. 把 `../web/src/core/` 与 `../web/src/data/` 整层复制到 `assets/scripts/`，
+   `.js` 改 `.ts` 并补类型标注 —— 这两层不含任何浏览器 API，改动量只有类型。
+   唯一需要适配的是 `core/save.js` 的存储适配器：
+   ```ts
+   // web:    localStorage
+   // 微信:   wx.getStorageSync / wx.setStorageSync
+   // 抖音:   tt.getStorageSync / tt.setStorageSync
+   ```
+   适配器已经是**注入式**的（`createSaveRepo(storage)`），换实现即可，不动业务逻辑。
+3. `../web/src/ui/` **不移植** —— 那是 DOM 渲染层，Cocos 侧重写为组件/预制体。
+4. `../web/src/core/combatModel.js` **不移植** —— 那是把实时战斗压成回合制的抽象层，
+   Cocos 侧改由真实碰撞 + 无敌帧决定，该文件届时废弃。
 
-## 类型检查（可选，编辑器外）
+## 待办：与文档不符的配置
 
-```bash
-cd e:\Project\aa
-node check-ts.js
-```
-
-依赖：`creator.d.ts` 提供 cc API 声明。编辑器内使用引擎自带完整声明，无需此文件。
-
-## 技术要点（吸收 WordSimulator 架构）
-
-- **数据驱动**：全部配表（位面/技能/装备/隐藏技能）与逻辑分离，改数值不动代码。
-- **事件解耦**：核心数值层（core/）与渲染/玩法（game/）分离，可整体迁移。
-- **存档**：`sys.localStorage` 三端统一（Web/微信/抖音），版本迁移友好。
-- **PRD 伪随机**：隐藏技能 0.1% 基础概率 + 递增保底，避免极端脸黑。
-
-## 后续可扩展
-
-- 接素材清单的贴图/音效/粒子（当前为 Graphics 纯色占位）。
-- 微信/抖音小游戏：构建目标切换即可，存档适配器已兼容。
-- 位面主题机制（落雷/尸爆连锁/寄生反水）当前已部分实现，可继续深化。
+`settings/v2/packages/project.json` 目前是 **960×640 横屏**，
+而《噬祖-整体策划》1.1 指定的是**竖屏**（微信 + 抖音小游戏）。
+移植时需在编辑器里改为竖屏设计分辨率。

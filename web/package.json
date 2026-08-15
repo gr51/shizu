@@ -1,0 +1,15 @@
+{
+  "name": "shizu-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "噬祖 · 诸天噬灵 —— 网页版（core/ 为引擎无关层，后续整体移植进 Cocos）",
+  "scripts": {
+    "test": "node --test tests/",
+    "serve": "node tools/serve.mjs",
+    "sim": "node tools/simulate.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.49"
+  }
+}

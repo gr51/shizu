@@ -1,13 +1,13 @@
 {
   "general": {
     "design-resolution": {
-      "width": 960,
-      "height": 640,
-      "fit-width": true,
-      "fit-height": false
+      "width": 640,
+      "height": 960,
+      "fit-width": false,
+      "fit-height": true
     },
     "simulator": {
-      "orientation": "landscape"
+      "orientation": "portrait"
     }
   },
   "engine": {

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>噬祖 · 诸天噬灵</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">噬祖 <span>· 诸天噬灵</span></div>
+    <div id="meta"></div>
+  </header>
+
+  <main id="stage">
+    <section id="scene">
+      <h2 id="sceneTitle"></h2>
+      <p id="sceneDesc"></p>
+      <div id="events" aria-live="polite"></div>
+      <div id="options"></div>
+    </section>
+
+    <aside id="panel">
+      <div class="card" id="playerCard"></div>
+      <div class="card" id="geneCard"></div>
+      <div class="card" id="gearCard"></div>
+      <div class="card" id="slotsCard"></div>
+    </aside>
+  </main>
+
+  <footer id="advanceBar">
+    <button id="btnAdvance" type="button">前 进 ▶</button>
+    <span id="hint"></span>
+  </footer>
+</div>
+
+<div id="modalRoot" role="dialog" aria-modal="true"></div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
