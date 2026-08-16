@@ -2,7 +2,7 @@
   "ver": "1.0.27",
   "importer": "image",
   "imported": true,
-  "uuid": "2f0e9d7a-f3d3-406c-853d-341366373980",
+  "uuid": "f2d2fa0a-5d60-438b-86a6-e2c1232dd372",
   "files": [
     ".json",
     ".png"
@@ -10,7 +10,7 @@
   "subMetas": {
     "6c48a": {
       "importer": "texture",
-      "uuid": "2f0e9d7a-f3d3-406c-853d-341366373980@6c48a",
+      "uuid": "f2d2fa0a-5d60-438b-86a6-e2c1232dd372@6c48a",
       "displayName": "plane_01_jiguan",
       "id": "6c48a",
       "name": "texture",
@@ -22,7 +22,7 @@
         "mipfilter": "none",
         "anisotropy": 0,
         "isUuid": true,
-        "imageUuidOrDatabaseUri": "2f0e9d7a-f3d3-406c-853d-341366373980",
+        "imageUuidOrDatabaseUri": "f2d2fa0a-5d60-438b-86a6-e2c1232dd372",
         "visible": false
       },
       "ver": "1.0.22",
@@ -36,7 +36,7 @@
   "userData": {
     "type": "texture",
     "fixAlphaTransparencyArtifacts": false,
-    "hasAlpha": true,
-    "redirect": "2f0e9d7a-f3d3-406c-853d-341366373980@6c48a"
+    "hasAlpha": false,
+    "redirect": "f2d2fa0a-5d60-438b-86a6-e2c1232dd372@6c48a"
   }
 }

@@ -13,16 +13,16 @@ export const BG_H = 270;
 
 /** 天空：两段抖动渐变（上深下亮），像素风的标准做法 */
 function sky(c, ramp) {
-  c.ditherFill(0, 0, BG_W, BG_H, P.void[0], ramp[0], (x, y) => (y / BG_H) * 0.9);
-  c.ditherFill(0, BG_H * 0.45, BG_W, BG_H * 0.55, ramp[0], ramp[1],
+  c.ditherFill(0, 0, BG_W, BG_H, P.void[1], ramp[1], (x, y) => (y / BG_H) * 0.9);
+  c.ditherFill(0, BG_H * 0.45, BG_W, BG_H * 0.55, ramp[1], ramp[2],
     (x, y) => y / (BG_H * 0.55));
 }
 
 /** 地面：水平线 + 下方实色 + 一排抖动过渡 */
 function ground(c, ramp, horizon = BG_H * 0.72) {
-  c.fillRect(0, horizon, BG_W, BG_H - horizon, ramp[0]);
-  c.ditherFill(0, horizon - 6, BG_W, 12, ramp[1], ramp[0], (x, y) => y / 12);
-  c.fillRect(0, horizon, BG_W, 1, ramp[2]);
+  c.fillRect(0, horizon, BG_W, BG_H - horizon, ramp[1]);
+  c.ditherFill(0, horizon - 6, BG_W, 12, ramp[2], ramp[1], (x, y) => y / 12);
+  c.fillRect(0, horizon, BG_W, 1, ramp[3]);
 }
 
 /** 星点 / 尘埃（固定伪随机，保证可复现） */
@@ -185,11 +185,11 @@ function distantLayer(c, ramp, seed = 7) {
     for (let y = 0; y < h * k; y++) {
       const t = y / (h * k);
       const half = (w / 2) * (1 - t * 0.85);
-      c.fillRect(x - half, horizon - y, Math.max(1, half * 2), 1, ramp[0]);
+      c.fillRect(x - half, horizon - y, Math.max(1, half * 2), 1, ramp[1]);
     }
   }
   // 雾带：把远景压进背景（规则 3 明暗分离）
-  c.ditherFill(0, horizon - 20, BG_W, 20, [0, 0, 0, 0], ramp[0], (x, y) => 1 - y / 20);
+  c.ditherFill(0, horizon - 20, BG_W, 20, [0, 0, 0, 0], ramp[1], (x, y) => 1 - y / 20);
 }
 
 /** 生成一张背景 */
@@ -199,9 +199,11 @@ export function makeBackground(id, ramp) {
   specks(c, ramp, id === 'zhutian' || id === 'settle' ? 220 : 90, id.length * 7 + 3);
   distantLayer(c, ramp, id.length * 13 + 5);
   ground(c, ramp);
-  (LANDMARKS[id] ?? LANDMARKS.nest)(c, ramp);
+  // 地标整体提亮一档，否则在暗底上根本看不见（原版全用最暗阶）
+  const bright = [ramp[1], ramp[2], ramp[3], ramp[3]];
+  (LANDMARKS[id] ?? LANDMARKS.nest)(c, bright);
   // 前景压暗条：把玩法区域从背景里「托」出来（规则 3 明暗分离）
-  c.ditherFill(0, BG_H - 34, BG_W, 34, ramp[0], P.void[0], (x, y) => y / 34);
+  c.ditherFill(0, BG_H - 34, BG_W, 34, ramp[1], P.void[0], (x, y) => y / 34);
   return c;
 }
 

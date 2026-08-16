@@ -10,6 +10,7 @@ import { ROUTES } from '../../../shizu-cocos/assets/scripts/data/routes.js';
 import { Assets } from './assets.js';
 import { Renderer } from './renderer.js';
 import { Input } from './input.js';
+import { audio } from './audio.js';
 import { gearItemHtml } from '../ui/cards.js';
 import * as view from '../ui/view.js';
 
@@ -18,6 +19,9 @@ export async function startBattle(ctx, plane) {
   const dungeon = generateDungeon(plane, ctx.save, seed);
   const run = new RealtimeRun(ctx.save, dungeon, seed ^ 0x9e3779b9);
   ctx.run = run;
+
+  audio.unlock();
+  audio.startBgm(plane.id);
 
   const root = view.showBattleStage();
   const canvas = root.querySelector('#gameCanvas');
@@ -77,7 +81,9 @@ export async function startBattle(ctx, plane) {
       if (act.devour) run.devour();
       if (act.dodge) run.dodge(move);
       for (let i = 0; i < steps && run.state === RunState.FIGHTING; i++) run.update(dt, move);
-      renderer.pushEffects(run.drainEffects());
+      const fx = run.drainEffects();
+      renderer.pushEffects(fx);
+      audio.onEffects(fx);
     }
     const dt = real;
     renderer.draw(run, dt);
@@ -88,9 +94,13 @@ export async function startBattle(ctx, plane) {
     // 玩家点不中（元素一直在销毁重建），帧率也被 DOM 重建拖垮。
     if (run.state !== lastState) {
       lastState = run.state;
-      if (run.state === RunState.CHOOSING) { paused = true; showChoice(); }
-      else if (run.state === RunState.SLOT_CONFLICT) { paused = true; showSlotConflict(); }
-      else if (run.state === RunState.WON || run.state === RunState.LOST) { showSettle(); return; }
+      if (run.state === RunState.CHOOSING) { paused = true; audio.sfx('levelup'); showChoice(); }
+      else if (run.state === RunState.SLOT_CONFLICT) { paused = true; audio.sfx('levelup'); showSlotConflict(); }
+      else if (run.state === RunState.WON || run.state === RunState.LOST) {
+        audio.sfx(run.state === RunState.WON ? 'won' : 'lost');
+        showSettle();
+        return;
+      }
     }
 
     raf = requestAnimationFrame(frame);
@@ -157,6 +167,7 @@ export async function startBattle(ctx, plane) {
 
   function showSettle() {
     cancelAnimationFrame(raf);
+    audio.stopBgm();
     const r = run.finalize(ctx.repo);
     const mm = Math.floor(r.survivedSec / 60);
     const ss = String(r.survivedSec % 60).padStart(2, '0');

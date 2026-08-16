@@ -53,7 +53,7 @@ html, body {
 #meta { font-size: 13px; color: var(--text-dim); text-align: right; }
 #meta b { color: var(--text); font-weight: 600; }
 
-/* —— 主区 —— */
+/* —— 主区（大厅）—— */
 #stage {
   display: grid;
   grid-template-columns: 1fr 340px;
@@ -61,21 +61,46 @@ html, body {
   padding: 16px 20px;
   flex: 1;
   min-height: 0;
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(5, 8, 13, .52), rgba(5, 8, 13, .78)),
+    url('../shizu-cocos/assets/art/lobby/bg.png') center / cover no-repeat;
 }
 
-#scene { display: flex; flex-direction: column; min-height: 0; }
-#sceneTitle { margin: 0 0 4px; font-size: 20px; color: var(--gold); }
-#sceneDesc { margin: 0 0 12px; font-size: 13px; color: var(--text-dim); }
+#scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 0;
+}
+#sceneTitle {
+  margin: 0;
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: 16px;
+  color: var(--gold);
+  text-shadow: 0 0 30px rgba(216, 189, 106, .35), 0 3px 12px rgba(0, 0, 0, .85);
+  transform: translateX(8px); /* 抵消最后一个字的字间距 */
+}
+#sceneDesc {
+  margin: 10px 0 0;
+  font-size: 15px;
+  letter-spacing: 6px;
+  color: var(--gene);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, .8);
+}
 
 #events {
-  flex: 1;
   overflow-y: auto;
   padding: 12px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(120, 150, 165, .18);
   border-radius: 8px;
-  background: #10151a;
-  font-size: 14px;
-  min-height: 220px;
+  background: rgba(16, 22, 29, .72);
+  backdrop-filter: blur(4px);
+  font-size: 13px;
+  max-height: 30vh;
 }
 #events:empty { display: none; }
 .evt { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.03); }
@@ -92,15 +117,40 @@ html, body {
 .evt.hidden { color: #e0a3d8; }
 .evt.info  { color: var(--text-dim); }
 
-#options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+#options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 34px;
+  width: min(340px, 92%);
+}
+#options button {
+  font-size: 16px;
+  letter-spacing: 4px;
+  padding: 14px 18px;
+  background: rgba(22, 29, 36, .82);
+  border: 1px solid rgba(140, 165, 180, .28);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .45);
+}
+#options button:hover { background: rgba(35, 45, 55, .9); border-color: var(--gold); }
+#options button.primary {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  background: linear-gradient(180deg, rgba(112, 80, 42, .92), rgba(72, 50, 26, .92));
+  border-color: rgba(216, 189, 106, .6);
+  color: #f7ecd4;
+}
 
 /* —— 侧栏 —— */
 #panel { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; }
 .card {
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(120, 150, 165, .18);
   border-radius: 8px;
-  background: var(--bg-card);
+  background: rgba(20, 27, 34, .78);
+  backdrop-filter: blur(4px);
   font-size: 13px;
 }
 .card:empty { display: none; }

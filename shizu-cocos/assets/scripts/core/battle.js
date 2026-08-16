@@ -19,7 +19,7 @@ import { rollKillDrop } from './drop.js';
 import { findSkill } from '../data/skills.js';
 import { findHiddenSkill } from '../data/hiddenSkills.js';
 
-/** 战场尺寸（设计分辨率内的逻辑坐标，横屏 960×640 减去 HUD） */
+/** 相机视野尺寸（逻辑坐标）：不是边界，而是「屏幕上能看见多大」。世界无限，玩家自由移动。 */
 export const ARENA = { w: 960, h: 560 };
 
 /** 基础数值（整体策划 2.3） */
@@ -71,6 +71,23 @@ export const SPIT_RANGE = 300;
 export const SPIT_CD = 2.6;
 export const SPIT_SPEED = 190;
 
+// ===== 位面主题机制（关卡策划二章 / planes.js 的 theme 列）=====
+// 每个位面一种独特机制，数据驱动，都挂在 battle 主循环 / 击杀回调上。
+export const PLANE_MECHANICS = {
+  jiguan:       { type: 'laser',        interval: 12 },        // 机关城：激光横扫
+  aofa:         { type: 'bulletHell',   interval: 10, count: 3 }, // 奥法：弹幕法阵
+  qiqiao:       { type: 'laser',        interval: 10 },        // 奇巧迷宫：镜面激光
+  dujie:        { type: 'lightning',    interval: 10 },        // 渡劫：随机落雷
+  gongde:       { type: 'armor',        factor: 0.3 },        // 功德：金身减伤
+  shihai:       { type: 'corpseBlast',  radius: 55, mul: 1.3 }, // 尸海：尸爆连锁
+  gongshengchao:{ type: 'parasite',     chance: 0.12, duration: 5 }, // 共生：寄生反水
+  wuxia:        { type: 'combo',        mul: 1.2 },           // 武侠：连招增伤
+  shanhai:      { type: 'stomp',        interval: 18, radius: 100 }, // 山海：巨型践踏
+  jijia:        { type: 'missile',      interval: 14 },        // 机甲：炮台导弹
+  jushen:       { type: 'stomp',        interval: 16, radius: 100 }, // 巨神：震地
+  zhutian:      { type: 'mix',          interval: 10 },        // 诸天之心：全机制融合
+};
+
 
 export class RealtimeRun extends Run {
   constructor(save, dungeon, seed) {
@@ -106,6 +123,10 @@ export class RealtimeRun extends Run {
     this.closerSpawned = false;
     this.stageElapsed = 0;
     this.nextId = 1;
+    this.mech = PLANE_MECHANICS[this.dungeon.plane.id] ?? null;
+    this.mechTimer = 0;
+    this.mechAllies = [];        // 寄生反水：友军单位
+    this.mechProjectiles = [];   // 弹幕 / 导弹
   }
 
   get onScreen() { return this.enemies.length; }
@@ -142,6 +163,7 @@ export class RealtimeRun extends Run {
     this.updateShots(dt);
     if (this.state !== RunState.FIGHTING) return;
     this.updateOrbs(dt);
+    this.mechanicsTick(dt);
 
     if (this.stats.regen > 0) {
       this.heal(this.stats.maxHp * this.stats.regen * dt, '再生', true);
@@ -157,8 +179,9 @@ export class RealtimeRun extends Run {
 
     p.vx = nx * speed;
     p.vy = ny * speed;
-    p.x = clamp(p.x + p.vx * dt, p.r, ARENA.w - p.r);
-    p.y = clamp(p.y + p.vy * dt, p.r, ARENA.h - p.r);
+    // 无限画布：玩家不受边界约束，自由漫游
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
 
     if (Math.abs(nx) > 0.01) p.facing = nx > 0 ? 1 : -1;
     p.invuln = Math.max(0, p.invuln - dt);
@@ -200,6 +223,7 @@ export class RealtimeRun extends Run {
       this.closerSpawned = true;
       this.spawnEnemy(st.closer, true);
       if (st.extraElite) this.spawnEnemy({ ...st.closer, name: `${st.closer.name}·其二` }, true);
+      this.emitFx(st.closer.kind === 'boss' ? 'boss' : 'elite', this.player.x, this.player.y);
       this.emit(
         st.closer.kind === 'boss'
           ? `【位面之主】${st.closer.name} 降临`
@@ -216,15 +240,20 @@ export class RealtimeRun extends Run {
     }
   }
 
-  /** 从场地边缘外侧刷入（割草的怪从四面涌来，不凭空出现在脸上） */
+  /** 从相机视野边缘外侧刷入（割草的怪从四面涌来，不凭空出现在脸上）。
+   *  无限画布下以玩家为锚点，但把距离拉大到约一个视野，让怪有足够的「追击路程」——
+   *  距离太近会让怪贴着玩家刷、密度失控（实测通关率崩），必须留出追击缓冲。 */
   spawnEnemy(tpl, isCloser) {
+    const p = this.player;
     const edge = Math.floor(this.rng() * 4);
     const m = 24;
+    const hw = ARENA.w;
+    const hh = ARENA.h;
     let x; let y;
-    if (edge === 0) { x = this.rng() * ARENA.w; y = -m; }
-    else if (edge === 1) { x = ARENA.w + m; y = this.rng() * ARENA.h; }
-    else if (edge === 2) { x = this.rng() * ARENA.w; y = ARENA.h + m; }
-    else { x = -m; y = this.rng() * ARENA.h; }
+    if (edge === 0) { x = p.x + (this.rng() * 2 - 1) * hw; y = p.y - hh - m; }
+    else if (edge === 1) { x = p.x + hw + m; y = p.y + (this.rng() * 2 - 1) * hh; }
+    else if (edge === 2) { x = p.x + (this.rng() * 2 - 1) * hw; y = p.y + hh + m; }
+    else { x = p.x - hw - m; y = p.y + (this.rng() * 2 - 1) * hh; }
 
     const isBig = tpl.kind !== 'minion';
     const variant = isBig ? null : this.rollVariant();
@@ -271,8 +300,8 @@ export class RealtimeRun extends Run {
     const ringR = 210 + this.rng() * 60;
     for (let i = 0; i < count; i++) {
       const a = (i / count) * Math.PI * 2 + this.rng() * 0.3;
-      const x = clamp(p.x + Math.cos(a) * ringR, 8, ARENA.w - 8);
-      const y = clamp(p.y + Math.sin(a) * ringR, 8, ARENA.h - 8);
+      const x = p.x + Math.cos(a) * ringR;
+      const y = p.y + Math.sin(a) * ringR;
       const variant = this.rollVariant();
       const v = MINION_VARIANTS[variant];
       const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
@@ -298,6 +327,10 @@ export class RealtimeRun extends Run {
       const dy = p.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
 
+      // 无限画布：被甩开太远的小怪静默回收，压力始终集中在玩家附近。
+      // 阈值给足余量（2.5 倍视野），正常战斗绝不回收，只有刻意跑路许久才触发。
+      if (e.kind === 'minion' && d > ARENA.w * 2.5) { e.dead = true; continue; }
+
       if (e.variant === 'spitter') {
         // 远程：停在射程边缘，逼玩家主动上前，不能龟在安全圈里
         const want = d > SPIT_RANGE ? 1 : d < SPIT_RANGE * 0.7 ? -1 : 0;
@@ -319,7 +352,8 @@ export class RealtimeRun extends Run {
 
       // 接触伤害（无敌帧内免疫）
       if (d < p.r + e.r && p.invuln <= 0) {
-        const dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * (1 - this.stats.dmgReduct));
+        let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * (1 - this.stats.dmgReduct));
+        if (this.mech?.type === 'combo') dmg *= this.mech.mul;   // 武侠：连招增伤
         this.hp -= dmg;
         p.invuln = INVULN_ON_HIT;
         p.hitFlash = 0.18;
@@ -332,6 +366,7 @@ export class RealtimeRun extends Run {
         }
       }
     }
+    if (this.enemies.some((e) => e.dead)) this.enemies = this.enemies.filter((e) => !e.dead);
     // 简单互斥：同类之间轻推开，避免全部叠在一个点上
     separate(this.enemies);
   }
@@ -364,7 +399,8 @@ export class RealtimeRun extends Run {
     const splash = 34 * this.stats.range + this.stats.aoe * 40;
     const isCrit = this.rng() < this.stats.crit;
     const berserk = p.berserk > 0 ? BERSERK_MUL : 1;
-    const dmg = calcDamage(this.stats.atk * berserk, 1, isCrit);
+    let dmg = calcDamage(this.stats.atk * berserk, 1, isCrit);
+    if (this.mech?.type === 'armor') dmg *= (1 - this.mech.factor);   // 功德：金身减伤
     let healed = 0;
 
     for (const e of this.enemies) {
@@ -392,8 +428,8 @@ export class RealtimeRun extends Run {
     const len = Math.hypot(input?.mx ?? 0, input?.my ?? 0);
     const dx = len > 0.05 ? input.mx / len : p.facing;
     const dy = len > 0.05 ? input.my / len : 0;
-    p.x = clamp(p.x + dx * DODGE_DIST, p.r, ARENA.w - p.r);
-    p.y = clamp(p.y + dy * DODGE_DIST, p.r, ARENA.h - p.r);
+    p.x += dx * DODGE_DIST;
+    p.y += dy * DODGE_DIST;
     p.invuln = Math.max(p.invuln, DODGE_INVULN);
     p.dodgeCd = DODGE_CD;
     p.state = 'dodge';
@@ -488,6 +524,24 @@ export class RealtimeRun extends Run {
     if (e.kind === 'minion') this.minionKills += 1;
     this.emitFx('burst', e.x, e.y);
 
+    // 位面机制：尸爆连锁 / 寄生反水（挂在击杀上）
+    const mech = this.mech;
+    if (mech?.type === 'corpseBlast' && e.kind !== 'boss') {
+      for (const o of [...this.enemies]) {
+        if (o === e || o.dead) continue;
+        if (Math.hypot(o.x - e.x, o.y - e.y) < mech.radius) {
+          o.hp -= e.atk * mech.mul;
+          o.hitFlash = 0.15;
+          if (o.hp <= 0) this.killEnemy(o);   // 连锁
+        }
+      }
+    }
+    if (mech?.type === 'parasite' && e.kind === 'minion' && this.rng() < mech.chance) {
+      this.mechAllies.push({ x: e.x, y: e.y, atk: 12 * this.dungeon.D, life: mech.duration, anim: 0 });
+      this.emitFx('surge', e.x, e.y);
+      this.emit('🩸 寄生反水：一只小怪倒戈助你', 'gene');
+    }
+
     if (e.kind === 'boss') {
       this.enemies = this.enemies.filter((x) => !x.dead);
       this.onKill(e);            // 父类：BOSS 掉落 + 置为 WON
@@ -525,7 +579,8 @@ export class RealtimeRun extends Run {
       s.x += s.vx * dt;
       s.y += s.vy * dt;
       s.life -= dt;
-      if (s.life <= 0 || s.x < -20 || s.y < -20 || s.x > ARENA.w + 20 || s.y > ARENA.h + 20) {
+      // 无限画布：弹幕超出生效半径即回收
+      if (s.life <= 0 || Math.hypot(s.x - p.x, s.y - p.y) > ARENA.w) {
         s.dead = true;
         continue;
       }
@@ -568,6 +623,153 @@ export class RealtimeRun extends Run {
       }
     }
     if (this.orbs.some((o) => o.taken)) this.orbs = this.orbs.filter((o) => !o.taken);
+  }
+
+  // ===== 位面主题机制 =====
+
+  /** 周期机制主循环：落雷 / 弹幕 / 导弹 / 激光 / 践踏 / 融合 */
+  mechanicsTick(dt) {
+    const m = this.mech;
+    if (!m) return;
+    this.mechTimer += dt;
+
+    this.updateMechAllies(dt);
+    this.updateMechProjectiles(dt);
+
+    // 挂在击杀/接触上的机制不走周期计时
+    if (['armor', 'corpseBlast', 'parasite', 'combo'].includes(m.type)) return;
+
+    if (m.type === 'mix') {
+      if (this.mechTimer < m.interval) return;
+      this.mechTimer = 0;
+      const picks = ['lightning', 'bulletHell', 'missile', 'laser', 'stomp'];
+      this.castMech(picks[Math.floor(this.rng() * picks.length)]);
+      return;
+    }
+
+    if (this.mechTimer < m.interval) return;
+    this.mechTimer = 0;
+    this.castMech(m.type);
+  }
+
+  castMech(type) {
+    const p = this.player;
+    switch (type) {
+      case 'lightning': {
+        const x = p.x + (this.rng() * 2 - 1) * 200;
+        const y = p.y + (this.rng() * 2 - 1) * 200;
+        this.emitFx('lightning', x, y);
+        if (Math.hypot(x - p.x, y - p.y) < 45) this.hurtPlayer(3 * this.dungeon.D);
+        for (const e of [...this.enemies]) {
+          if (Math.hypot(x - e.x, y - e.y) < 70) {
+            e.hp -= 12 * this.dungeon.D;
+            e.hitFlash = 0.15;
+            if (e.hp <= 0) this.killEnemy(e);
+            if (this.state !== RunState.FIGHTING) return;
+          }
+        }
+        break;
+      }
+      case 'bulletHell': {
+        const n = this.mech.count ?? 6;
+        for (let i = 0; i < n; i++) {
+          const ang = (i / n) * Math.PI * 2 + this.rng() * 0.5;
+          this.mechProjectiles.push({
+            x: p.x + Math.cos(ang) * 360, y: p.y + Math.sin(ang) * 360,
+            vx: -Math.cos(ang) * 150, vy: -Math.sin(ang) * 150,
+            kind: 'bullet', atk: 1 * this.dungeon.D, life: 4, r: 6,
+          });
+        }
+        this.emitFx('surge', p.x, p.y);
+        break;
+      }
+      case 'missile': {
+        const ang = this.rng() * Math.PI * 2;
+        const sx = p.x + Math.cos(ang) * 400;
+        const sy = p.y + Math.sin(ang) * 400;
+        this.mechProjectiles.push({ x: sx, y: sy, vx: 0, vy: 0, kind: 'missile', atk: 6 * this.dungeon.D, life: 6, r: 8 });
+        this.emitFx('spit', sx, sy);
+        break;
+      }
+      case 'laser': {
+        const horiz = this.rng() < 0.5;
+        const line = horiz ? (p.y + (this.rng() * 2 - 1) * 160) : (p.x + (this.rng() * 2 - 1) * 160);
+        this.emitFx('laser', horiz ? p.x : line, horiz ? line : p.y);
+        if (horiz ? Math.abs(p.y - line) < 22 : Math.abs(p.x - line) < 22) {
+          this.hurtPlayer(4 * this.dungeon.D);
+        }
+        break;
+      }
+      case 'stomp': {
+        // 践踏来自巨物，落点随机（不是必中玩家）：玩家只有站在震源附近才受伤
+        const x = p.x + (this.rng() * 2 - 1) * 250;
+        const y = p.y + (this.rng() * 2 - 1) * 250;
+        this.emitFx('stomp', x, y);
+        if (Math.hypot(x - p.x, y - p.y) < (this.mech.radius ?? 100)) this.hurtPlayer(5 * this.dungeon.D, 0.4);
+        break;
+      }
+      default: break;
+    }
+  }
+
+  /** 玩家受伤统一入口（无敌帧内免疫 + 闪白 + 死亡判定） */
+  hurtPlayer(dmg, invuln = 0.6) {
+    const p = this.player;
+    if (p.invuln > 0 || this.state !== RunState.FIGHTING) return;
+    const d = Math.max(1, dmg * (1 - this.stats.dmgReduct));
+    this.hp -= d;
+    p.invuln = invuln;
+    p.hitFlash = 0.18;
+    this.emitFx('hit', p.x, p.y);
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.state = RunState.LOST;
+      this.emit('生命耗尽，你倒在裂缝之中……', 'death');
+    }
+  }
+
+  /** 寄生反水：友军追最近的敌人并啃它 */
+  updateMechAllies(dt) {
+    for (const a of this.mechAllies) {
+      a.life -= dt;
+      let best = null; let bd = Infinity;
+      for (const e of this.enemies) {
+        const d = Math.hypot(e.x - a.x, e.y - a.y);
+        if (d < bd) { bd = d; best = e; }
+      }
+      if (!best) continue;
+      const dx = best.x - a.x; const dy = best.y - a.y; const d = Math.hypot(dx, dy) || 1;
+      a.x += (dx / d) * 130 * dt;
+      a.y += (dy / d) * 130 * dt;
+      a.anim += dt * 8;
+      if (d < 18 + best.r) {
+        best.hp -= a.atk * dt;
+        best.hitFlash = Math.max(best.hitFlash, 0.1);
+        if (best.hp <= 0) this.killEnemy(best);
+      }
+    }
+    if (this.mechAllies.some((a) => a.life <= 0)) this.mechAllies = this.mechAllies.filter((a) => a.life > 0);
+  }
+
+  /** 弹幕 / 导弹投射物 */
+  updateMechProjectiles(dt) {
+    const p = this.player;
+    for (const pr of this.mechProjectiles) {
+      pr.life -= dt;
+      if (pr.kind === 'missile') {
+        const dx = p.x - pr.x; const dy = p.y - pr.y; const d = Math.hypot(dx, dy) || 1;
+        pr.vx = (dx / d) * 190;
+        pr.vy = (dy / d) * 190;
+      }
+      pr.x += pr.vx * dt;
+      pr.y += pr.vy * dt;
+      if (pr.life <= 0) { pr.dead = true; continue; }
+      if (p.invuln <= 0 && Math.hypot(pr.x - p.x, pr.y - p.y) < p.r + pr.r) {
+        pr.dead = true;
+        this.hurtPlayer(pr.atk, 0.5);
+      }
+    }
+    if (this.mechProjectiles.some((pr) => pr.dead)) this.mechProjectiles = this.mechProjectiles.filter((pr) => !pr.dead);
   }
 
   /** 覆盖父类：实时下回血是连续量，不刷屏 */

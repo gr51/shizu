@@ -15,8 +15,8 @@ export function renderLobby(ctx) {
   const { save, rng } = ctx;
   view.setAdvance(false);
   view.setMeta(metaLine(save));
-  view.setTitle('虫巢');
-  view.setDesc('你是行走诸天的噬灵。每一次吞噬，都让下一次更强大 —— 也让裂缝那头的东西更强大。');
+  view.setTitle('噬祖');
+  view.setDesc('诸天噬灵 · 每一次吞噬，都让下一次更强大 —— 也让裂缝那头的东西更强大。');
 
   // 回巢状态摘要（顺带填满主区，避免大厅一片空白）
   const p = save.player;
@@ -39,7 +39,7 @@ export function renderLobby(ctx) {
   }
   lines.push({ text: `传承 ${save.inventory.relics.length} · 传说技能 ${save.inventory.comboSkills.length} · 禁忌 ${save.inventory.hiddenSkills.length}/10`, cls: 'gene' });
   if (save.stats.endlessUnlocked) lines.push({ text: '★ 无尽模式已解锁', cls: 'win' });
-  view.renderLog(lines);
+  view.renderLog(lines, '回巢札记');
 
   view.setCards({
     playerCard: playerCard(save),

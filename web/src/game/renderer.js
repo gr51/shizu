@@ -60,12 +60,21 @@ export class Renderer {
     this.shake = Math.max(0, this.shake - dt * 22);
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
-    ctx.translate(Math.round(sx), Math.round(sy));
+    // 相机跟随玩家：世界坐标 → 屏幕坐标（取整保持像素网格）
+    const camX = Math.round(run.player.x - ARENA.w / 2);
+    const camY = Math.round(run.player.y - ARENA.h / 2);
+    ctx.translate(Math.round(sx) - camX, Math.round(sy) - camY);
 
-    // —— 背景 ——
+    // —— 背景（无限平铺）——
     const bg = A.img(`backgrounds/${BG_FILE[this.planeId] ?? 'nest'}.png`);
-    if (bg) ctx.drawImage(bg, 0, 0, ARENA.w, ARENA.h);
-    else { ctx.fillStyle = '#0d1013'; ctx.fillRect(0, 0, ARENA.w, ARENA.h); }
+    if (bg) {
+      const tw = ARENA.w, th = ARENA.h;
+      const startX = Math.floor(camX / tw) * tw;
+      const startY = Math.floor(camY / th) * th;
+      for (let x = startX; x < camX + ARENA.w; x += tw)
+        for (let y = startY; y < camY + ARENA.h; y += th)
+          ctx.drawImage(bg, Math.round(x), Math.round(y), tw, th);
+    } else { ctx.fillStyle = '#0d1013'; ctx.fillRect(camX, camY, ARENA.w, ARENA.h); }
 
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {
@@ -95,11 +104,10 @@ export class Renderer {
   }
 
   drawEnemy(e) {
-    const scale = e.kind === 'boss' ? 0.55 : e.kind === 'elite' ? 0.6 : 0.75;
-    const name = e.kind === 'minion' ? `minion_${this.planeId}_move`
-      : e.kind === 'elite' ? `elite_${this.planeId}_idle`
-        : `boss_${this.planeId}_idle`;
-    const ok = this.blitClip(name, e.x, e.y, e.anim, scale, e.hitFlash > 0);
+    const kind = e.kind;
+    // 按目标高度缩放，跨关卡散图尺寸不同也能统一体型
+    const targetH = kind === 'boss' ? 95 : kind === 'elite' ? 60 : 34;
+    const ok = this.blitSprite(`units/${kind}_${this.planeId}.png`, e.x, e.y, targetH, e.hitFlash > 0);
     if (!ok) this.dot(e.x, e.y, e.r, e.kind === 'boss' ? '#a678d4' : '#c9556a');
 
     // 精英 / BOSS 血条
@@ -111,10 +119,9 @@ export class Renderer {
 
   drawPlayer(run) {
     const p = run.player;
-    const clipName = p.state === 'attack' ? 'player_attack' : p.state === 'walk' ? 'player_walk' : 'player_idle';
     const blink = p.invuln > 0 && Math.floor(p.invuln * 20) % 2 === 0;
     if (!blink) {
-      const ok = this.blitClip(clipName, p.x, p.y, p.anim, 0.62, p.hitFlash > 0, p.facing);
+      const ok = this.blitSprite('units/player.png', p.x, p.y, 46, p.hitFlash > 0, p.facing);
       if (!ok) this.dot(p.x, p.y, p.r, '#e8e2d6');
     }
   }
@@ -156,6 +163,30 @@ export class Renderer {
       ctx.globalAlpha = 0.7;
       if (facing < 0) ctx.drawImage(img, frame * fw, 0, fw, fh, 0, 0, dw, dh);
       else ctx.drawImage(img, frame * fw, 0, fw, fh, dx, dy, dw, dh);
+    }
+    ctx.restore();
+    return true;
+  }
+
+  /** 按目标高度绘制静态散图（新接入的雪碧），支持朝向/受击闪白 */
+  blitSprite(rel, x, y, targetH, flash = false, facing = 1) {
+    const img = this.assets.img(rel);
+    if (!img) return false;
+    const scale = targetH / img.height;
+    const dw = Math.round(img.width * scale);
+    const dh = Math.round(img.height * scale);
+    const dx = Math.round(x - dw / 2);
+    const dy = Math.round(y - dh / 2);
+    const ctx = this.ctx;
+    ctx.save();
+    if (facing < 0) {
+      ctx.translate(dx + dw, dy);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, dw, dh);
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(img, 0, 0, dw, dh); }
+    } else {
+      ctx.drawImage(img, dx, dy, dw, dh);
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(img, dx, dy, dw, dh); }
     }
     ctx.restore();
     return true;

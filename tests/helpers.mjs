@@ -90,8 +90,12 @@ export function autoPlay(plane, save, seed, repo = null) {
       continue;
     }
     if (run.state === RunState.SLOT_CONFLICT) { run.resolveSlotConflict(run.pendingSkill.options[0]); continue; }
+    // 机器人以「舒适速度 220」移动：速度属性不用于绕圈乱窜。
+    // 真实玩家会把高速拿来走位/风筝，机器人的绕圈无法正确利用高速，
+    // 反而会横扫敌群吃到更多接触伤害 —— 那会把速度错判成负收益。
+    const speedScale = Math.min(1, 220 / (run.stats.speed || 220));
     const a = f * 0.02 + seed;
-    const move = { mx: Math.cos(a), my: Math.sin(a) };
+    const move = { mx: Math.cos(a) * speedScale, my: Math.sin(a) * speedScale };
     botAct(run, move);
     run.update(DT, move);
     run.drainEffects();

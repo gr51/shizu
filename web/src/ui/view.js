@@ -25,8 +25,9 @@ export function setCards({ playerCard = '', geneCard = '', gearCard = '', slotsC
   els.slotsCard.innerHTML = slotsCard;
 }
 
-export function renderLog(entries) {
-  els.events.innerHTML = entries.map((e) => `<div class="evt ${e.cls}">${e.text}</div>`).join('');
+export function renderLog(entries, title = '') {
+  els.events.innerHTML = (title ? `<h4>${title}</h4>` : '')
+    + entries.map((e) => `<div class="evt ${e.cls}">${e.text}</div>`).join('');
   els.events.scrollTop = els.events.scrollHeight;
 }
 
