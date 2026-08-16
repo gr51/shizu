@@ -3,6 +3,7 @@
 
 import { createSaveRepo, createWebStorage } from '../../shizu-cocos/assets/scripts/core/save.js';
 import { rngFactory } from '../../shizu-cocos/assets/scripts/core/rng.js';
+import { findPlaneById } from '../../shizu-cocos/assets/scripts/data/planes.js';
 import { renderLobby } from './ui/lobby.js';
 import { startBattle } from './game/battleScreen.js';
 import { startLobbyFx, stopLobbyFx } from './ui/fx.js';
@@ -47,6 +48,8 @@ function boot() {
     ctx,
     /** 调试/自动化用倍速（1 = 正常）。仅影响战斗推进，不影响随机序列的确定性 */
     setTimeScale: (n) => ctx.setTimeScale?.(n),
+    /** 调试：直接进入指定位面（id ∈ jiguan/aofa/.../zhutian） */
+    startPlane: (id) => { const p = findPlaneById(id); if (p) ctx.startRun(p); else console.warn('未知位面：' + id); },
     get save() { return ctx.save; },
     get run() { return ctx.run; },
     snapshot() {
