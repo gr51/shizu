@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>噬祖 · 诸天噬灵</title>
+<!-- 书法字体（渐进增强：加载失败自动回退到本地楷体/行楷） -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@300;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,12 +18,22 @@
   </header>
 
   <main id="stage">
+    <div id="lobbyBackdrop" aria-hidden="true"></div>
+    <div id="lobbyVignette" aria-hidden="true"></div>
+    <canvas id="lobbyFx" aria-hidden="true"></canvas>
+
+    <div id="verticalVerse" aria-hidden="true">噬灭诸天 · 万灵归墟</div>
+
     <section id="scene">
-      <h2 id="sceneTitle"></h2>
+      <div id="titleRow">
+        <h2 id="sceneTitle"></h2>
+        <span id="titleSeal" aria-hidden="true">噬祖</span>
+      </div>
       <p id="sceneDesc"></p>
       <div id="options"></div>
     </section>
 
+    <button id="panelToggle" type="button" title="展开状态面板">☰ 状态</button>
     <aside id="panel">
       <div class="card log-card" id="events" aria-live="polite"></div>
       <div class="card" id="playerCard"></div>

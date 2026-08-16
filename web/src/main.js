@@ -5,6 +5,7 @@ import { createSaveRepo, createWebStorage } from '../../shizu-cocos/assets/scrip
 import { rngFactory } from '../../shizu-cocos/assets/scripts/core/rng.js';
 import { renderLobby } from './ui/lobby.js';
 import { startBattle } from './game/battleScreen.js';
+import { startLobbyFx, stopLobbyFx } from './ui/fx.js';
 import * as view from './ui/view.js';
 
 function boot() {
@@ -21,6 +22,7 @@ function boot() {
     run: null,
 
     startRun(plane) {
+      stopLobbyFx();
       startBattle(ctx, plane);
     },
 
@@ -29,6 +31,7 @@ function boot() {
       view.hideBattleStage();
       ctx.save = repo.load();   // 从落盘结果重读，确保 UI 与存档一致
       renderLobby(ctx);
+      startLobbyFx();
     },
 
     resetSave() {
@@ -63,6 +66,7 @@ function boot() {
   };
 
   renderLobby(ctx);
+  startLobbyFx();
 }
 
 if (document.readyState === 'loading') {

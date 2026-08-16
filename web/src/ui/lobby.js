@@ -47,13 +47,15 @@ export function renderLobby(ctx) {
     gearCard: gearCard(save),
     slotsCard: slotsCard(save),
   });
+  const ICON = (id) => `../shizu-cocos/assets/art/lobby/icons/${id}.png`;
   view.setOptions([
-    { text: '⚔ 开启裂缝', style: 'primary', onClick: () => openRift(ctx) },
-    { text: '🎒 装备背包', onClick: () => openBag(ctx) },
-    { text: '📖 进化图鉴', onClick: () => openCodex(ctx) },
-    { text: '⚙ 难度设置', onClick: () => openDifficulty(ctx) },
-    { text: '🗑 重置存档', style: 'danger', onClick: () => confirmReset(ctx) },
+    { text: '开启裂缝', style: 'primary', icon: ICON('rift'), onClick: () => openRift(ctx) },
+    { text: '装备背包', icon: ICON('bag'), onClick: () => openBag(ctx) },
+    { text: '进化图鉴', icon: ICON('codex'), onClick: () => openCodex(ctx) },
+    { text: '难度设置', icon: ICON('gear'), onClick: () => openDifficulty(ctx) },
+    { text: '重置存档', style: 'danger', icon: ICON('reset'), onClick: () => confirmReset(ctx) },
   ]);
+  view.setPanelCollapsed(true);
   view.setHint(save.player.totalRuns === 0 ? '首次裂缝固定为「机关城」，用于熟悉基本操作' : '选择一项行动');
 }
 

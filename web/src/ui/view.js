@@ -7,10 +7,14 @@ export function initView() {
   for (const id of [
     'meta', 'sceneTitle', 'sceneDesc', 'events', 'options',
     'playerCard', 'geneCard', 'gearCard', 'slotsCard',
-    'btnAdvance', 'hint', 'modalRoot',
+    'btnAdvance', 'hint', 'modalRoot', 'panelToggle', 'stage',
   ]) {
     els[id] = document.getElementById(id);
   }
+  // 右侧状态面板：默认收起，点击展开
+  els.panelToggle?.addEventListener('click', () => {
+    setPanelCollapsed(!els.stage.classList.contains('panel-hidden'));
+  });
 }
 
 export function setMeta(html) { els.meta.innerHTML = html; }
@@ -35,14 +39,23 @@ export function clearLog() {
   els.events.innerHTML = '';
 }
 
-/** options: [{ text, style, onClick }] */
+/** options: [{ text, style, icon?, onClick }] */
 export function setOptions(options) {
   els.options.innerHTML = options
-    .map((o, i) => `<button type="button" class="${o.style ?? ''}" data-i="${i}">${o.text}</button>`)
+    .map((o, i) => `<button type="button" class="${o.style ?? ''}" data-i="${i}">`
+      + (o.icon ? `<span class="opt-ic" style="background-image:url('${o.icon}')"></span>` : '')
+      + `<span class="opt-label">${o.text}</span></button>`)
     .join('');
   for (const btn of els.options.querySelectorAll('button')) {
     btn.addEventListener('click', () => options[Number(btn.dataset.i)]?.onClick?.());
   }
+}
+
+/** 折叠/展开右侧状态面板 */
+export function setPanelCollapsed(collapsed) {
+  if (!els.stage) return;
+  els.stage.classList.toggle('panel-hidden', collapsed);
+  els.panelToggle.textContent = collapsed ? '☰ 状态' : '✕ 收起';
 }
 
 export function setAdvance(visible, label = '前 进 ▶', onClick = null) {
