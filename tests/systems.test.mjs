@@ -13,7 +13,7 @@ import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
 import { CHARGE_THRESHOLDS, skills, skillsByRoute } from '../shizu-cocos/assets/scripts/data/skills.js';
 import { ALL_ROUTES } from '../shizu-cocos/assets/scripts/data/routes.js';
 import { ALL_HIDDEN_SKILLS } from '../shizu-cocos/assets/scripts/data/hiddenSkills.js';
-import { freshSave, repo, rng } from './helpers.mjs';
+import { autoPlay, freshSave, repo, rng } from './helpers.mjs';
 
 const plane = (id) => planes.find((p) => p.id === id);
 
@@ -103,9 +103,11 @@ test('红线1：数量型/单体型只改小怪 HP 与配套刷怪速率，精�
   assert.equal(spawnStyleHpMul('horde'), 0.75);
   assert.equal(spawnStyleHpMul('single'), 1.5);
   assert.equal(spawnStyleHpMul('standard'), 1.0);
-  // 速率修正 = 1/HP修正 ⇒ 血量吞吐守恒，位面难度不因类型而变
-  assert.equal((spawnStyleHpMul('horde') * spawnStyleRateMul('horde')).toFixed(6), '1.000000');
-  assert.equal((spawnStyleHpMul('single') * spawnStyleRateMul('single')).toFixed(6), '1.000000');
+  // 速率修正 = 1/HP修正²（补偿秒杀悬崖，见 dungeon.js 说明）
+  for (const st of ['horde', 'single']) {
+    const hp = spawnStyleHpMul(st);
+    assert.equal((hp * hp * spawnStyleRateMul(st)).toFixed(6), '1.000000');
+  }
 
   const save = freshSave({ totalRuns: 5 });
   const d = generateDungeon(plane('shihai'), save, 1);
@@ -247,17 +249,9 @@ test('4 槽全刻印 → 成就「诸天共鸣」条件成立', () => {
 test('红线6：整局战斗过程零落盘，只在 finalize 时写一次', () => {
   const save = freshSave({ totalRuns: 5 });
   const r = repo();
-  const d = generateDungeon(plane('jiguan'), save, 1);
-  const run = new Run(save, d, 7);
-
-  let guard = 0;
-  while (run.state !== RunState.WON && run.state !== RunState.LOST && guard++ < 20000) {
-    if (run.state === RunState.CHOOSING) run.choose(0);
-    else if (run.state === RunState.SLOT_CONFLICT) run.resolveSlotConflict(null);
-    else run.step();
-  }
+  const { run } = autoPlay(plane('jiguan'), save, 3);
+  assert.ok(run.time > 5, '前提：这局确实打了一段时间');
   assert.equal(r.persistCount, 0, '战斗中途落盘了 —— 违反红线 6');
-
   run.finalize(r);
   assert.equal(r.persistCount, 1, 'finalize 应当且仅当落盘一次');
 });

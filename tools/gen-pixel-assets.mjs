@@ -14,10 +14,11 @@ import { fileURLToPath } from 'node:url';
 import { Canvas } from './pixel/canvas.mjs';
 import { encodePng } from './pixel/png.mjs';
 import { P, INK, RIM, PLANE_PALETTE, ROUTE_PALETTE, rgb } from './pixel/palette.mjs';
-import { NESTLING_BASE, SKIN_OVERLAY, MINIONS } from './pixel/creatures.mjs';
+import { NESTLING_BASE, NESTLING_LEGS, NESTLING_ATTACK, SKIN_OVERLAY, MINIONS } from './pixel/creatures.mjs';
 import { BOSSES } from './pixel/bosses.mjs';
 import { ELITES } from './pixel/elites.mjs';
 import { IDLE, FLOAT, WALK, HIT, DEATH, PULSE, sheet } from './pixel/anim.mjs';
+import * as FX from './pixel/effects.mjs';
 import { makeBackground, ITEMS, ATTR_ICONS, GEAR_ICONS, BG_W, BG_H } from './pixel/scenes.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -238,8 +239,27 @@ for (const [suffix, skin] of playerForms) {
     name: `player${suffix}`,
   });
   addAnim(`anim/player${suffix}_idle.png`, base, IDLE, 5, 6);
-  addAnim(`anim/player${suffix}_walk.png`, base, WALK, 5, 10);
   addAnim(`anim/player${suffix}_hit.png`, base, HIT, 5, 12, false);
+
+  // 走路：**手绘腿帧**逐帧替换下半身（y=14..19），不是整体形变
+  const walkFrames = NESTLING_LEGS.map((legs, i) => (src) => {
+    const c = new Canvas(src.w, src.h);
+    c.blit(src, 0, i % 2 === 0 ? 0 : -1);        // 重心随步伐起伏 1px
+    c.fillRect(0, 14, src.w, 6, [0, 0, 0, 0]);   // 清掉原腿
+    c.sprite(legs, mapFor(P.shell), 0, 14, `legs${i}`);
+    return c;
+  });
+  addAnim(`anim/player${suffix}_walk.png`, base, walkFrames, 5, 10);
+
+  // 攻击：手绘上半身（y=4..9）噬爪前探
+  const atkFrames = NESTLING_ATTACK.map((upper) => (src) => {
+    const c = new Canvas(src.w, src.h);
+    c.blit(src, 0, 0);
+    c.fillRect(0, 4, src.w, 6, [0, 0, 0, 0]);
+    c.sprite(upper, mapFor(P.shell), 0, 4, 'attack');
+    return c;
+  });
+  addAnim(`anim/player${suffix}_attack.png`, base, atkFrames, 5, 14, false);
 }
 
 // 小怪：移动 + 死亡（漂浮类走 FLOAT）
@@ -261,6 +281,31 @@ for (const [id, art] of Object.entries(ELITES)) {
 for (const [id, art] of Object.entries(BOSSES)) {
   const base = unit(art, PLANE_PALETTE[id], { rim: true, name: `boss_${id}` });
   addAnim(`anim/boss_${id}_idle.png`, base, IDLE, 8, 5);
+}
+
+// ——— 特效帧（规范规则 9：一个特效一个色，同屏受控）———
+const fxJobs = [
+  ['fx/hit_spark.png', FX.hitSpark(24), 4, 20, false],
+  ['fx/crit_star.png', FX.critStar(32), 4, 18, false],
+  ['fx/gene_pickup.png', FX.genePickup(24), 4, 16, false],
+  ['fx/devour_vortex.png', FX.devourVortex(48), 3, 14, true],
+  ['fx/level_up.png', FX.levelUp(40), 3, 12, false],
+  ['fx/forbidden.png', FX.forbidden(48), 3, 12, false],
+  ['fx/slash.png', FX.slash(40), 3, 18, false],
+  ['fx/lightning.png', FX.lightning(24, 48), 3, 16, false],
+  // 通用爆环：按位面主题换色，击杀/尸爆/震地/导弹命中共用
+  ...Object.entries(PLANE_PALETTE).map(([id, ramp]) =>
+    [`fx/burst_${id}.png`, FX.burst(32, ramp), 3, 16, false]),
+];
+for (const [rel, frames, scale, fps, loop] of fxJobs) {
+  const w = frames[0].w;
+  const strip = new Canvas(w * frames.length, frames[0].h);
+  frames.forEach((f, i) => strip.blit(f, i * w, 0));
+  add(rel, strip, scale);
+  anims.push({
+    file: `art/${rel}`, frames: frames.length,
+    frameWidth: w * scale, frameHeight: frames[0].h * scale, fps, loop,
+  });
 }
 
 // 掉落物：基因球呼吸、传承水晶浮动

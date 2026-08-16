@@ -1,0 +1,181 @@
+// ===== game/battleScreen.js · 实时战斗界面（装配层）=====
+// 把 core/battle.js 的仿真、game/renderer 的绘制、game/input 的输入接起来，
+// 并在三选一 / 槽位冲突 / 结算时挂起循环、弹出既有的 UI 模态。
+
+import { RealtimeRun, ARENA } from '../../../shizu-cocos/assets/scripts/core/battle.js';
+import { RunState } from '../../../shizu-cocos/assets/scripts/core/run.js';
+import { generateDungeon } from '../../../shizu-cocos/assets/scripts/core/dungeon.js';
+import { SLOT_LABEL } from '../../../shizu-cocos/assets/scripts/core/skillSlots.js';
+import { ROUTES } from '../../../shizu-cocos/assets/scripts/data/routes.js';
+import { Assets } from './assets.js';
+import { Renderer } from './renderer.js';
+import { Input } from './input.js';
+import { gearItemHtml } from '../ui/cards.js';
+import * as view from '../ui/view.js';
+
+export async function startBattle(ctx, plane) {
+  const seed = Math.floor(ctx.rng() * 0xffffffff) >>> 0;
+  const dungeon = generateDungeon(plane, ctx.save, seed);
+  const run = new RealtimeRun(ctx.save, dungeon, seed ^ 0x9e3779b9);
+  ctx.run = run;
+
+  const root = view.showBattleStage();
+  const canvas = root.querySelector('#gameCanvas');
+  const hud = root.querySelector('#hud');
+
+  // 输入**先于**资产加载接上：否则加载那一两秒内玩家的按键会被整段吞掉
+  const input = new Input(canvas);
+  hud.innerHTML = '<div class="hud-mid">正在撕开裂缝……</div>';
+
+  // HUD 节点**建一次**，之后只改 textContent / style。
+  // 每帧重写 innerHTML 会让浏览器每秒重解析 60 次 DOM ——
+  // 实测那样帧率掉到 0.57x（84 秒真实时间只推进 48 秒游戏时间）。
+  function buildHud() {
+    hud.innerHTML = `
+      <div class="hud-left">
+        <div class="hud-hp"><i></i></div><span data-hp></span>
+      </div>
+      <div class="hud-mid" data-stage></div>
+      <div class="hud-right"><b class="gene" data-genes></b> · 噬灭 <b data-kills></b> · 同屏 <span data-screen></span></div>`;
+    return {
+      hpBar: hud.querySelector('.hud-hp i'),
+      hp: hud.querySelector('[data-hp]'),
+      stage: hud.querySelector('[data-stage]'),
+      genes: hud.querySelector('[data-genes]'),
+      kills: hud.querySelector('[data-kills]'),
+      screen: hud.querySelector('[data-screen]'),
+    };
+  }
+
+  const assets = await new Assets().load(plane.id);
+  const renderer = new Renderer(canvas, assets, plane.id);
+
+  let last = performance.now();
+  let raf = 0;
+  let paused = false;
+  let lastState = null;
+  let timeScale = 1;          // 调试用倍速，见 __shizu.setTimeScale
+  ctx.setTimeScale = (n) => { timeScale = Math.max(0.1, Math.min(60, n)); };
+
+  function frame(now) {
+    const real = Math.min((now - last) / 1000, 0.05);
+    last = now;
+
+    if (!paused) {
+      // 倍速时切成多个小步长推进，避免一帧跨太多导致碰撞穿透
+      const total = real * timeScale;
+      const steps = Math.min(40, Math.ceil(total / 0.05));
+      const dt = total / steps;
+      const move = input.read();
+      for (let i = 0; i < steps && run.state === RunState.FIGHTING; i++) run.update(dt, move);
+      renderer.pushEffects(run.drainEffects());
+    }
+    const dt = real;
+    renderer.draw(run, dt);
+    drawHud(dt);
+
+    // 只在**状态发生变化**时弹一次窗。
+    // 早期版本每帧都调 showChoice()，模态框每秒重建 60 次 ——
+    // 玩家点不中（元素一直在销毁重建），帧率也被 DOM 重建拖垮。
+    if (run.state !== lastState) {
+      lastState = run.state;
+      if (run.state === RunState.CHOOSING) { paused = true; showChoice(); }
+      else if (run.state === RunState.SLOT_CONFLICT) { paused = true; showSlotConflict(); }
+      else if (run.state === RunState.WON || run.state === RunState.LOST) { showSettle(); return; }
+    }
+
+    raf = requestAnimationFrame(frame);
+  }
+  raf = requestAnimationFrame(frame);
+
+  const H = buildHud();
+  let hudTick = 0;
+  function drawHud(dt) {
+    hudTick += dt;
+    if (hudTick < 0.1) return;      // HUD 10Hz 足够，没必要跟着 60fps 刷
+    hudTick = 0;
+    const mm = String(Math.floor(run.time / 60)).padStart(2, '0');
+    const ss = String(Math.floor(run.time % 60)).padStart(2, '0');
+    H.hpBar.style.width = `${Math.max(0, (run.hp / run.stats.maxHp) * 100)}%`;
+    H.hp.textContent = `${Math.max(0, Math.round(run.hp))} / ${Math.round(run.stats.maxHp)}`;
+    H.stage.textContent = `阶段 ${run.stageNo}/5 · ⏱ ${mm}:${ss}`;
+    H.genes.textContent = `基因 ${run.genes}`;
+    H.kills.textContent = run.kills;
+    H.screen.textContent = run.onScreen;
+  }
+
+  function resume() {
+    paused = false;
+    lastState = run.state;      // 同步守卫，允许下一次进入 CHOOSING 再弹
+    last = performance.now();
+  }
+
+  function showChoice() {
+    const { reason, options } = run.pendingOptions;
+    view.showModal({
+      title: `${reason} · 选择你的进化`,
+      body: options.map((o) => (o.kind === 'skill'
+        ? `<div class="pick"><b>【技能】${o.name}</b> <span class="small">${ROUTES[o.route].name}·第 ${o.lv} 段</span><span>${o.desc}　<i class="gold">${o.val}</i></span></div>`
+        : `<div class="pick attr"><b>【属性】${o.name}</b><span>${o.desc}</span></div>`)).join(''),
+      buttons: options.map((o, i) => ({
+        text: o.kind === 'skill' ? `习得 ${o.name}` : `获得 ${o.name}`,
+        style: o.kind === 'skill' ? 'primary' : '',
+        onClick: () => { view.closeModal(); run.choose(i); resume(); },
+      })),
+    });
+  }
+
+  function showSlotConflict() {
+    const { skill, options } = run.pendingSkill;
+    view.showModal({
+      title: '技能槽已满',
+      body: `<p>要装载 <b class="gold">${skill.name}</b>，需替换掉一个已有技能。</p>`
+        + `<p class="small">被替换的技能将被销毁。隐藏技能刻印的槽位不可替换。</p>`,
+      buttons: [
+        ...options.map((k) => ({
+          text: `替换 ${SLOT_LABEL[k]}（${ctx.save.player.skillSlots[k]?.name ?? '空'}）`,
+          onClick: () => { view.closeModal(); run.resolveSlotConflict(k); resume(); },
+        })),
+        { text: '放弃新技能', onClick: () => { view.closeModal(); run.resolveSlotConflict(null); resume(); } },
+      ],
+    });
+  }
+
+  function showSettle() {
+    cancelAnimationFrame(raf);
+    const r = run.finalize(ctx.repo);
+    const mm = Math.floor(r.survivedSec / 60);
+    const ss = String(r.survivedSec % 60).padStart(2, '0');
+    const lines = [
+      `<div class="diff-row">评级 <b class="gold" style="font-size:18px">${r.grade}</b>　抵达阶段 ${r.stageReached}/5　存活 ${mm}:${ss}</div>`,
+      `<div class="diff-row">噬灭 <b class="gold">${r.kills}</b> 只（杂兵 ${r.minionKills}）</div>`,
+      `<div class="diff-row">吞噬基因 <b class="gold">${r.genes}</b></div>`,
+    ];
+    if (r.growth.grants.length) {
+      lines.push(`<div class="diff-row">永久成长：${r.growth.grants.map((g) => `${g.label} +${g.pct}%`).join('，')}</div>`);
+    }
+    for (const a of r.activations) {
+      lines.push(`<div class="diff-row gold">⟡ 永久激活基因锁：${ROUTES[a.route].name}</div>`);
+      if (a.newlySealed.length) {
+        lines.push(`<div class="diff-row" style="color:#a5717c">✕ 永久封印：${a.newlySealed.map((s) => ROUTES[s].name).join('、')}</div>`);
+      }
+    }
+    for (const c of r.charges) {
+      lines.push(`<div class="diff-row">${ROUTES[c.route].name} 基因锁：第 ${c.from} → 第 ${c.to} 段</div>`);
+    }
+    if (r.hiddenSkill) lines.push(`<div class="diff-row" style="color:#e0a3d8">🔥 禁忌显现：<b>${r.hiddenSkill.name}</b></div>`);
+    if (r.gear.length) {
+      lines.push(`<div class="diff-row">装备 ×${r.gear.length}</div>`
+        + r.gear.slice(0, 5).map((g) => `<div class="bag-item">${gearItemHtml(g)}</div>`).join(''));
+    }
+    lines.push(`<div class="diff-row small">难度进化：${r.dyn.before.toFixed(2)} → <b>${r.dyn.after.toFixed(2)}</b></div>`);
+
+    view.showModal({
+      title: r.victory ? `噬灭 · ${r.plane.name}` : `身陨 · ${r.plane.name}`,
+      body: lines.join(''),
+      buttons: [{ text: '回 巢', style: 'primary', onClick: () => { view.closeModal(); ctx.toLobby(); } }],
+    });
+  }
+}
+
+export { ARENA };

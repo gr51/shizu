@@ -10,6 +10,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -18,11 +26,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -34,6 +42,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_dujie_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_dujie_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -42,11 +58,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_dujie_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_dujie_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -58,6 +74,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_gongde_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_gongde_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -66,11 +90,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_gongde_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_gongde_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -82,6 +106,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_sangshi_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_sangshi_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -90,11 +122,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_sangshi_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_sangshi_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -106,6 +138,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_gongsheng_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_gongsheng_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -114,11 +154,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_gongsheng_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_gongsheng_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -130,6 +170,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_xiake_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_xiake_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -138,11 +186,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_xiake_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_xiake_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -154,6 +202,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_shanhai_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_shanhai_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -162,11 +218,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_shanhai_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_shanhai_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -178,6 +234,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_mofa_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_mofa_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -186,11 +250,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_mofa_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_mofa_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -202,6 +266,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_qiji_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_qiji_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -210,11 +282,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_qiji_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_qiji_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -226,6 +298,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_jijia_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_jijia_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -234,11 +314,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_jijia_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_jijia_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -250,6 +330,14 @@
       "loop": true
     },
     {
+      "file": "art/anim/player_juhua_hit.png",
+      "frames": 2,
+      "frameWidth": 100,
+      "frameHeight": 100,
+      "fps": 12,
+      "loop": false
+    },
+    {
       "file": "art/anim/player_juhua_walk.png",
       "frames": 4,
       "frameWidth": 100,
@@ -258,11 +346,11 @@
       "loop": true
     },
     {
-      "file": "art/anim/player_juhua_hit.png",
-      "frames": 2,
+      "file": "art/anim/player_juhua_attack.png",
+      "frames": 3,
       "frameWidth": 100,
       "frameHeight": 100,
-      "fps": 12,
+      "fps": 14,
       "loop": false
     },
     {
@@ -744,6 +832,166 @@
       "frameHeight": 256,
       "fps": 5,
       "loop": true
+    },
+    {
+      "file": "art/fx/hit_spark.png",
+      "frames": 3,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 20,
+      "loop": false
+    },
+    {
+      "file": "art/fx/crit_star.png",
+      "frames": 4,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "fps": 18,
+      "loop": false
+    },
+    {
+      "file": "art/fx/gene_pickup.png",
+      "frames": 4,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/devour_vortex.png",
+      "frames": 6,
+      "frameWidth": 144,
+      "frameHeight": 144,
+      "fps": 14,
+      "loop": true
+    },
+    {
+      "file": "art/fx/level_up.png",
+      "frames": 5,
+      "frameWidth": 120,
+      "frameHeight": 120,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "file": "art/fx/forbidden.png",
+      "frames": 5,
+      "frameWidth": 144,
+      "frameHeight": 144,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "file": "art/fx/slash.png",
+      "frames": 4,
+      "frameWidth": 120,
+      "frameHeight": 120,
+      "fps": 18,
+      "loop": false
+    },
+    {
+      "file": "art/fx/lightning.png",
+      "frames": 4,
+      "frameWidth": 72,
+      "frameHeight": 144,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_jiguan.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_aofa.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_qiqiao.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_dujie.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_gongde.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_shihai.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_gongshengchao.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_wuxia.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_shanhai.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_jijia.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_jushen.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
+    },
+    {
+      "file": "art/fx/burst_zhutian.png",
+      "frames": 5,
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "fps": 16,
+      "loop": false
     },
     {
       "file": "art/anim/gene_orb_pulse.png",

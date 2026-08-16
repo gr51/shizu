@@ -4,8 +4,8 @@
 //
 // 竖屏 640×960（整体策划 1.1）。当前无美术资源，全部程序化绘制（见 UiKit.ts）。
 
-import { Component, Label, Node, _decorator } from 'cc';
-import { C, DESIGN, clearChildren, drawBar, drawPanel, makeButton, makeDivider, makeLabel, makeNode, sizeOf } from './UiKit';
+import { Component, EventKeyboard, Graphics, Input, KeyCode, Label, Node, _decorator, input } from 'cc';
+import { C, DESIGN, clearChildren, drawBar, drawPanel, hex, makeButton, makeDivider, makeLabel, makeNode, sizeOf } from './UiKit';
 import { ModalLayer, ModalRow } from './ModalLayer';
 import { createStorage } from '../platform/storage';
 
@@ -13,7 +13,8 @@ import { createSaveRepo } from '../core/save.js';
 import { computePower, dungeonDifficulty, DIFFICULTY_COEF, DIFFICULTY_LABEL, combatStats, geneLockPowerBonus } from '../core/balance.js';
 import { generateDungeon, MAX_ONSCREEN } from '../core/dungeon.js';
 import { previewPlane, rollPlane } from '../core/planePool.js';
-import { Run, RunState } from '../core/run.js';
+import { RunState } from '../core/run.js';
+import { RealtimeRun, ARENA } from '../core/battle.js';
 import { rngFactory } from '../core/rng.js';
 import { activatableRoutes, activatedRoutes, chargeToNextSegment, geneLockLevel, isSealed } from '../core/geneLock.js';
 import { affixText, gearPowerBonus, salvageGear } from '../core/gear.js';
@@ -33,6 +34,9 @@ export class GameRoot extends Component {
   private save: any;
   private run: any = null;
   private uiRng!: () => number;
+  private lastState: string | null = null;
+  private keys = new Set<number>();
+  private hudLabel: Label | null = null;
 
   private screen!: Node;
   private header!: Label;
@@ -57,8 +61,27 @@ export class GameRoot extends Component {
     this.screen = makeNode('Screen', this.node);
     this.modal = new ModalLayer(this.node);
 
+    input.on(Input.EventType.KEY_DOWN, (e: EventKeyboard) => this.keys.add(e.keyCode), this);
+    input.on(Input.EventType.KEY_UP, (e: EventKeyboard) => this.keys.delete(e.keyCode), this);
+
     this.exposeDebugApi();
     this.renderLobby();
+  }
+
+  onDestroy(): void {
+    input.off(Input.EventType.KEY_DOWN);
+    input.off(Input.EventType.KEY_UP);
+  }
+
+  /** 战斗中只更新一行文字，不重建节点树 */
+  private refreshBattleHud(): void {
+    if (!this.hudLabel) return;
+    const run = this.run;
+    const mm = String(Math.floor(run.time / 60)).padStart(2, '0');
+    const ss = String(Math.floor(run.time % 60)).padStart(2, '0');
+    this.hudLabel.string =
+      `HP ${Math.max(0, Math.round(run.hp))}/${Math.round(run.stats.maxHp)}　⏱ ${mm}:${ss}`
+      + `　阶段 ${run.stageNo}/5　基因 ${run.genes}　噬灭 ${run.kills}　同屏 ${run.onScreen}`;
   }
 
   // ===== 通用 =====
@@ -191,8 +214,41 @@ export class GameRoot extends Component {
   private startRun(plane: any): void {
     const seed = Math.floor(this.uiRng() * 0xffffffff) >>> 0;
     const dungeon = generateDungeon(plane, this.save, seed);
-    this.run = new Run(this.save, dungeon, seed ^ 0x9e3779b9);
+    this.run = new RealtimeRun(this.save, dungeon, seed ^ 0x9e3779b9);
+    this.lastState = null;
     this.renderBattle();
+  }
+
+  /**
+   * Cocos 的 update(dt) 就是游戏循环 —— 实时战斗直接挂在这里。
+   * 只在**状态变化**时重建界面：每帧重建节点树会让帧率崩掉
+   *（网页端实测每帧重建模态框把帧率压到 0.57x）。
+   */
+  update(dt: number): void {
+    const run = this.run;
+    if (!run || typeof run.update !== 'function') return;
+
+    if (run.state === RunState.FIGHTING) {
+      run.update(dt, this.readMove());
+      run.drainEffects();
+      this.refreshBattleHud();
+    }
+    if (run.state !== this.lastState) {
+      this.lastState = run.state;
+      this.renderBattle();
+    }
+  }
+
+  /** 键盘（编辑器预览用）。触摸摇杆接入见 UiKit 的 joystick 资源 */
+  private readMove(): { mx: number; my: number } {
+    let mx = 0;
+    let my = 0;
+    if (this.keys.has(KeyCode.KEY_A) || this.keys.has(KeyCode.ARROW_LEFT)) mx -= 1;
+    if (this.keys.has(KeyCode.KEY_D) || this.keys.has(KeyCode.ARROW_RIGHT)) mx += 1;
+    if (this.keys.has(KeyCode.KEY_W) || this.keys.has(KeyCode.ARROW_UP)) my -= 1;
+    if (this.keys.has(KeyCode.KEY_S) || this.keys.has(KeyCode.ARROW_DOWN)) my += 1;
+    const len = Math.hypot(mx, my);
+    return len > 1 ? { mx: mx / len, my: my / len } : { mx, my };
   }
 
   // ===== 局内 =====
@@ -204,82 +260,54 @@ export class GameRoot extends Component {
     this.refreshHeader(`副本 D ${d.D.toFixed(1)}`);
     const s = this.resetScreen();
 
-    makeLabel(s, `${d.plane.name} · ${d.plane.theme}`, 0, 296, {
-      size: 24, color: C.gold, align: Label.HorizontalAlign.CENTER, bold: true,
+    makeLabel(s, `${d.plane.name} · ${d.plane.theme}`, 0, 292, {
+      size: 20, color: C.gold, align: Label.HorizontalAlign.CENTER, bold: true,
     });
-    const mm = String(Math.floor(run.elapsed / 60)).padStart(2, '0');
-    const ss = String(run.elapsed % 60).padStart(2, '0');
-    makeLabel(s,
-      `阶段 ${run.stageNo}/5　⏱ ${mm}:${ss}　`
-      + (d.channel === 'skill' ? '技能通道' : '属性通道'),
-      0, 266, { size: 15, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40 });
+    this.hudLabel = makeLabel(s, '', 0, 264, {
+      size: 14, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 24,
+    });
+    this.refreshBattleHud();
 
-    // —— 巢灵血条 ——
-    const me = makeNode('Me', s, -245, 200);
-    sizeOf(me, 470, 110);
-    drawPanel(me, 470, 110, C.panelDeep);
-    makeLabel(me, `巢灵　HP ${Math.round(run.hp)} / ${Math.round(run.stats.maxHp)}`, -210, 30, { size: 16, width: 260 });
-    makeLabel(me, `基因 ${run.genes}　已割 ${run.kills}`, 60, 30, { size: 15, color: C.gene, width: 180 });
-    const hpBar = makeNode('HpBar', me, 0, -15);
-    drawBar(hpBar, 430, 12, run.hp / run.stats.maxHp, '#d06a7a');
+    // 战场：当前用 Graphics 画色块占位。
+    // 接入 tools/gen-pixel-assets.mjs 产出的像素资产时，把这里换成 Sprite + SpriteFrame，
+    // 帧序取 assets/art/anim.json 的 frameWidth 切分 —— 逻辑层（core/battle.js）不用动。
+    const field = makeNode('Field', s, 0, -20);
+    sizeOf(field, ARENA.w * 0.62, ARENA.h * 0.62);
+    drawPanel(field, ARENA.w * 0.62, ARENA.h * 0.62, C.panelDeep, C.line, 4);
+    this.drawField(field, run);
 
-    // —— 同屏压力 / 阶段收尾单位 ——
-    const boss = run.boss;
-    const tgt = makeNode('Swarm', s, 245, 200);
-    sizeOf(tgt, 470, 110);
-    drawPanel(tgt, 470, 110, C.panelDeep);
-    if (boss) {
-      const tag = boss.kind === 'boss' ? '【位面之主】' : '【精英】';
-      makeLabel(tgt, `${boss.name} ${tag}`, -210, 30, {
-        size: 16, color: boss.kind === 'boss' ? C.gold : C.text, width: 260,
-      });
-      makeLabel(tgt, `${Math.max(0, Math.round(boss.hp))} / ${boss.maxHp}`, 60, 30, { size: 15, color: C.dim, width: 180 });
-      const tb = makeNode('BossBar', tgt, 0, -15);
-      drawBar(tb, 430, 12, boss.hp / boss.maxHp, '#a4574f', '#241a1a');
-    } else {
-      makeLabel(tgt, `同屏敌人 ${run.onScreen} / ${MAX_ONSCREEN}`, -210, 30, { size: 16, width: 260 });
-      makeLabel(tgt, `本阶段剩余 ${run.stageRemain}s`, 60, 30, { size: 15, color: C.dim, width: 180 });
-      const sb = makeNode('SwarmBar', tgt, 0, -15);
-      drawBar(sb, 430, 12, run.onScreen / MAX_ONSCREEN, '#7a6a3a', '#241f1a');
-    }
-
-    // —— 战斗日志 ——
-    const logNode = makeNode('Log', s, 0, 35);
-    sizeOf(logNode, 900, 210);
-    drawPanel(logNode, 900, 210, C.panelDeep);
-    const recent = run.log.slice(-LOG_LINES);
-    let ly = 78;
-    for (const entry of recent) {
-      makeLabel(logNode, stripTags(entry.text), -430, ly, {
-        size: 15, color: logColor(entry.cls), width: 860, height: 26,
-      });
-      ly -= 30;
-    }
-
-    // —— 推进 ——
     switch (run.state) {
-      case RunState.FIGHTING:
-        makeButton(s, '前 进 ▶', 0, -170, 480, () => {
-          run.step();
-          this.renderBattle();
-        }, 'primary', 72);
-        makeLabel(s, '每次「前进」= 3 秒战斗：刷怪 → 横扫 → 被围受击', 0, -230, {
-          size: 14, color: C.dim, align: Label.HorizontalAlign.CENTER, width: 400,
-        });
-        break;
-      case RunState.CHOOSING:
-        this.showChoice();
-        break;
-      case RunState.SLOT_CONFLICT:
-        this.showSlotConflict();
-        break;
+      case RunState.CHOOSING: this.showChoice(); break;
+      case RunState.SLOT_CONFLICT: this.showSlotConflict(); break;
       case RunState.WON:
-      case RunState.LOST:
-        this.showSettle();
-        break;
-      default:
-        break;
+      case RunState.LOST: this.showSettle(); break;
+      default: break;
     }
+  }
+
+  /** 把战场实体画成色块（占位）。K = 逻辑坐标 → 屏幕坐标的缩放 */
+  private drawField(field: Node, run: any): void {
+    const K = 0.62;
+    const g = field.getComponent(Graphics) ?? field.addComponent(Graphics);
+    const toX = (x: number) => (x - ARENA.w / 2) * K;
+    const toY = (y: number) => (ARENA.h / 2 - y) * K;
+
+    for (const o of run.orbs) {
+      g.fillColor = hex(C.gene);
+      g.circle(toX(o.x), toY(o.y), 3);
+      g.fill();
+    }
+    for (const e of run.enemies) {
+      g.fillColor = hex(e.kind === 'boss' ? C.danger : e.kind === 'elite' ? C.gold : '#8a5a64');
+      g.circle(toX(e.x), toY(e.y), Math.max(2, e.r * K));
+      g.fill();
+    }
+    g.fillColor = hex(C.text);
+    g.circle(toX(run.player.x), toY(run.player.y), run.player.r * K);
+    g.fill();
+    g.fillColor = hex(C.gene);
+    g.circle(toX(run.player.x), toY(run.player.y), run.player.r * K * 0.45);
+    g.fill();
   }
 
   private showChoice(): void {

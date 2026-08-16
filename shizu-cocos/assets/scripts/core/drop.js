@@ -35,9 +35,18 @@ export function geneDrop(kind, rng, minionRange = [1, 2]) {
 /** 属性通道装备掉率补偿倍率（平衡表 7.5） */
 export const ATTR_CHANNEL_GEAR_MULT = 1.5;
 
-/** 非位面之主装备掉率（平衡表 7.5 掉落来源表） */
+/**
+ * 非位面之主装备掉率（平衡表 7.5 掉落来源表）。
+ *
+ * ⚠【割草重标】小怪掉率由 7.5 的 0.5% 下调为 0.04%。
+ *   7.5 那个数是按「一局 40 只击杀」标的；实时割草下一局要杀 3000-5000 只，
+ *   0.5% 会掉出 **45 件/局**（实测），背包当场爆仓、装备完全贬值。
+ *   0.04% ⇒ 一局约 2 件，与「精英 4% × 5 只 ≈ 0.2 件」拉开层次，
+ *   装备的主要来源回到精英与位面之主 —— 那才是平衡表 7.5 想要的分布。
+ *   精英 / 阶段BOSS / 位面之主的档位**保持原值不动**。
+ */
 const COMMON_GEAR_TABLE = {
-  minion: [{ p: 0.005, rarity: 'white' }],
+  minion: [{ p: 0.0004, rarity: 'white' }],
   elite: [{ p: 0.01, rarity: 'green' }, { p: 0.04, rarity: 'white' }],
   stageBoss: [{ p: 0.005, rarity: 'blue' }, { p: 0.03, rarity: 'green' }, { p: 0.08, rarity: 'white' }],
 };

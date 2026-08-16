@@ -133,7 +133,7 @@ test('红线3：匹配位面才给技能，且只给已解锁段位', () => {
 });
 
 test('红线3：装备通道对全位面开放，属性通道掉率 ×1.5', () => {
-  const N = 400000;
+  const N = 4000000;
   const countDrops = (isAttrChannel) => {
     const r = rng(2468);
     let n = 0;
@@ -143,8 +143,8 @@ test('红线3：装备通道对全位面开放，属性通道掉率 ×1.5', () =
   const skillRate = countDrops(false);
   const attrRate = countDrops(true);
 
-  // 小怪基础掉率 0.5%
-  assert.ok(Math.abs(skillRate - 0.005) < 0.0008, `技能通道掉率异常 ${skillRate}`);
+  // 小怪基础掉率 0.04%（割草重标，见 drop.js 说明）
+  assert.ok(Math.abs(skillRate - 0.0004) < 0.00012, `技能通道掉率异常 ${skillRate}`);
   assert.ok(attrRate > 0, '属性通道必须仍然掉装备（红线 3 的补偿条款）');
   const ratio = attrRate / skillRate;
   assert.ok(

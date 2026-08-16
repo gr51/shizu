@@ -76,6 +76,32 @@ export function showModal(modal) {
 
 export function closeModal() { showModal(null); }
 
+/**
+ * 切到实时战斗舞台：把大厅那套 DOM 换成一块画布 + HUD。
+ * 返回舞台根节点，供 battleScreen 取 canvas / hud。
+ */
+export function showBattleStage() {
+  const app = document.getElementById('app');
+  let stage = document.getElementById('battleStage');
+  if (!stage) {
+    stage = document.createElement('div');
+    stage.id = 'battleStage';
+    stage.innerHTML = '<div id="hud"></div><div id="canvasWrap"><canvas id="gameCanvas"></canvas></div>'
+      + '<div id="battleHint">WASD / 方向键移动 · 自动索敌攻击 · 靠近尸体吸取基因</div>';
+    app.appendChild(stage);
+  }
+  app.classList.add('in-battle');
+  stage.style.display = '';
+  return stage;
+}
+
+export function hideBattleStage() {
+  const app = document.getElementById('app');
+  app.classList.remove('in-battle');
+  const stage = document.getElementById('battleStage');
+  if (stage) stage.style.display = 'none';
+}
+
 export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

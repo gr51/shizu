@@ -208,3 +208,26 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   #panel { flex-direction: row; flex-wrap: wrap; }
   #panel .card { flex: 1 1 46%; }
 }
+
+/* —— 实时战斗舞台 —— */
+#battleStage { display: none; flex-direction: column; flex: 1; min-height: 0; }
+#app.in-battle #stage, #app.in-battle #advanceBar { display: none; }
+#app.in-battle #battleStage { display: flex; }
+
+#hud {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 8px 16px; font-size: 13px;
+  border-bottom: 1px solid var(--line); background: var(--bg-raise);
+}
+.hud-left { display: flex; align-items: center; gap: 8px; min-width: 260px; }
+.hud-hp { width: 180px; height: 10px; border-radius: 5px; background: #2a1a1e; overflow: hidden; }
+.hud-hp i { display: block; height: 100%; background: linear-gradient(90deg, #a8465a, #d06a7a); transition: width .1s; }
+.hud-mid { color: var(--text-dim); }
+.hud-right .gene { color: var(--gene); }
+
+#canvasWrap {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  min-height: 0; background: #06080a; overflow: hidden;
+}
+#gameCanvas { image-rendering: pixelated; display: block; touch-action: none; }
+#battleHint { padding: 8px 16px; font-size: 12px; color: var(--text-dim); border-top: 1px solid var(--line); background: var(--bg-raise); }

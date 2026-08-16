@@ -11,8 +11,6 @@
 
 import { activateRoute, chargeGeneLock } from './geneLock.js';
 import { adjustDynamicFactor, applyPermGrowth, calcDamage, combatStats } from './balance.js';
-import { TICK_SECONDS, contactHits, sweepTargets } from './combatModel.js';
-import { MAX_ONSCREEN } from './dungeon.js';
 import { applyAttrOption, rollUpgradeOptions } from './upgrade.js';
 import { applyHiddenSkill, engravedSkills, learnSkill } from './skillSlots.js';
 import { rollBossDrop, rollKillDrop } from './drop.js';
@@ -76,13 +74,8 @@ export class Run {
     this.hp = base.hp;
 
     this.stageIndex = 0;
-    this.stageElapsed = 0;      // 本阶段已过秒数
     this.elapsed = 0;           // 全局已过秒数
-    this.enemies = [];          // 同屏敌人
-    this.spawnCarry = 0;        // 刷怪小数累积
-    this.minionsFaced = 0;      // 本时间片里出现过的杂兵数（被围压力的输入）
-    this.surgeDone = 0;         // 本阶段已触发的涌潮数
-    this.closerSpawned = false; // 本阶段收尾单位是否已刷出
+    this.enemies = [];          // 同屏敌人（由子类维护）
 
     this.genes = 0;
     this.geneStep = 0;
@@ -164,160 +157,14 @@ export class Run {
 
   get stage() { return this.dungeon.stages[this.stageIndex]; }
   get stageNo() { return this.stageIndex + 1; }
-  get onScreen() { return this.enemies.length; }
-  get minionCount() { return this.enemies.filter((e) => e.kind === 'minion').length; }
   get boss() { return this.enemies.find((e) => e.kind === 'boss' || e.kind === 'elite') ?? null; }
 
-  /** 剩余时间（秒），UI 展示用 */
-  get stageRemain() { return Math.max(0, this.stage.duration - this.stageElapsed); }
 
-  // ===== 一个时间片 =====
-
-  step() {
-    if (this.state !== RunState.FIGHTING) return;
-    const st = this.stage;
-
-    this.elapsed += TICK_SECONDS;
-    this.stageElapsed += TICK_SECONDS;
-
-    this.spawnPhase(st);
-    // 被围压力要按「这一片里**出现过**的怪」算，而不是横扫后的幸存者 ——
-    // 否则只要清怪速度压过刷怪速度，屏幕恒空、压力归零，生存就变成二值的：
-    // 实测那样 2 路线基因锁通关率 13%、4 路线直接跳到 100%，中间没有过渡。
-    this.minionsFaced = this.enemies.filter((e) => e.kind === 'minion').length;
-    this.sweepPhase();
-    if (this.state !== RunState.FIGHTING) return;
-    this.contactPhase(st);
-    if (this.state !== RunState.FIGHTING) return;
-
-    if (this.stats.regen > 0) {
-      this.heal(Math.round(this.stats.maxHp * this.stats.regen * TICK_SECONDS), '再生');
-    }
-  }
-
-  /** 持续刷怪 + 涌潮 + 阶段收尾单位 */
-  spawnPhase(st) {
-    // 持续流
-    this.spawnCarry += st.spawnRate * TICK_SECONDS;
-    let n = Math.floor(this.spawnCarry);
-    this.spawnCarry -= n;
-
-    // 涌潮：到点成群涌入
-    while (this.surgeDone < st.surges.length && this.stageElapsed >= st.surges[this.surgeDone].atSec) {
-      const surge = st.surges[this.surgeDone];
-      n += surge.count;
-      this.surgeDone += 1;
-      this.emit(`⚠ 涌潮！${surge.count} 只 ${st.minionName} 从裂隙涌出`, 'wave');
-    }
-
-    // 阶段计时到点 → 刷出精英 / 阶段 BOSS / 位面之主
-    if (!this.closerSpawned && this.stageElapsed >= st.closerAt) {
-      this.closerSpawned = true;
-      this.enemies.push({ ...st.closer, maxHp: st.closer.hp });
-      if (st.extraElite) {
-        this.enemies.push({ ...st.closer, name: `${st.closer.name}·其二`, maxHp: st.closer.hp });
-        this.emit(`【精英夹击】${st.closer.name} ×2 绕过战线直扑巢灵！`, 'death');
-      } else if (st.closer.kind === 'boss') {
-        this.emit(`【位面之主】${st.closer.name} 降临 —— ${st.closer.desc ?? ''}`, 'death');
-      } else {
-        this.emit(`【${st.closer.name}】出现`, 'death');
-      }
-    }
-
-    const room = MAX_ONSCREEN - this.enemies.length;
-    const spawn = Math.max(0, Math.min(n, room));
-    for (let i = 0; i < spawn; i++) {
-      this.enemies.push({
-        kind: 'minion',
-        name: st.minionName,
-        hp: st.minion.hp,
-        maxHp: st.minion.hp,
-        atk: st.minion.atk,
-      });
-    }
-  }
-
-  /**
-   * 玩家横扫：割草的主循环。
-   *
-   * 精英 / 位面之主**每片必定吃一次伤害** —— 它们体型大、始终在攻击范围内，
-   * 不会因为同屏挤满杂兵就打不到。（早期版本让杂兵抢占了全部横扫名额，
-   * 结果同屏一满精英就永远杀不死，玩家必被耗死。）
-   * 横扫名额只用来清杂兵。
-   */
-  sweepPhase() {
-    if (this.enemies.length === 0) return;
-    let killed = 0;
-    let killedElite = 0;
-    let damage = 0;
-
-    const hit = (e) => {
-      const isCrit = this.rng() < this.stats.crit;
-      const dmg = Math.round(calcDamage(this.stats.atk * (0.85 + this.rng() * 0.3), 1, isCrit));
-      e.hp -= dmg;
-      damage += dmg;
-      if (e.hp <= 0) {
-        killed += 1;
-        if (e.kind !== 'minion') killedElite += 1;
-        this.onKill(e);
-        return true;
-      }
-      return false;
-    };
-
-    // 1) 大件：精英 / BOSS 恒定挨打
-    for (const e of this.enemies.filter((x) => x.kind !== 'minion')) {
-      if (e.hp > 0) hit(e);
-      if (this.state !== RunState.FIGHTING) return;
-    }
-
-    // 2) 杂兵：横扫范围内每只各吃一次攻击（AOE 是「同时打到多个」，不是「伤害翻倍」）
-    const sweep = sweepTargets(this.stats);
-    const minions = this.enemies.filter((e) => e.kind === 'minion' && e.hp > 0);
-    const swept = Math.min(sweep, minions.length);
-    for (let i = 0; i < swept; i++) {
-      hit(minions[i]);
-      if (this.state !== RunState.FIGHTING) return;
-    }
-
-    this.enemies = this.enemies.filter((e) => e.hp > 0);
-
-    if (this.stats.lifesteal > 0 && damage > 0) {
-      this.heal(Math.round(damage * this.stats.lifesteal), '吸血');
-    }
-    if (killed > 0) {
-      this.emit(
-        `横扫 ${swept} 只杂兵，击杀 <b>${killed}</b>`
-        + (killedElite ? `（含 ${killedElite} 个精锐）` : '')
-        + `　同屏剩 ${this.enemies.length}`,
-        'atk',
-      );
-    }
-  }
-
-  /** 被围受击 */
-  contactPhase(st) {
-    const hits = contactHits(this.enemies, this.stats, this.stageNo, this.rng, this.minionsFaced);
-    for (const h of hits) {
-      let dmg = h.enemy.atk * (0.85 + this.rng() * 0.3) * (1 - this.stats.dmgReduct);
-      // 杂兵是「被一群蹭到」，按同屏数量放大，但有上限
-      if (h.kind === 'minion') dmg *= 1 + Math.min(2, this.minionsFaced * 0.04);
-      dmg = Math.max(1, Math.round(dmg));
-      this.hp -= dmg;
-      this.emit(
-        h.kind === 'minion'
-          ? `被 ${st.minionName} 群围，受到 <b>${dmg}</b> 伤害`
-          : `${h.enemy.name} 突破走位，受到 <b>${dmg}</b> 伤害`,
-        'dmg',
-      );
-      if (this.hp <= 0) {
-        this.hp = 0;
-        this.state = RunState.LOST;
-        this.emit('生命耗尽，你倒在裂缝之中……', 'death');
-        return;
-      }
-    }
-  }
+  // ===== 战斗由子类实现 =====
+  // 本类只负责「单局元数据」：三选一、掉落入账、基因锁充能、结算。
+  // 实际打斗在 core/battle.js 的 RealtimeRun 里 —— 实时、有位置、有碰撞。
+  // （早期有一套回合制 step() 作为原型替身，实时战斗落地后已整体删除，
+  //   避免同一件事存在两套实现。）
 
   heal(amount, reason) {
     if (amount <= 0 || this.hp >= this.stats.maxHp) return;

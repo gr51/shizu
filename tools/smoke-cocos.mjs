@@ -116,32 +116,33 @@ enterBtn.simulateClick();
 check(snap().screen === 'battle', '已进入副本');
 check(snap().plane === '机关城', `位面 = ${snap().plane}`);
 
-// —— 5. 打完整局 ——
-console.log('\n[4] 战斗推进');
-let advances = 0;
+// —— 5. 打完整局（实时：直接驱动组件的 update(dt)，模拟游戏循环）——
+console.log('\n[4] 实时战斗推进');
+const DT = 1 / 60;
+let frames = 0;
 let modals = 0;
-for (let i = 0; i < 8000; i++) {
+// 按住方向键：往 cc 替身的键盘事件里塞 KeyD/KeyS 轮换
+const KEY = { A: 65, D: 68, S: 83, W: 87 };
+const press = (code) => { root_.keys.clear(); root_.keys.add(code); };
+
+for (let i = 0; i < 60 * 60 * 20; i++) {
   const st = snap().state;
   if (['won', 'lost', 'settled'].includes(st) || st === null) break;
 
-  const advance = buttonByText(canvas, '前 进');
-  if (advance) {
-    advance.simulateClick();
-    advances += 1;
+  if (st === 'choosing' || st === 'slotConflict') {
+    const btns = allButtons(canvas);
+    if (!btns.length) { fail('三选一弹窗没有可点按钮，卡死'); break; }
+    btns[0].simulateClick();
+    modals += 1;
     continue;
   }
-  // 三选一 / 槽位冲突弹窗：取第一个按钮
-  const btns = allButtons(canvas);
-  if (!btns.length) { fail('既没有前进按钮也没有弹窗按钮，卡死'); break; }
-  btns[0].simulateClick();
-  modals += 1;
+  press([KEY.D, KEY.S, KEY.A, KEY.W][Math.floor(i / 180) % 4]);
+  root_.update(DT);
+  frames += 1;
 }
-ok(`推进 ${advances} 次交锋，处理 ${modals} 次弹窗`);
-
-const final = snap();
-console.log(`     终局：state=${final.state} 阶段=${final.stage}/5 基因=${final.genes} HP=${Math.round(final.hp ?? 0)}`);
-check(final.state === 'settled', '一局走到结算');
-check(final.genes > 0, `吞噬到基因：${final.genes}`);
+ok(`驱动 ${frames} 帧（游戏内 ${(frames / 60 / 60).toFixed(1)} 分钟），处理 ${modals} 次弹窗`);
+check(root_.run.kills > 100, `实时战斗产生了击杀：${root_.run.kills} 只`);
+check(root_.run.onScreen >= 0, `同屏敌人数可读：${root_.run.onScreen}`);
 
 // —— 6. 结算 ——
 console.log('\n[5] 结算与回巢');

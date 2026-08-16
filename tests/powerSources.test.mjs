@@ -11,34 +11,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateDungeon } from '../shizu-cocos/assets/scripts/core/dungeon.js';
-import { Run, RunState } from '../shizu-cocos/assets/scripts/core/run.js';
+import { RunState } from '../shizu-cocos/assets/scripts/core/run.js';
+import { RealtimeRun } from '../shizu-cocos/assets/scripts/core/battle.js';
 import { computePower } from '../shizu-cocos/assets/scripts/core/balance.js';
 import { generateGear } from '../shizu-cocos/assets/scripts/core/gear.js';
 import { activateRoute } from '../shizu-cocos/assets/scripts/core/geneLock.js';
 import { SLOT_KEYS } from '../shizu-cocos/assets/scripts/core/skillSlots.js';
 import { skillsByRoute } from '../shizu-cocos/assets/scripts/data/skills.js';
 import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
-import { freshSave, rng } from './helpers.mjs';
+import { autoPlay, freshSave, rng } from './helpers.mjs';
 
 const AOFA = planes.find((p) => p.id === 'aofa');
 /** 互不封印的一组路线（诡术中立 + 仙途 + 武炼，避开互斥） */
 const COMPATIBLE = ['mofa', 'qiji', 'dujie', 'gongde', 'xiake', 'shanhai'];
 
-function winRate(makeSave, n = 80) {
-  let wins = 0;
+/**
+ * 用「平均抵达阶段 + 击杀量」而不是通关率来衡量强弱。
+ * 通关率在小样本下噪声太大（5 局的分辨率只有 1/5），
+ * 而抵达阶段是连续量，能稳定反映「这套成长到底有没有让你更强」。
+ */
+function strength(makeSave, n = 5) {
+  let score = 0;
   for (let i = 0; i < n; i++) {
-    const save = makeSave();
-    const d = generateDungeon(AOFA, save, i);
-    const run = new Run(save, d, i * 13 + 5);
-    let guard = 0;
-    while (run.state !== RunState.WON && run.state !== RunState.LOST && guard++ < 60000) {
-      if (run.state === RunState.CHOOSING) run.choose(0);
-      else if (run.state === RunState.SLOT_CONFLICT) run.resolveSlotConflict(run.pendingSkill.options[0]);
-      else run.step();
-    }
-    if (run.state === RunState.WON) wins += 1;
+    const { run } = autoPlay(AOFA, makeSave(), i + 1);
+    score += run.stageNo + run.kills / 5000;
   }
-  return wins / n;
+  return score / n;
 }
 
 const baseSave = () => freshSave({ totalRuns: 5 });
@@ -69,21 +67,21 @@ const withGear = () => {
 // ===== 核心断言：每条成长线都必须是正收益 =====
 
 test('基因锁是正收益：激活路线后通关率必须上升，而不是下降', () => {
-  const none = winRate(baseSave);
-  const locked = winRate(withGeneLocks(3));
+  const none = strength(baseSave);
+  const locked = strength(withGeneLocks(3));
   assert.ok(
     locked > none,
-    `零基因锁 ${(none * 100).toFixed(1)}% → 6 路线 Lv3 ${(locked * 100).toFixed(1)}%：`
+    `零基因锁 ${none.toFixed(2)} → 6 路线 Lv3 ${locked.toFixed(2)}：`
     + '核心成长线成了负收益 —— 每段 +2% 战力抬了 D，却没兑现成战斗力',
   );
 });
 
 test('永久属性是正收益', () => {
-  assert.ok(winRate(withPerm(200)) > winRate(baseSave));
+  assert.ok(strength(withPerm(200)) > strength(baseSave));
 });
 
 test('装备是正收益', () => {
-  assert.ok(winRate(withGear) > winRate(baseSave));
+  assert.ok(strength(withGear) > strength(baseSave));
 });
 
 // ===== 机制断言：基因锁怎么生效 =====
@@ -93,7 +91,7 @@ test('基因锁已解锁段位开局即全部生效（平衡表 4.7「激活即�
   activateRoute(save, 'mofa');
   save.player.geneLocks.mofa = 4;
 
-  const run = new Run(save, generateDungeon(AOFA, save, 1), 7);
+  const run = new RealtimeRun(save, generateDungeon(AOFA, save, 1), 7);
   const expected = skillsByRoute('mofa').filter((s) => s.lv <= 4).map((s) => s.id);
   for (const id of expected) {
     assert.ok(run.learnedSkills.has(id), `第 ${id} 段没有开局生效`);
@@ -109,7 +107,7 @@ test('基因锁**不占**技能槽 —— 槽位只留给局内三选一与隐�
   save.player.geneLocks.qiji = 6;   // 奇技 4 个段位是主动技
 
   const before = SLOT_KEYS.map((k) => save.player.skillSlots[k]);
-  const run = new Run(save, generateDungeon(AOFA, save, 1), 7);
+  const run = new RealtimeRun(save, generateDungeon(AOFA, save, 1), 7);
   const after = SLOT_KEYS.map((k) => save.player.skillSlots[k]);
 
   assert.deepEqual(after, before, '基因锁段位占用了技能槽');
@@ -121,7 +119,7 @@ test('已生效的基因锁段位不再出现在三选一池里（不重复给�
   const save = baseSave();
   activateRoute(save, 'mofa');
   save.player.geneLocks.mofa = 6;
-  const run = new Run(save, generateDungeon(AOFA, save, 1), 7);
+  const run = new RealtimeRun(save, generateDungeon(AOFA, save, 1), 7);
 
   const r = rng(31);
   for (let i = 0; i < 300; i++) {
@@ -139,7 +137,7 @@ test('战力涨幅要与实际战斗收益同向 —— 基因锁段位越深，
   const statsAt = (lv) => {
     const save = baseSave();
     for (const route of COMPATIBLE) save.player.geneLocks[route] = lv;
-    const run = new Run(save, generateDungeon(AOFA, save, 1), 7);
+    const run = new RealtimeRun(save, generateDungeon(AOFA, save, 1), 7);
     return { power: computePower(save.player), aoe: run.stats.aoe, atk: run.stats.atk };
   };
   const lv1 = statsAt(1);

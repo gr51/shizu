@@ -13,7 +13,9 @@
     "sim": "node tools/simulate.mjs",
     "verify": "npm run test && npm run typecheck && npm run smoke",
     "art": "node tools/gen-pixel-assets.mjs",
-    "art:preview": "node tools/preview-pixel.mjs"
+    "art:preview": "node tools/preview-pixel.mjs",
+    "play": "node tools/play.mjs",
+    "probe": "node tools/probe-battle.mjs"
   },
   "devDependencies": {
     "playwright": "1.49",
