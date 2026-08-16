@@ -107,10 +107,41 @@ declare module 'cc' {
     export enum Overflow { NONE = 0, CLAMP = 1, SHRINK = 2, RESIZE_HEIGHT = 3 }
   }
 
-  export class Sprite extends Component {
-    spriteFrame: any;
-    color: Color;
+  export class Rect {
+    constructor(x?: number, y?: number, width?: number, height?: number);
+    x: number; y: number; width: number; height: number;
   }
+
+  export class ImageAsset { width: number; height: number; }
+  export class JsonAsset { json: any; }
+
+  export class Texture2D {
+    image: ImageAsset;
+    setFilters(min: number, mag: number): void;
+    setWrapMode(s: number, t: number): void;
+  }
+  export namespace Texture2D {
+    export enum Filter { NONE = 0, LINEAR = 1, NEAREST = 2 }
+    export enum WrapMode { REPEAT = 0, CLAMP_TO_EDGE = 1 }
+  }
+
+  export class SpriteFrame {
+    texture: Texture2D;
+    rect: Rect;
+  }
+
+  export class Sprite extends Component {
+    spriteFrame: SpriteFrame | null;
+    color: Color;
+    sizeMode: Sprite.SizeMode;
+  }
+  export namespace Sprite {
+    export enum SizeMode { CUSTOM = 0, TRIMMED = 1, RAW = 2 }
+  }
+
+  export const resources: {
+    load(path: string, type: any, cb: (err: Error | null, asset: any) => void): void;
+  };
 
   export class Button extends Component {
     static EventType: Record<string, string>;

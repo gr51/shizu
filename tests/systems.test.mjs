@@ -103,10 +103,10 @@ test('红线1：数量型/单体型只改小怪 HP 与配套刷怪速率，精�
   assert.equal(spawnStyleHpMul('horde'), 0.75);
   assert.equal(spawnStyleHpMul('single'), 1.5);
   assert.equal(spawnStyleHpMul('standard'), 1.0);
-  // 速率修正 = 1/HP修正²（补偿秒杀悬崖，见 dungeon.js 说明）
+  // 速率修正补偿秒杀悬崖，上调方向封顶 1.25（见 dungeon.js 说明）
   for (const st of ['horde', 'single']) {
     const hp = spawnStyleHpMul(st);
-    assert.equal((hp * hp * spawnStyleRateMul(st)).toFixed(6), '1.000000');
+    assert.equal(spawnStyleRateMul(st), Math.min(1.25, 1 / (hp * hp)));
   }
 
   const save = freshSave({ totalRuns: 5 });

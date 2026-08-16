@@ -36,7 +36,10 @@ export async function startBattle(ctx, plane) {
         <div class="hud-hp"><i></i></div><span data-hp></span>
       </div>
       <div class="hud-mid" data-stage></div>
-      <div class="hud-right"><b class="gene" data-genes></b> · 噬灭 <b data-kills></b> · 同屏 <span data-screen></span></div>`;
+      <div class="hud-right">
+        <b class="gene" data-genes></b> · 噬灭 <b data-kills></b> · 同屏 <span data-screen></span>
+        <span class="hud-cd" data-devour></span><span class="hud-cd" data-dodge></span>
+      </div>`;
     return {
       hpBar: hud.querySelector('.hud-hp i'),
       hp: hud.querySelector('[data-hp]'),
@@ -44,6 +47,8 @@ export async function startBattle(ctx, plane) {
       genes: hud.querySelector('[data-genes]'),
       kills: hud.querySelector('[data-kills]'),
       screen: hud.querySelector('[data-screen]'),
+      devour: hud.querySelector('[data-devour]'),
+      dodge: hud.querySelector('[data-dodge]'),
     };
   }
 
@@ -67,6 +72,10 @@ export async function startBattle(ctx, plane) {
       const steps = Math.min(40, Math.ceil(total / 0.05));
       const dt = total / steps;
       const move = input.read();
+      input.tickHold(real);
+      const act = input.takeActions();
+      if (act.devour) run.devour();
+      if (act.dodge) run.dodge(move);
       for (let i = 0; i < steps && run.state === RunState.FIGHTING; i++) run.update(dt, move);
       renderer.pushEffects(run.drainEffects());
     }
@@ -102,6 +111,11 @@ export async function startBattle(ctx, plane) {
     H.genes.textContent = `基因 ${run.genes}`;
     H.kills.textContent = run.kills;
     H.screen.textContent = run.onScreen;
+    const p = run.player;
+    H.devour.textContent = p.devourCd > 0 ? `吞噬 ${p.devourCd.toFixed(0)}s` : '吞噬 就绪';
+    H.devour.className = `hud-cd ${p.devourCd > 0 ? '' : 'ready'}`;
+    H.dodge.textContent = p.dodgeCd > 0 ? '闪避 …' : '闪避 就绪';
+    H.dodge.className = `hud-cd ${p.dodgeCd > 0 ? '' : 'ready'}`;
   }
 
   function resume() {

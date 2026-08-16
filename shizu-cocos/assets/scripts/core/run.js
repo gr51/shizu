@@ -25,8 +25,12 @@ import { rngFactory } from './rng.js';
  * 「小怪掉 5-10 基因、6-10 只/分钟」标的；割草下击杀量高一个量级，
  * 小怪改为掉 1 基因（见 drop.js），故阈值同比重标，
  * 保持整体策划 4.3「单局总计 6-12 次升级」的节奏不变。
+ *
+ * 阈值按实时战斗的基因流速重标：首档 75 让**首次升级落在 40 秒内**
+ *（4.3 要求 30-60s；原先 120 档要等到 63s，开局太干）。
+ * 全表 7 档 + 4 次阶段结算 ≈ 11 次/局，落在 6-12 区间。
  */
-export const UPGRADE_GENE_STEPS = [120, 260, 420, 600, 800, 1020, 1260, 1520, 1800, 2100];
+export const UPGRADE_GENE_STEPS = [75, 250, 550, 1000, 1600, 2400, 3400];
 
 /**
  * 主动技折算成「持续贡献」的权重。
@@ -253,7 +257,6 @@ export class Run {
     this.pendingOptions = null;
 
     if (option.kind === 'attr') {
-      this.takenAttrs.add(option.id);
       applyAttrOption(this.stats, option);
       if (option.eff.hpPct) this.hp = Math.min(this.stats.maxHp, this.hp * (1 + option.eff.hpPct));
       this.emit(`获得 <b>${option.name}</b>（${option.desc}）`, 'learn');

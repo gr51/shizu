@@ -68,6 +68,13 @@ for (let i = 0; i < 120; i++) {
   await p.keyboard.down(k);
   await p.waitForTimeout(700);
   await p.keyboard.up(k);
+  // 会用技能的玩家：血少了开吞噬爆发，每隔一会儿翻滚一次
+  const st2 = await p.evaluate(() => {
+    const r = globalThis.__shizu.run;
+    return r ? { hp: r.hp / r.stats.maxHp, dev: r.player.devourCd } : null;
+  });
+  if (st2 && st2.dev <= 0 && st2.hp < 0.6) await p.keyboard.press('Space');
+  if (di % 3 === 0) await p.keyboard.press('ShiftLeft');
 }
 
 const s2 = await p.evaluate(() => {

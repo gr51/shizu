@@ -75,9 +75,13 @@ export function spawnStyleHpMul(spawnStyle) {
 export function spawnStyleRateMul(spawnStyle) {
   // 平方而非线性：秒杀悬崖是**乘性**的 ——
   // 小怪 HP ×1.5 会让「一刀死」变「两刀死」，有效清速直接砍半（而不是降到 1/1.5）。
-  // 线性补偿下山海/巨神的通关率实测掉到 0%；取平方后三种位面重新齐平。
+  // 线性补偿下山海/巨神的通关率实测掉到 0%。
+  //
+  // 但上调方向要**封顶 1.25**：数量型位面本来刷得就多，
+  // 引入冲撞/远程变体后 1.78 倍等于 1.78 倍的高威胁怪，尸海实测 2.1 分钟就被打死。
+  // 血厚方向（<1）不封顶 —— 那是在降压，不会失控。
   const hp = spawnStyleHpMul(spawnStyle);
-  return 1 / (hp * hp);
+  return Math.min(1.25, 1 / (hp * hp));
 }
 
 /**

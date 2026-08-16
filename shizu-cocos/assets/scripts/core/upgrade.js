@@ -42,9 +42,16 @@ export function skillPool(routes, save, learnedIds) {
   return pool;
 }
 
-/** 通用属性池（去掉本局已选过的，避免重复） */
-export function attrPool(takenIds) {
-  return GENERIC_ATTR_POOL.filter((a) => !takenIds.has(a.id));
+/**
+ * 通用属性池。
+ *
+ * ⚠ 属性**可重复获取**（与技能不同）。这是割草的核心结构：
+ *   同一条强化不断叠层，才有「这局我堆的是攻速流」的 Build 感。
+ *   早期实现按「去重」处理，9 条属性选完就没得选了 ——
+ *   一局 8-12 次升级会直接把池子抽干，后半程无事可做。
+ */
+export function attrPool() {
+  return GENERIC_ATTR_POOL;
 }
 
 /**
@@ -60,7 +67,7 @@ export function rollUpgradeOptions(dungeon, save, runState, rng) {
 
   if (dungeon.channel === 'attr') {
     // 硬规则：只有属性，一个技能都不能出现
-    return weightedPickMany(attrPool(runState.takenAttrs), CHOICE_COUNT, weightOf, rng);
+    return weightedPickMany(attrPool(), CHOICE_COUNT, weightOf, rng);
   }
 
   const skills = skillPool(dungeon.channelRoutes, save, runState.learnedSkills);
@@ -68,7 +75,7 @@ export function rollUpgradeOptions(dungeon, save, runState, rng) {
   if (picked.length < CHOICE_COUNT) {
     // 技能池枯竭 → 用通用属性补位（属性非路线专属，不违反红线 3）
     const fill = weightedPickMany(
-      attrPool(runState.takenAttrs),
+      attrPool().filter((a) => !picked.some((x) => x.id === a.id)),
       CHOICE_COUNT - picked.length,
       weightOf,
       rng,
@@ -89,5 +96,6 @@ export function applyAttrOption(stats, option) {
   if (e.lifesteal) stats.lifesteal += e.lifesteal;
   if (e.regen) stats.regen += e.regen;
   if (e.range) stats.range *= 1 + e.range;
+  if (e.aoe) stats.aoe = (stats.aoe ?? 0) + e.aoe;
   return stats;
 }

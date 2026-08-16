@@ -137,7 +137,7 @@ test('杂兵同屏受 60 上限约束（整体策划 9.3）；阶段收尾单位
   // 精英/位面之主是节奏锚点，必须出场，故不占杂兵名额 —— 允许小幅超出
   for (const id of ['aofa', 'shihai', 'shanhai']) {
     const peak = sample(id, 3).peakOnScreen;
-    assert.ok(peak <= MAX_ONSCREEN + 4, `${id} 同屏 ${peak} 远超上限`);
+    assert.ok(peak <= MAX_ONSCREEN + 3, `${id} 同屏 ${peak} 超出上限（收尾单位最多 +3）`);
     assert.ok(peak >= 30, `${id} 同屏峰值仅 ${peak} —— 怪潮压力不足，不是割草`);
   }
 });
@@ -172,14 +172,16 @@ test('实时战斗：一局是连续时间流，不是离散回合', () => {
 
 // ===== 位面类型：血量吞吐守恒，不得变成固有难度 =====
 
-test('数量型/单体型：速率修正 = 1/HP修正² —— 补偿秒杀悬崖', () => {
+test('数量型/单体型：速率修正补偿秒杀悬崖，且上调方向封顶 1.25', () => {
+  // 血薄方向（<1）：补偿 = 1/HP²，但不超过 1.25 —— 见 dungeon.js 说明
+  // 血厚方向（>1）：补偿 = 1/HP²，不封顶（那是降压，不会失控）
   for (const style of ['standard', 'horde', 'single']) {
     const hp = spawnStyleHpMul(style);
-    assert.equal(
-      (hp * hp * spawnStyleRateMul(style)).toFixed(6), '1.000000',
-      `${style} 的补偿系数不对 —— 会变成事实上的位面难度差`,
-    );
+    const rate = spawnStyleRateMul(style);
+    assert.equal(rate, Math.min(1.25, 1 / (hp * hp)), `${style} 的补偿系数不对`);
   }
+  assert.ok(spawnStyleRateMul('horde') <= 1.25, '数量型刷怪补偿必须封顶');
+  assert.ok(spawnStyleRateMul('single') < 1, '单体型应当降低刷怪量');
 });
 
 test('三种位面类型的通关率不得拉开数量级（红线 1 的实测校验）', () => {

@@ -87,7 +87,7 @@ export function showBattleStage() {
     stage = document.createElement('div');
     stage.id = 'battleStage';
     stage.innerHTML = '<div id="hud"></div><div id="canvasWrap"><canvas id="gameCanvas"></canvas></div>'
-      + '<div id="battleHint">WASD / 方向键移动 · 自动索敌攻击 · 靠近尸体吸取基因</div>';
+      + '<div id="battleHint">WASD 移动 · 自动索敌攻击 · <b>空格</b>吞噬爆发（吸基因+回血+狂暴）· <b>Shift</b>闪避翻滚 · 靠近尸体自动吸取</div>';
     app.appendChild(stage);
   }
   app.classList.add('in-battle');

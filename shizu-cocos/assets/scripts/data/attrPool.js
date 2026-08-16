@@ -12,15 +12,29 @@ export const RARITY_WEIGHT = { base: 40, feature: 40, rare: 15, legend: 5 };
  * 传说档仅由**技能通道**产出（6.2「传说技能仅匹配位面产出」），
  * 这正是红线 3 想要的效果：属性通道拿不到传说。
  */
+/**
+ * ⚠【割草重标 · 滚雪球】原表按 6.1 逐条照抄（攻+10% / 血+15% / 速+10% …），
+ *   实测一局 8 次升级后攻击只涨到 ×1.10、清场范围 ×1.00 ——
+ *   「越滚越强」是割草的核心快感，这个曲线等于没有。
+ *
+ *   两处调整（数值在此，逻辑不动）：
+ *   1. **每档数值上调**：割草的升级要「立刻感觉到」，8 次升级应能把清场能力翻几倍。
+ *      整体策划 5.5 也写着「每次升级数值提升 ≥10%（可感知）」——
+ *      +10% 攻击在实时战斗里根本感知不到，因为杂兵本来就一刀死。
+ *   2. **属性通道必须有清场范围成长**：原表只有「射程」，且只影响索敌距离。
+ *      不匹配位面（新手前几局全是）拿不到任何 AOE，一局下来清场半径纹丝不动，
+ *      这是新手体验最干的地方。新增「噬域扩张」直接给 aoe。
+ */
 export const GENERIC_ATTR_POOL = [
-  { id: 'attr_atk',       kind: 'attr', rarity: 'base',    name: '攻击强化', desc: '攻击 +10%',          eff: { atkPct: 0.10 } },
-  { id: 'attr_hp',        kind: 'attr', rarity: 'base',    name: '生命强化', desc: '生命 +15%',          eff: { hpPct: 0.15 } },
-  { id: 'attr_speed',     kind: 'attr', rarity: 'base',    name: '速度强化', desc: '速度 +10%',          eff: { speedPct: 0.10 } },
-  { id: 'attr_aspd',      kind: 'attr', rarity: 'base',    name: '攻速强化', desc: '攻速 +8%',           eff: { aspdPct: 0.08 } },
-  { id: 'attr_crit',      kind: 'attr', rarity: 'feature', name: '暴击强化', desc: '暴击率 +5%',         eff: { crit: 0.05 } },
-  { id: 'attr_lifesteal', kind: 'attr', rarity: 'feature', name: '吸血强化', desc: '吸血 +2%',           eff: { lifesteal: 0.02 } },
-  { id: 'attr_regen',     kind: 'attr', rarity: 'feature', name: '回血强化', desc: '回血 +1% 最大生命/s', eff: { regen: 0.01 } },
-  { id: 'attr_range',     kind: 'attr', rarity: 'feature', name: '射程强化', desc: '攻击范围 +10%',      eff: { range: 0.10 } },
+  { id: 'attr_atk',       kind: 'attr', rarity: 'base',    name: '噬骨之爪', desc: '攻击 +25%',           eff: { atkPct: 0.25 } },
+  { id: 'attr_hp',        kind: 'attr', rarity: 'base',    name: '厚甲之壳', desc: '生命上限 +25%',       eff: { hpPct: 0.25 } },
+  { id: 'attr_speed',     kind: 'attr', rarity: 'base',    name: '疾行之风', desc: '移速 +15%',           eff: { speedPct: 0.15 } },
+  { id: 'attr_aspd',      kind: 'attr', rarity: 'base',    name: '连噬之颚', desc: '攻速 +20%',           eff: { aspdPct: 0.20 } },
+  { id: 'attr_aoe',       kind: 'attr', rarity: 'feature', name: '噬域扩张', desc: '清场范围 +35%',       eff: { aoe: 0.35 } },
+  { id: 'attr_crit',      kind: 'attr', rarity: 'feature', name: '暴君之瞳', desc: '暴击率 +12%',         eff: { crit: 0.12 } },
+  { id: 'attr_lifesteal', kind: 'attr', rarity: 'feature', name: '血饲之牙', desc: '吸血 +6%',            eff: { lifesteal: 0.06 } },
+  { id: 'attr_regen',     kind: 'attr', rarity: 'feature', name: '自愈之囊', desc: '每秒回血 +1.5% 上限', eff: { regen: 0.015 } },
+  { id: 'attr_range',     kind: 'attr', rarity: 'feature', name: '贪婪触须', desc: '攻击范围 +20%',       eff: { range: 0.20 } },
 ];
 
 // ===== 装备（平衡表 7.5）=====

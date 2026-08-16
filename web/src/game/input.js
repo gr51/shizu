@@ -5,12 +5,18 @@
 export class Input {
   constructor(surface) {
     this.keys = new Set();
+    /** 本帧待消费的动作（读一次即清空，避免长按连发） */
+    this.pending = { dodge: false, devour: false };
+    this.holdT = 0;
     this.touch = { active: false, id: null, ox: 0, oy: 0, mx: 0, my: 0 };
     this.radius = 60;
 
     window.addEventListener('keydown', (e) => {
-      if (KEY_MAP[e.code]) e.preventDefault();
+      if (KEY_MAP[e.code] || ACTION_KEYS[e.code]) e.preventDefault();
+      if (this.keys.has(e.code)) return;           // 忽略系统重复触发
       this.keys.add(e.code);
+      const act = ACTION_KEYS[e.code];
+      if (act) this.pending[act] = true;
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
@@ -65,6 +71,29 @@ export class Input {
     return { mx, my };
   }
 
+  /**
+   * 取出并清空本帧的动作请求。
+   * @returns {{dodge:boolean, devour:boolean}}
+   */
+  takeActions() {
+    const a = { ...this.pending };
+    this.pending.dodge = false;
+    this.pending.devour = false;
+    return a;
+  }
+
+  /** 触摸端：长按 0.4s 触发吞噬爆发（整体策划 2.3） */
+  tickHold(dt) {
+    if (!this.touch.active) { this.holdT = 0; return; }
+    // 摇杆几乎没动 = 长按而不是拖动
+    if (Math.hypot(this.touch.mx, this.touch.my) < 0.25) {
+      this.holdT += dt;
+      if (this.holdT >= 0.4) { this.pending.devour = true; this.holdT = -999; }
+    } else {
+      this.holdT = 0;
+    }
+  }
+
   /** 摇杆可视化位置（UI 层画） */
   stick() {
     return this.touch.active
@@ -72,6 +101,15 @@ export class Input {
       : null;
   }
 }
+
+/** 动作键：空格=吞噬爆发，Shift=闪避翻滚 */
+const ACTION_KEYS = {
+  Space: 'devour',
+  ShiftLeft: 'dodge',
+  ShiftRight: 'dodge',
+  KeyJ: 'dodge',
+  KeyK: 'devour',
+};
 
 const KEY_MAP = {
   KeyW: [0, -1], ArrowUp: [0, -1],

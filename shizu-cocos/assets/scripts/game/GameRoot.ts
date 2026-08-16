@@ -4,9 +4,10 @@
 //
 // 竖屏 640×960（整体策划 1.1）。当前无美术资源，全部程序化绘制（见 UiKit.ts）。
 
-import { Component, EventKeyboard, Graphics, Input, KeyCode, Label, Node, _decorator, input } from 'cc';
+import { Component, EventKeyboard, Graphics, Input, KeyCode, Label, Node, Sprite, UITransform, _decorator, input } from 'cc';
 import { C, DESIGN, clearChildren, drawBar, drawPanel, hex, makeButton, makeDivider, makeLabel, makeNode, sizeOf } from './UiKit';
 import { ModalLayer, ModalRow } from './ModalLayer';
+import { SpriteBank, applyFrame } from './SpriteBank';
 import { createStorage } from '../platform/storage';
 
 import { createSaveRepo } from '../core/save.js';
@@ -37,6 +38,11 @@ export class GameRoot extends Component {
   private lastState: string | null = null;
   private keys = new Set<number>();
   private hudLabel: Label | null = null;
+  private bank = new SpriteBank();
+  /** 战场实体的显示节点池：entityId → { node, sprite } */
+  private pool = new Map<number, { node: Node; sprite: Sprite }>();
+  private field: Node | null = null;
+  private playerNode: { node: Node; sprite: Sprite } | null = null;
 
   private screen!: Node;
   private header!: Label;
@@ -216,7 +222,11 @@ export class GameRoot extends Component {
     const dungeon = generateDungeon(plane, this.save, seed);
     this.run = new RealtimeRun(this.save, dungeon, seed ^ 0x9e3779b9);
     this.lastState = null;
+    this.pool.clear();
+    this.playerNode = null;
     this.renderBattle();
+    // 资产异步装载；装完之前先用色块顶着，不阻塞开局
+    this.bank.load(plane.id).catch(() => { /* 缺图时保持色块回退 */ });
   }
 
   /**
@@ -232,6 +242,7 @@ export class GameRoot extends Component {
       run.update(dt, this.readMove());
       run.drainEffects();
       this.refreshBattleHud();
+      this.drawField(run);        // 每帧只**移动节点、换帧**，不重建节点树
     }
     if (run.state !== this.lastState) {
       this.lastState = run.state;
@@ -272,9 +283,12 @@ export class GameRoot extends Component {
     // 接入 tools/gen-pixel-assets.mjs 产出的像素资产时，把这里换成 Sprite + SpriteFrame，
     // 帧序取 assets/art/anim.json 的 frameWidth 切分 —— 逻辑层（core/battle.js）不用动。
     const field = makeNode('Field', s, 0, -20);
-    sizeOf(field, ARENA.w * 0.62, ARENA.h * 0.62);
-    drawPanel(field, ARENA.w * 0.62, ARENA.h * 0.62, C.panelDeep, C.line, 4);
-    this.drawField(field, run);
+    sizeOf(field, ARENA.w * GameRoot.K, ARENA.h * GameRoot.K);
+    drawPanel(field, ARENA.w * GameRoot.K, ARENA.h * GameRoot.K, C.panelDeep, C.line, 4);
+    this.field = field;
+    this.pool.clear();
+    this.playerNode = null;
+    this.drawField(run);
 
     switch (run.state) {
       case RunState.CHOOSING: this.showChoice(); break;
@@ -285,28 +299,89 @@ export class GameRoot extends Component {
     }
   }
 
-  /** 把战场实体画成色块（占位）。K = 逻辑坐标 → 屏幕坐标的缩放 */
-  private drawField(field: Node, run: any): void {
-    const K = 0.62;
-    const g = field.getComponent(Graphics) ?? field.addComponent(Graphics);
+  /** 战场缩放：逻辑坐标（ARENA 960×560）→ 屏幕坐标 */
+  private static readonly K = 0.62;
+
+  /**
+   * 画战场。资产装载完成后用 SpriteFrame，未完成时回退到 Graphics 色块。
+   * 节点走**对象池**：割草同屏 60 只，每帧新建/销毁节点会直接卡死
+   *（整体策划 9.3 明确要求「敌人/尸体/飘字全部对象池化」）。
+   */
+  private drawField(run: any): void {
+    const field = this.field;
+    if (!field) return;
+    const K = GameRoot.K;
     const toX = (x: number) => (x - ARENA.w / 2) * K;
     const toY = (y: number) => (ARENA.h / 2 - y) * K;
 
-    for (const o of run.orbs) {
-      g.fillColor = hex(C.gene);
-      g.circle(toX(o.x), toY(o.y), 3);
-      g.fill();
+    if (!this.bank.loaded) { this.drawFieldFallback(run, toX, toY); return; }
+
+    const alive = new Set<number>();
+    const planeId = run.dungeon.plane.id;
+
+    for (const e of run.enemies) {
+      alive.add(e.id);
+      const name = e.kind === 'minion' ? `minion_${planeId}_move`
+        : e.kind === 'elite' ? `elite_${planeId}_idle` : `boss_${planeId}_idle`;
+      const scale = e.kind === 'boss' ? 0.55 : e.kind === 'elite' ? 0.6 : 0.75;
+      const ent = this.entity(e.id, field);
+      ent.node.setPosition(toX(e.x), toY(e.y), 0);
+      ent.node.setScale(scale, scale, 1);
+      applyFrame(ent.sprite, this.bank.frameAt(name, e.anim * 0.12));
     }
+    // 基因尸体也走池子，id 用负数避开敌人 id
+    run.orbs.forEach((o: any, i: number) => {
+      const id = -1 - i;
+      alive.add(id);
+      const ent = this.entity(id, field);
+      ent.node.setPosition(toX(o.x), toY(o.y), 0);
+      ent.node.setScale(0.5, 0.5, 1);
+      applyFrame(ent.sprite, this.bank.frameAt('gene_orb_pulse', o.bob * 0.2));
+    });
+
+    // 回收本帧没出现的节点
+    for (const [id, ent] of this.pool) {
+      if (!alive.has(id)) { ent.node.active = false; this.pool.delete(id); ent.node.destroy(); }
+    }
+
+    // 玩家：最后画，永远在最上层（规则 7 可读性层级顶端）
+    if (!this.playerNode) this.playerNode = this.makeEntityNode(field);
+    const p = run.player;
+    const clip = p.state === 'attack' ? 'player_attack' : p.state === 'walk' ? 'player_walk' : 'player_idle';
+    this.playerNode.node.setPosition(toX(p.x), toY(p.y), 0);
+    this.playerNode.node.setScale(0.62 * (p.facing < 0 ? -1 : 1), 0.62, 1);
+    this.playerNode.node.active = !(p.invuln > 0 && Math.floor(p.invuln * 20) % 2 === 0);
+    applyFrame(this.playerNode.sprite, this.bank.frameAt(clip, p.anim * 0.1));
+    this.playerNode.node.setSiblingIndex(field.children.length - 1);
+  }
+
+  private entity(id: number, parent: Node): { node: Node; sprite: Sprite } {
+    let ent = this.pool.get(id);
+    if (!ent) { ent = this.makeEntityNode(parent); this.pool.set(id, ent); }
+    ent.node.active = true;
+    return ent;
+  }
+
+  private makeEntityNode(parent: Node): { node: Node; sprite: Sprite } {
+    const node = makeNode('E', parent);
+    node.addComponent(UITransform);
+    const sprite = node.addComponent(Sprite);
+    sprite.sizeMode = (Sprite as any).SizeMode?.RAW ?? 0;
+    return { node, sprite };
+  }
+
+  /** 资产未装载完时的色块回退，保证开局不空屏 */
+  private drawFieldFallback(run: any, toX: (n: number) => number, toY: (n: number) => number): void {
+    const g = this.field!.getComponent(Graphics) ?? this.field!.addComponent(Graphics);
+    g.clear();
+    for (const o of run.orbs) { g.fillColor = hex(C.gene); g.circle(toX(o.x), toY(o.y), 3); g.fill(); }
     for (const e of run.enemies) {
       g.fillColor = hex(e.kind === 'boss' ? C.danger : e.kind === 'elite' ? C.gold : '#8a5a64');
-      g.circle(toX(e.x), toY(e.y), Math.max(2, e.r * K));
+      g.circle(toX(e.x), toY(e.y), Math.max(2, e.r * GameRoot.K));
       g.fill();
     }
     g.fillColor = hex(C.text);
-    g.circle(toX(run.player.x), toY(run.player.y), run.player.r * K);
-    g.fill();
-    g.fillColor = hex(C.gene);
-    g.circle(toX(run.player.x), toY(run.player.y), run.player.r * K * 0.45);
+    g.circle(toX(run.player.x), toY(run.player.y), run.player.r * GameRoot.K);
     g.fill();
   }
 

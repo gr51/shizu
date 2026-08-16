@@ -22,7 +22,11 @@ import * as FX from './pixel/effects.mjs';
 import { makeBackground, ITEMS, ATTR_ICONS, GEAR_ICONS, BG_W, BG_H } from './pixel/scenes.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// 两处输出：
+//   assets/art/         —— 给美术/编辑器看的源目录
+//   assets/resources/art/ —— 运行时目录（Cocos 的 resources.load 只能读这里）
 const outRoot = path.join(root, 'shizu-cocos', 'assets', 'art');
+const runtimeRoot = path.join(root, 'shizu-cocos', 'assets', 'resources', 'art');
 
 /** 字符 → 颜色（给定色阶） */
 const mapFor = (ramp, accent = null) => ({
@@ -316,13 +320,20 @@ addAnim('anim/relic_float.png', unit(ITEMS.relic, P.amber, { rim: true, name: 'r
 let written = 0;
 for (const j of jobs) {
   const out = j.canvas.scale(j.scale);
-  const file = path.join(outRoot, j.rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, encodePng(out.w, out.h, out.data));
+  const png = encodePng(out.w, out.h, out.data);
+  for (const base of [outRoot, runtimeRoot]) {
+    const file = path.join(base, j.rel);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, png);
+  }
   written += 1;
 }
 
 // 动画清单：Cocos 侧按 frameWidth 切分雪碧图即可
+fs.writeFileSync(
+  path.join(runtimeRoot, 'anim.json'),
+  JSON.stringify({ note: '横向雪碧图；frameWidth/Height 为放大后的单帧尺寸', clips: anims }, null, 2),
+);
 fs.writeFileSync(
   path.join(outRoot, 'anim.json'),
   JSON.stringify({ note: '横向雪碧图；frameWidth/Height 为放大后的单帧尺寸', clips: anims }, null, 2),
