@@ -16,6 +16,8 @@ import { encodePng } from './pixel/png.mjs';
 import { P, INK, RIM, PLANE_PALETTE, ROUTE_PALETTE, rgb } from './pixel/palette.mjs';
 import { NESTLING_BASE, SKIN_OVERLAY, MINIONS } from './pixel/creatures.mjs';
 import { BOSSES } from './pixel/bosses.mjs';
+import { ELITES } from './pixel/elites.mjs';
+import { IDLE, FLOAT, WALK, HIT, DEATH, PULSE, sheet } from './pixel/anim.mjs';
 import { makeBackground, ITEMS, ATTR_ICONS, GEAR_ICONS, BG_W, BG_H } from './pixel/scenes.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,9 +71,9 @@ for (const [id, art] of Object.entries(BOSSES)) {
   add(`units/boss_${id}.png`, unit(art, PLANE_PALETTE[id], { rim: true, name: `boss_${id}` }), 8);
 }
 
-// ——— 精英：暂用同位面小怪 ×2 放大占位（128px），下一批逐个手绘 ———
-for (const [id, art] of Object.entries(MINIONS)) {
-  add(`units/elite_${id}.png`, unit(art, PLANE_PALETTE[id], { name: `elite_${id}` }), 8);
+// ——— 12 位面精英：24×24 ×5 = 120px（尺寸档位介于小怪与 BOSS 之间）———
+for (const [id, art] of Object.entries(ELITES)) {
+  add(`units/elite_${id}.png`, unit(art, PLANE_PALETTE[id], { name: `elite_${id}` }), 5);
 }
 
 // ——— 道具 ———
@@ -207,6 +209,64 @@ for (const [id, file] of Object.entries(BG_FILE)) {
 // 入口/启动背景（用虫巢配色，另存一张）
 add('backgrounds/splash.png', makeBackground('nest', P.amber), 4);
 
+// ============================================================
+// 逐帧动画雪碧图（横向排列）+ 清单
+// ============================================================
+
+const anims = [];
+/** @param {string} rel @param {Canvas} base @param {Function[]} action @param {number} scale @param {number} fps */
+function addAnim(rel, base, action, scale, fps, loop = true) {
+  const s = sheet(base, action);
+  add(rel, s.canvas, scale);
+  anims.push({
+    file: `art/${rel}`,
+    frames: s.frames,
+    frameWidth: s.frameW * scale,
+    frameHeight: s.frameH * scale,
+    fps,
+    loop,
+  });
+}
+
+// 巢灵：待机 + 移动 + 受击（11 形态各一套）
+const playerForms = [['', null], ...Object.entries(SKIN_OVERLAY).map(([r, o]) => [`_${r}`, [r, o]])];
+for (const [suffix, skin] of playerForms) {
+  const base = unit(NESTLING_BASE, P.shell, {
+    rim: true,
+    overlay: skin ? skin[1] : null,
+    overlayColor: skin ? ROUTE_PALETTE[skin[0]][2] : null,
+    name: `player${suffix}`,
+  });
+  addAnim(`anim/player${suffix}_idle.png`, base, IDLE, 5, 6);
+  addAnim(`anim/player${suffix}_walk.png`, base, WALK, 5, 10);
+  addAnim(`anim/player${suffix}_hit.png`, base, HIT, 5, 12, false);
+}
+
+// 小怪：移动 + 死亡（漂浮类走 FLOAT）
+const FLOATERS = new Set(['aofa', 'zhutian', 'qiqiao']);
+for (const [id, art] of Object.entries(MINIONS)) {
+  const base = unit(art, PLANE_PALETTE[id], { name: `minion_${id}` });
+  addAnim(`anim/minion_${id}_move.png`, base, FLOATERS.has(id) ? FLOAT : WALK, 4, 8);
+  addAnim(`anim/minion_${id}_death.png`, base, DEATH, 4, 12, false);
+}
+
+// 精英：待机 + 死亡
+for (const [id, art] of Object.entries(ELITES)) {
+  const base = unit(art, PLANE_PALETTE[id], { name: `elite_${id}` });
+  addAnim(`anim/elite_${id}_idle.png`, base, IDLE, 5, 6);
+  addAnim(`anim/elite_${id}_death.png`, base, DEATH, 5, 10, false);
+}
+
+// 位面之主：待机（BOSS 幅度更小更沉，用 IDLE 不用 WALK）
+for (const [id, art] of Object.entries(BOSSES)) {
+  const base = unit(art, PLANE_PALETTE[id], { rim: true, name: `boss_${id}` });
+  addAnim(`anim/boss_${id}_idle.png`, base, IDLE, 8, 5);
+}
+
+// 掉落物：基因球呼吸、传承水晶浮动
+addAnim('anim/gene_orb_pulse.png', unit(ITEMS.gene_orb, P.teal, { rim: true, name: 'orb' }), PULSE, 4, 8);
+addAnim('anim/relic_float.png', unit(ITEMS.relic, P.amber, { rim: true, name: 'relic' }), FLOAT, 4, 6);
+
 // ——— 写出 ———
 let written = 0;
 for (const j of jobs) {
@@ -216,6 +276,12 @@ for (const j of jobs) {
   fs.writeFileSync(file, encodePng(out.w, out.h, out.data));
   written += 1;
 }
+
+// 动画清单：Cocos 侧按 frameWidth 切分雪碧图即可
+fs.writeFileSync(
+  path.join(outRoot, 'anim.json'),
+  JSON.stringify({ note: '横向雪碧图；frameWidth/Height 为放大后的单帧尺寸', clips: anims }, null, 2),
+);
 
 fs.writeFileSync(path.join(outRoot, 'README.md'), `# 像素风美术资产（由 tools/gen-pixel-assets.mjs 生成）
 
