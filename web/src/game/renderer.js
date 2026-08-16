@@ -65,16 +65,35 @@ export class Renderer {
     const camY = Math.round(run.player.y - ARENA.h / 2);
     ctx.translate(Math.round(sx) - camX, Math.round(sy) - camY);
 
-    // —— 背景（无限平铺）——
-    const bg = A.img(`backgrounds/${BG_FILE[this.planeId] ?? 'nest'}.png`);
-    if (bg) {
-      const tw = ARENA.w, th = ARENA.h;
-      const startX = Math.floor(camX / tw) * tw;
-      const startY = Math.floor(camY / th) * th;
-      for (let x = startX; x < camX + ARENA.w; x += tw)
-        for (let y = startY; y < camY + ARENA.h; y += th)
-          ctx.drawImage(bg, Math.round(x), Math.round(y), tw, th);
-    } else { ctx.fillStyle = '#0d1013'; ctx.fillRect(camX, camY, ARENA.w, ARENA.h); }
+    // —— 地面（无缝地砖，一块一块平铺；镜像拼贴保证接缝无缝）——
+    const TILE = 256;   // 每块地砖的世界尺寸（单位：世界坐标）
+    const floor = A.img(`backgrounds/floor_${this.planeId}.png`);
+    if (floor) {
+      const startX = Math.floor(camX / TILE) * TILE;
+      const startY = Math.floor(camY / TILE) * TILE;
+      for (let y = startY; y < camY + ARENA.h; y += TILE) {
+        for (let x = startX; x < camX + ARENA.w; x += TILE) {
+          const gx = Math.round(x / TILE), gy = Math.round(y / TILE);
+          const mx = (gx & 1) ? -1 : 1;   // 奇数列水平镜像
+          const my = (gy & 1) ? -1 : 1;   // 奇数行垂直镜像
+          ctx.save();
+          ctx.translate(mx < 0 ? x + TILE : x, my < 0 ? y + TILE : y);
+          ctx.scale(mx, my);
+          ctx.drawImage(floor, 0, 0, TILE, TILE);
+          ctx.restore();
+        }
+      }
+    } else {
+      // 兜底：旧的整图背景
+      const bg = A.img(`backgrounds/${BG_FILE[this.planeId] ?? 'nest'}.png`);
+      if (bg) {
+        const startX = Math.floor(camX / ARENA.w) * ARENA.w;
+        const startY = Math.floor(camY / ARENA.h) * ARENA.h;
+        for (let x = startX; x < camX + ARENA.w; x += ARENA.w)
+          for (let y = startY; y < camY + ARENA.h; y += ARENA.h)
+            ctx.drawImage(bg, Math.round(x), Math.round(y), ARENA.w, ARENA.h);
+      } else { ctx.fillStyle = '#0d1013'; ctx.fillRect(camX, camY, ARENA.w, ARENA.h); }
+    }
 
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {

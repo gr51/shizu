@@ -34,6 +34,7 @@ export class Assets {
     want('items/gene_orb.png');
     const bgFile = BG_FILE[planeId] ?? 'nest';
     want(`backgrounds/${bgFile}.png`);
+    want(`backgrounds/floor_${planeId}.png`);   // 无缝地砖
 
     // 动画片段
     if (manifest) {
