@@ -28,7 +28,23 @@ export class Assets {
 
     // 静态图
     want('units/player.png');
+    for (let f = 0; f < 4; f++) want(`units/player_f${f}.png`);   // 玩家走路帧
+    // 武侠位面：命名小怪的完整资产（走路/攻击/死亡 + 特效）
+    if (planeId === 'wuxia') {
+      for (const m of ['maozei']) {
+        for (const n of ['walk0', 'walk1', 'walk2', 'walk3', 'atk0', 'atk1', 'atk2', 'death']) {
+          want(`units/${m}_${n}.png`);
+        }
+        want(`effects/${m}_slash.png`);
+      }
+    }
+    // 小怪三种变体：walker(近战) / charger(冲撞) / spitter(远程)
+    for (const v of ['walker', 'charger', 'spitter']) {
+      want(`units/minion_${v}_${planeId}.png`);
+      for (let f = 0; f < 4; f++) want(`units/minion_${v}_${planeId}_f${f}.png`);
+    }
     want(`units/minion_${planeId}.png`);
+    for (let f = 0; f < 4; f++) want(`units/minion_${planeId}_f${f}.png`);   // 兜底走路帧
     want(`units/elite_${planeId}.png`);
     want(`units/boss_${planeId}.png`);
     want('items/gene_orb.png');

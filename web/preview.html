@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>毛贼 · 资产预览</title>
+<style>
+  body { background:#1a1a1a; color:#eee; font-family: system-ui, sans-serif; margin:20px; }
+  h1 { color:#d8bd6a; font-size:20px; }
+  .row { margin:16px 0; }
+  .label { color:#8b969f; font-size:13px; margin-bottom:8px; }
+  .grid { display:flex; flex-wrap:wrap; gap:12px; }
+  .cell { text-align:center; }
+  .cell img { display:block; width:110px; height:110px; object-fit:contain; image-rendering:pixelated;
+    background-image: linear-gradient(45deg,#2a2a2a 25%,transparent 25%),linear-gradient(-45deg,#2a2a2a 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#2a2a2a 75%),linear-gradient(-45deg,transparent 75%,#2a2a2a 75%);
+    background-size:14px 14px; background-position:0 0,0 7px,7px -7px,-7px 0; }
+  .cell span { display:block; font-size:11px; color:#8b969f; margin-top:5px; }
+</style>
+</head>
+<body>
+<h1>毛贼（阶段1 小怪A）· 一张资产图自动切出</h1>
+<div class="row"><div class="label">走路 ×4</div><div class="grid" id="walk"></div></div>
+<div class="row"><div class="label">攻击 ×3（起手 / 劈砍 / 收招）</div><div class="grid" id="atk"></div></div>
+<div class="row"><div class="label">死亡 ×1</div><div class="grid" id="death"></div></div>
+<div class="row"><div class="label">刀光特效 ×1</div><div class="grid" id="fx"></div></div>
+<script>
+const A = '../shizu-cocos/assets/art';
+function fill(el, list) {
+  el.innerHTML = list.map(([src, name]) =>
+    `<div class="cell"><img src="${A}/${src}"><span>${name}</span></div>`).join('');
+}
+fill(document.getElementById('walk'), [
+  ['units/maozei_walk0.png','走路1'],['units/maozei_walk1.png','走路2'],
+  ['units/maozei_walk2.png','走路3'],['units/maozei_walk3.png','走路4']]);
+fill(document.getElementById('atk'), [
+  ['units/maozei_atk0.png','起手'],['units/maozei_atk1.png','劈砍'],['units/maozei_atk2.png','收招']]);
+fill(document.getElementById('death'), [['units/maozei_death.png','死亡']]);
+fill(document.getElementById('fx'), [['effects/maozei_slash.png','刀光']]);
+</script>
+</body>
+</html>

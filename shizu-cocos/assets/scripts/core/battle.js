@@ -127,6 +127,7 @@ export class RealtimeRun extends Run {
     this.mechTimer = 0;
     this.mechAllies = [];        // 寄生反水：友军单位
     this.mechProjectiles = [];   // 弹幕 / 导弹
+    this.deaths = [];            // 死亡特效（渲染层播放死亡帧用）
   }
 
   get onScreen() { return this.enemies.length; }
@@ -158,6 +159,7 @@ export class RealtimeRun extends Run {
     this.updatePlayer(dt, input);
     this.spawnTick(dt);
     this.updateEnemies(dt);
+    this.updateDeaths(dt);
     this.updateAttack(dt);
     this.updateActiveSkills(dt);
     this.updateShots(dt);
@@ -275,6 +277,7 @@ export class RealtimeRun extends Run {
         * (v?.speedMul ?? 1) * stageSpeed,
       spitCd: v?.ranged ? this.rng() * SPIT_CD : 0,
       hitFlash: 0,
+      attackT: 0,
       anim: this.rng() * 10,
       isCloser,
     });
@@ -312,7 +315,7 @@ export class RealtimeRun extends Run {
         atk: tpl.atk, x, y, r: 12,
         speed: (95 + this.rng() * 25) * v.speedMul * stageSpeed,
         spitCd: v.ranged ? this.rng() * SPIT_CD : 0,
-        hitFlash: 0, anim: this.rng() * 10, isCloser: false,
+        hitFlash: 0, attackT: 0, anim: this.rng() * 10, isCloser: false,
       });
     }
   }
@@ -321,6 +324,7 @@ export class RealtimeRun extends Run {
     const p = this.player;
     for (const e of this.enemies) {
       e.hitFlash = Math.max(0, e.hitFlash - dt);
+      e.attackT = Math.max(0, e.attackT - dt);
       e.anim += dt * 8;
 
       const dx = p.x - e.x;
@@ -352,6 +356,7 @@ export class RealtimeRun extends Run {
 
       // 接触伤害（无敌帧内免疫）
       if (d < p.r + e.r && p.invuln <= 0) {
+        e.attackT = 0.3;   // 触发攻击动画
         let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * (1 - this.stats.dmgReduct));
         if (this.mech?.type === 'combo') dmg *= this.mech.mul;   // 武侠：连招增伤
         this.hp -= dmg;
@@ -369,6 +374,12 @@ export class RealtimeRun extends Run {
     if (this.enemies.some((e) => e.dead)) this.enemies = this.enemies.filter((e) => !e.dead);
     // 简单互斥：同类之间轻推开，避免全部叠在一个点上
     separate(this.enemies);
+  }
+
+  /** 死亡特效计时：0.5 秒后淡出 */
+  updateDeaths(dt) {
+    for (const d of this.deaths) d.t += dt;
+    this.deaths = this.deaths.filter((d) => d.t < 0.5);
   }
 
   /** 自动索敌：每 1/攻速 秒打一次射程内最近的敌人 */
@@ -523,6 +534,8 @@ export class RealtimeRun extends Run {
     this.kills += 1;
     if (e.kind === 'minion') this.minionKills += 1;
     this.emitFx('burst', e.x, e.y);
+    // 死亡帧特效：渲染层据此播放死亡动画
+    this.deaths.push({ x: e.x, y: e.y, kind: e.kind, variant: e.variant, facing: e.x < this.player.x ? 1 : -1, t: 0 });
 
     // 位面机制：尸爆连锁 / 寄生反水（挂在击杀上）
     const mech = this.mech;

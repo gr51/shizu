@@ -19,6 +19,7 @@
     "playtest": "node tools/playtest.mjs"
   },
   "devDependencies": {
+    "jpeg-js": "^0.4.4",
     "playwright": "1.49",
     "typescript": "5.6"
   }

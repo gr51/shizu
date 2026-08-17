@@ -95,6 +95,10 @@ export class Renderer {
       } else { ctx.fillStyle = '#0d1013'; ctx.fillRect(camX, camY, ARENA.w, ARENA.h); }
     }
 
+    // —— 地面压暗罩：压低背景对比，让角色更突出 ——
+    ctx.fillStyle = 'rgba(8, 11, 16, 0.30)';
+    ctx.fillRect(camX, camY, ARENA.w, ARENA.h);
+
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {
       this.blitClip('gene_orb_pulse', o.x, o.y + Math.sin(o.bob) * 2, o.bob * 4, 0.5)
@@ -103,7 +107,10 @@ export class Renderer {
 
     // —— 敌人：按 y 排序，靠下的后画（伪 2.5D 遮挡）——
     const sorted = [...run.enemies].sort((a, b) => a.y - b.y);
-    for (const e of sorted) this.drawEnemy(e);
+    for (const e of sorted) this.drawEnemy(e, run.player);
+
+    // —— 死亡帧（尸体淡出）——
+    this.drawDeaths(run);
 
     // —— 玩家 ——
     this.drawPlayer(run);
@@ -122,11 +129,30 @@ export class Renderer {
     ctx.restore();
   }
 
-  drawEnemy(e) {
+  drawEnemy(e, player) {
     const kind = e.kind;
+    // 朝向玩家（dx 符号决定左右翻转）
+    const facing = player && player.x < e.x ? -1 : 1;
     // 按目标高度缩放，跨关卡散图尺寸不同也能统一体型
     const targetH = kind === 'boss' ? 95 : kind === 'elite' ? 60 : 34;
-    const ok = this.blitSprite(`units/${kind}_${this.planeId}.png`, e.x, e.y, targetH, e.hitFlash > 0);
+    // 程序化走路颠簸：AI 走路帧没变化，用上下颠簸表现移动
+    const bob = kind === 'minion' ? Math.sin(e.anim * 6) * 2.5 : 0;
+    const y = e.y + bob;
+    const base = this.spriteBase(kind, e.variant);
+    let ok = false;
+    if (kind === 'minion' && e.attackT > 0) {
+      // 攻击动画：attackT 0.3→0，按进度切 起手→劈砍→收招
+      const prog = 1 - e.attackT / 0.3;
+      const f = prog < 0.35 ? 'atk0' : prog < 0.7 ? 'atk1' : 'atk2';
+      ok = this.blitSprite(`units/${base}_${f}.png`, e.x, y, targetH, e.hitFlash > 0, facing)
+        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing);
+      // 刀光特效
+      this.blitSprite(`effects/${base}_slash.png`, e.x + facing * 16, e.y, targetH * 0.75, false, facing);
+    } else {
+      ok = this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing)
+        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing)
+        || this.blitSprite(`units/minion_${this.planeId}.png`, e.x, y, targetH, e.hitFlash > 0, facing);
+    }
     if (!ok) this.dot(e.x, e.y, e.r, e.kind === 'boss' ? '#a678d4' : '#c9556a');
 
     // 精英 / BOSS 血条
@@ -136,13 +162,37 @@ export class Renderer {
     }
   }
 
+  /** 敌人 → 资产 basename */
+  spriteBase(kind, variant) {
+    if (kind !== 'minion') return `${kind}_${this.planeId}`;
+    if (this.planeId === 'wuxia') return 'maozei';   // 测试：武侠小怪先全用毛贼
+    return `minion_${variant ?? 'walker'}_${this.planeId}`;
+  }
+
+  /** 死亡帧淡出 */
+  drawDeaths(run) {
+    for (const d of run.deaths) {
+      const base = this.spriteBase(d.kind, d.variant);
+      const targetH = d.kind === 'minion' ? 34 : d.kind === 'elite' ? 60 : 95;
+      const a = Math.max(0, 1 - d.t / 0.5);
+      this.blitSprite(`units/${base}_death.png`, d.x, d.y, targetH, false, d.facing, a)
+        || this.blitSprite(`units/${base}_walk0.png`, d.x, d.y, targetH, false, d.facing, a);
+    }
+  }
+
   drawPlayer(run) {
     const p = run.player;
     const blink = p.invuln > 0 && Math.floor(p.invuln * 20) % 2 === 0;
-    if (!blink) {
-      const ok = this.blitSprite('units/player.png', p.x, p.y, 46, p.hitFlash > 0, p.facing);
-      if (!ok) this.dot(p.x, p.y, p.r, '#e8e2d6');
+    if (blink) return;
+    // 移动时播走路动画，静止/攻击用基础帧
+    let rel = 'units/player.png';
+    if (p.state === 'walk') {
+      const frame = Math.floor(p.anim) % 4;
+      rel = `units/player_f${frame}.png`;
     }
+    const ok = this.blitSprite(rel, p.x, p.y, 46, p.hitFlash > 0, p.facing)
+      || this.blitSprite('units/player.png', p.x, p.y, 46, p.hitFlash > 0, p.facing);
+    if (!ok) this.dot(p.x, p.y, p.r, '#e8e2d6');
   }
 
   // —— 底层绘制 ——
@@ -187,8 +237,8 @@ export class Renderer {
     return true;
   }
 
-  /** 按目标高度绘制静态散图（新接入的雪碧），支持朝向/受击闪白 */
-  blitSprite(rel, x, y, targetH, flash = false, facing = 1) {
+  /** 按目标高度绘制静态散图（新接入的雪碧），支持朝向/受击闪白/整体透明度；带投影+墨线描边防止与地面融合 */
+  blitSprite(rel, x, y, targetH, flash = false, facing = 1, alpha = 1) {
     const img = this.assets.img(rel);
     if (!img) return false;
     const scale = targetH / img.height;
@@ -198,6 +248,17 @@ export class Renderer {
     const dy = Math.round(y - dh / 2);
     const ctx = this.ctx;
     ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // 脚下投影：接地 + 与地面分离
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.34)';
+    ctx.beginPath();
+    ctx.ellipse(Math.round(x), Math.round(y + dh * 0.42), dw * 0.30, Math.max(3, dh * 0.09), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 墨线描边：沿 alpha 轮廓加一圈细黑边，让角色从背景里跳出来
+    if ('filter' in ctx) ctx.filter = 'drop-shadow(0 0 1.5px rgba(0,0,0,0.85))';
+
     if (facing < 0) {
       ctx.translate(dx + dw, dy);
       ctx.scale(-1, 1);
@@ -207,6 +268,7 @@ export class Renderer {
       ctx.drawImage(img, dx, dy, dw, dh);
       if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(img, dx, dy, dw, dh); }
     }
+    if ('filter' in ctx) ctx.filter = 'none';
     ctx.restore();
     return true;
   }
