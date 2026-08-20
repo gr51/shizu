@@ -390,6 +390,7 @@ export class RealtimeRun extends Run {
       attackT: 0,
       bossSkillCd: isBig ? 2.5 : 0,   // 精英/Boss 技能首秀CD
       telegraphT: 0,             // 技能预警倒计时（抬手可躲）
+      phase: 1,                  // Boss 狂暴阶段（1/2/3，血量越低越凶）
       anim: this.rng() * 10,
       isCloser,
     });
@@ -485,6 +486,17 @@ export class RealtimeRun extends Run {
 
       // 精英/Boss 技能：预警抬手 → 释放（弹幕/剑域等，不是只会追着撞）
       if (e.kind !== 'minion') {
+        // Boss 狂暴阶段：血量越少越凶（阶段 1→2→3）
+        if (e.kind === 'boss') {
+          const pct = e.hp / Math.max(1, e.maxHp);
+          const targetPhase = pct <= 0.25 ? 3 : pct <= 0.5 ? 2 : 1;
+          if (targetPhase > e.phase) {
+            e.phase = targetPhase;
+            this.emit(targetPhase === 3 ? '🔥 位面之主濒死反扑！' : '🔥 位面之主狂暴了！', 'death');
+            this.emitFx('surge', e.x, e.y);
+          }
+        }
+        const rage = e.phase === 3 ? 1.6 : e.phase === 2 ? 1.3 : 1;
         if (e.telegraphT > 0) {
           // 预警中：给玩家一个可见的抬手信号
           e.telegraphT -= dt;
@@ -492,7 +504,7 @@ export class RealtimeRun extends Run {
         } else {
           e.bossSkillCd -= dt;
           if (e.bossSkillCd <= 0) {
-            e.bossSkillCd = e.kind === 'boss' ? 4.0 : 6.0;
+            e.bossSkillCd = (e.kind === 'boss' ? 4.0 : 6.0) / rage;
             e.telegraphT = 0.6;               // 抬手 0.6s，期间可躲
             this.emitFx('boss', e.x, e.y);
             this.emit(e.kind === 'boss' ? '⚠ 位面之主蓄势待发！' : '⚠ 精英即将出手！', 'death');
@@ -537,7 +549,8 @@ export class RealtimeRun extends Run {
     const p = this.player;
     const plane = this.dungeon.plane.id;
     const base = Math.atan2(p.y - e.y, p.x - e.x);
-    const mul = e.kind === 'boss' ? 2.5 : 1.8;
+    const rage = e.phase === 3 ? 1.6 : e.phase === 2 ? 1.3 : 1;
+    const mul = (e.kind === 'boss' ? 2.5 : 1.8) * rage;
 
     if (e.kind === 'boss') {
       // —— 每位面之主一套专属技能（不再人人同款扇形弹幕）——
