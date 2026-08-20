@@ -63,11 +63,11 @@ export const CONTACT_DPS_SCALE = 1.1;
  *   spitter 远程吐射，站在射程外打你 —— 逼玩家主动近身，不能龟在原地
  */
 export const MINION_VARIANTS = {
-  walker: { speedMul: 1.0, weight: 50, hpMul: 1 },
-  charger: { speedMul: 1.9, weight: 20, hpMul: 0.75 },
+  walker: { speedMul: 1.0, weight: 54, hpMul: 1 },
+  charger: { speedMul: 1.9, weight: 22, hpMul: 0.75 },
   spitter: { speedMul: 0.55, weight: 10, hpMul: 0.85, ranged: true },
-  tank: { speedMul: 0.55, weight: 12, hpMul: 2.4 },          // 肉盾：慢而硬
-  bomber: { speedMul: 1.6, weight: 8, hpMul: 0.5, bomber: true }, // 自爆：快而脆，死了炸你
+  tank: { speedMul: 0.55, weight: 8, hpMul: 1.6 },          // 肉盾：慢而略硬
+  bomber: { speedMul: 1.6, weight: 6, hpMul: 0.5, bomber: true }, // 自爆：快而脆，死了炸你
 };
 
 /** 每阶段刷的小怪 sprite（每阶段一对，5 阶段各不同） */
@@ -500,8 +500,8 @@ export class RealtimeRun extends Run {
         }
       }
 
-      // 接触攻击：抬手预警 → 劈砍帧（attackT 跨过 0.15）结算伤害，与动画同步
-      if (prevAttackT > 0.15 && e.attackT <= 0.15 && d < p.r + e.r + 8 && p.invuln <= 0) {
+      // 接触攻击：抬手预警 0.3s（attackT 走完才结算伤害，给足躲闪窗口）
+      if (prevAttackT > 0 && e.attackT <= 0 && d < p.r + e.r + 8 && p.invuln <= 0) {
         const bigMul = e.kind === 'boss' ? 5.0 : e.kind === 'elite' ? 3.5 : 1;
         let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * bigMul * (1 - this.stats.dmgReduct));
         if (this.mech?.type === 'combo') dmg *= this.mech.mul;   // 武侠：连招增伤
@@ -945,8 +945,8 @@ export class RealtimeRun extends Run {
     // 自爆怪：死时爆炸，近身波及玩家（别贴脸杀它）
     if (e.variant === 'bomber') {
       const p = this.player;
-      if (Math.hypot(p.x - e.x, p.y - e.y) < 80 && p.invuln <= 0) {
-        this.hurtPlayer(Math.max(1, e.atk * 2.2), 0.4);
+      if (Math.hypot(p.x - e.x, p.y - e.y) < 55 && p.invuln <= 0) {
+        this.hurtPlayer(Math.max(1, e.atk * 1.5), 0.4);
       }
       this.emitFx('burst', e.x, e.y);
     }
