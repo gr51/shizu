@@ -202,6 +202,8 @@ export class RealtimeRun extends Run {
   }
 
   get onScreen() { return this.enemies.length; }
+  /** 当前急袭挑战剩余目标数（HUD 可读性） */
+  get miniRushRemaining() { return this.enemies.filter((e) => !e.dead && e.eventTag === 'miniRush').length; }
 
   /** 渲染层取完特效就清空，避免无限增长 */
   drainEffects() {
@@ -1057,10 +1059,15 @@ export class RealtimeRun extends Run {
     }
   }
 
-  /** 阶段推进：重置时间轴游标（父类只管数据，位置状态在这里重置） */
+  /** 阶段推进：重置时间轴游标；未完成的急袭挑战作废，奖励不得跨阶段结算 */
   advanceStage() {
     if (this.enemies.some((e) => e.kind === 'elite')) return;
     if (this.stageIndex + 1 >= this.dungeon.stages.length) return;
+    const rushLeft = this.miniRushRemaining;
+    if (rushLeft > 0) {
+      for (const e of this.enemies) if (e.eventTag === 'miniRush') e.eventTag = null;
+      this.emit(`急袭未肃清（剩余 ${rushLeft}），基因雨奖励失效`, 'death');
+    }
     super.advanceStage();
     this.stageElapsed = 0;
     this.surgeDone = 0;

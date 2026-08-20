@@ -180,6 +180,16 @@ test('急袭事件形成风险→肃清→基因雨奖励闭环', () => {
   const before = run.orbs.length;
   const normal = make(3, null); run.enemies = [normal]; run.killEnemy(normal);
   assert.equal(run.orbs.length, before + 1, '普通怪死亡不得触发急袭奖励');
+
+  const expired = make(4, 'miniRush');
+  run.enemies = [expired];
+  const stageBefore = run.stageNo;
+  run.advanceStage();
+  assert.equal(run.stageNo, stageBefore + 1, '阶段应正常推进');
+  assert.equal(expired.eventTag, null, '跨阶段后急袭标记必须失效');
+  const expiredBefore = run.orbs.length;
+  run.killEnemy(expired);
+  assert.equal(run.orbs.length, expiredBefore + 1, '过期急袭怪不得补发奖励');
 });
 
 test('实时战斗：一局是连续时间流，不是离散回合', () => {

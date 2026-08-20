@@ -148,7 +148,9 @@ export async function startBattle(ctx, plane) {
       combo: '⚔️ 连击连招', chain: '⚡ 雷链弹射', corpseBlast: '💀 尸爆连锁', missile: '🚀 周期导弹',
       multishot: '🎯 弹幕翻倍', parasite: '🩸 寄生反水', reflect: '🛡 金身反击', stomp: '👣 践踏震荡', laser: '🔦 机关激光',
     };
-    H.mech.textContent = run.routeMech ? `${MECH_LABEL[run.routeMech] ?? ''} · 弹体×${run.projCount ?? 1}` : `弹体×${run.projCount ?? 1}`;
+    H.mech.textContent = run.miniRushRemaining > 0
+      ? `⚠ 急袭挑战 · 剩余 ${run.miniRushRemaining}`
+      : run.routeMech ? `${MECH_LABEL[run.routeMech] ?? ''} · 弹体×${run.projCount ?? 1}` : `弹体×${run.projCount ?? 1}`;
   }
 
   function resume() {
