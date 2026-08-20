@@ -7,6 +7,8 @@
 
 import { GENERIC_ATTR_POOL, RARITY_WEIGHT } from '../data/attrPool.js';
 import { skillRarity, skillsByRoute } from '../data/skills.js';
+import { mechUpgradePool } from '../data/mechUpgrades.js';
+import { currentRouteMech } from '../data/weaponAttack.js';
 import { weightedPickMany } from './rng.js';
 
 export const CHOICE_COUNT = 3;
@@ -64,14 +66,16 @@ export function attrPool() {
  */
 export function rollUpgradeOptions(dungeon, save, runState, rng) {
   const weightOf = (x) => RARITY_WEIGHT[x.rarity] ?? 1;
+  // 构筑感：已激活路线的机制强化选项，名字/描述直接引用你的 Build
+  const mechPool = mechUpgradePool(currentRouteMech(save.player.geneLocks));
 
   if (dungeon.channel === 'attr') {
-    // 硬规则：只有属性，一个技能都不能出现
-    return weightedPickMany(attrPool(), CHOICE_COUNT, weightOf, rng);
+    // 硬规则：只有属性 + 机制强化，一个路线技能都不能出现
+    return weightedPickMany([...attrPool(), ...mechPool], CHOICE_COUNT, weightOf, rng);
   }
 
   const skills = skillPool(dungeon.channelRoutes, save, runState.learnedSkills);
-  const picked = weightedPickMany(skills, CHOICE_COUNT, weightOf, rng);
+  const picked = weightedPickMany([...skills, ...mechPool], CHOICE_COUNT, weightOf, rng);
   if (picked.length < CHOICE_COUNT) {
     // 技能池枯竭 → 用通用属性补位（属性非路线专属，不违反红线 3）
     const fill = weightedPickMany(
