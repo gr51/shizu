@@ -178,29 +178,6 @@ html, body {
   50%      { transform: translateY(-6px); }
 }
 
-/* 朱红印章 */
-#titleSeal {
-  margin: 0.35em 0 0 14px;
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 2.2em;
-  height: 2.2em;
-  font-family: var(--font-seal);
-  font-size: 22px;
-  line-height: 1.2;
-  writing-mode: vertical-rl;
-  color: #fff3e6;
-  background: var(--seal);
-  border-radius: 4px;
-  box-shadow: 0 0 18px rgba(196, 30, 58, .45), inset 0 0 0 1px rgba(255, 255, 255, .25);
-  animation: sealIn .9s cubic-bezier(.2, 1.4, .4, 1) both .3s;
-}
-@keyframes sealIn {
-  from { opacity: 0; transform: scale(1.8) rotate(-8deg); }
-  to   { opacity: 1; transform: scale(1) rotate(-3deg); }
-}
-
 #sceneDesc {
   margin: 14px 0 0;
   font-size: 15px;

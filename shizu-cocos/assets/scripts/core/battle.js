@@ -179,6 +179,7 @@ export class RealtimeRun extends Run {
     // 玩家路线机制：每条路线一种独特玩法（雷链/尸爆/导弹/弹幕/寄生/反击/践踏/激光/连击）
     this.routeMech = currentRouteMech(this.save.player.geneLocks);
     this.routeMechCd = 0;
+    this.lastProjCount = 0;      // 武器进化档位（用于进化瞬间庆祝）
   }
 
   get onScreen() { return this.enemies.length; }
@@ -674,6 +675,12 @@ export class RealtimeRun extends Run {
     this.damageNums.push({ x: best.x, y: best.y - 24, v: Math.round(dmg), crit: isCrit, life: 0.9 });
     // 武器进化：等级越高弹体越多（Lv0-5 单发 → Lv6 三连 → Lv12 五连，扇形散射）；魔法路线弹幕再 +1
     const projCount = 1 + Math.floor(this.geneStep / 6) + (this.routeMech === 'multishot' ? 1 : 0);
+    // 进化瞬间：弹体档位提升 = 成长仪式（全屏反馈）
+    if (projCount > this.lastProjCount) {
+      this.lastProjCount = projCount;
+      this.emitFx('surge', p.x, p.y);
+      this.emit(`⚡ 进化！武器弹体 ×${projCount}`, 'win');
+    }
     const dx = best.x - p.x, dy = best.y - p.y;
     const dd = Math.hypot(dx, dy) || 1;
     const baseAng = Math.atan2(dy, dx);
