@@ -147,6 +147,19 @@ export class Renderer {
       ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
     this.flash = Math.max(0, this.flash - dt * 3);
+
+    // —— 临近死亡：红色暗角脉冲（低血量张力，屏幕边缘渗血）——
+    const w = ctx.canvas.width, h = ctx.canvas.height;
+    const hpPct = run.hp / Math.max(1, run.stats.maxHp);
+    if (hpPct < 0.3) {
+      const pulse = 0.28 + Math.sin(performance.now() / 130) * 0.14;
+      const a = Math.min(0.85, (1 - hpPct / 0.3) * pulse);
+      const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.32, w / 2, h / 2, Math.max(w, h) * 0.7);
+      g.addColorStop(0, 'rgba(140, 20, 32, 0)');
+      g.addColorStop(1, `rgba(140, 20, 32, ${a.toFixed(3)})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
   }
 
   /** 触发全屏闪光（升级/进化反馈） */

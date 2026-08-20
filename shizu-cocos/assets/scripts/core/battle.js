@@ -493,7 +493,7 @@ export class RealtimeRun extends Run {
         if (this.hp <= 0) {
           this.hp = 0;
           this.state = RunState.LOST;
-          this.emit('生命耗尽，你倒在裂缝之中……', 'death');
+          this.emit(`被 <b>${e.name}</b> 吞噬，你倒在裂缝之中……`, 'death');
           return;
         }
       }
