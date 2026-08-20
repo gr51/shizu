@@ -159,14 +159,30 @@ export async function startBattle(ctx, plane) {
 
   function showChoice() {
     const { reason, options } = run.pendingOptions;
+    const s = run.stats;
+    // 可读的决策：属性选项展示「改前→改后」的实际数值，而不是抽象百分比
+    const deltas = (o) => {
+      const e = o.eff ?? {};
+      const p = [];
+      if (e.atkPct) p.push(`攻击 ${s.atk.toFixed(1)}→${(s.atk * (1 + e.atkPct)).toFixed(1)}`);
+      if (e.hpPct) p.push(`生命 ${Math.round(s.maxHp)}→${Math.round(s.maxHp * (1 + e.hpPct))}`);
+      if (e.speedPct) p.push(`移速 +${Math.round(e.speedPct * 100)}%`);
+      if (e.aspdPct) p.push(`攻速 +${Math.round(e.aspdPct * 100)}%`);
+      if (e.crit) p.push(`暴击 +${Math.round(e.crit * 100)}%`);
+      if (e.aoe) p.push(`范围 +${Math.round(e.aoe * 100)}%`);
+      if (e.lifesteal) p.push(`吸血 +${Math.round(e.lifesteal * 100)}%`);
+      return p.join(' · ');
+    };
     view.showModal({
       title: `${reason} · 选择你的进化`,
-      body: options.map((o) => (o.kind === 'skill'
-        ? `<div class="pick"><b>【技能】${o.name}</b> <span class="small">${ROUTES[o.route].name}·第 ${o.lv} 段</span><span>${o.desc}　<i class="gold">${o.val}</i></span></div>`
-        : `<div class="pick attr"><b>【属性】${o.name}</b><span>${o.desc}</span></div>`)).join(''),
+      body: options.map((o) => {
+        if (o.kind === 'skill') return `<div class="pick"><b>【技能】${o.name}</b> <span class="small">${ROUTES[o.route].name}·第 ${o.lv} 段</span><span>${o.desc}　<i class="gold">${o.val}</i></span></div>`;
+        if (o.kind === 'mech') return `<div class="pick attr"><b>【强化】${o.name}</b><span>${o.desc}</span></div>`;
+        return `<div class="pick attr"><b>【属性】${o.name}</b><span>${o.desc}</span><span class="gold">${deltas(o)}</span></div>`;
+      }).join(''),
       buttons: options.map((o, i) => ({
-        text: o.kind === 'skill' ? `习得 ${o.name}` : `获得 ${o.name}`,
-        style: o.kind === 'skill' ? 'primary' : '',
+        text: o.kind === 'skill' ? `习得 ${o.name}` : o.kind === 'mech' ? `强化 ${o.name}` : `获得 ${o.name}`,
+        style: o.kind !== 'attr' ? 'primary' : '',
         onClick: () => { view.closeModal(); run.choose(i); resume(); },
       })),
     });
