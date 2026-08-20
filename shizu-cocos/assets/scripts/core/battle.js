@@ -406,6 +406,7 @@ export class RealtimeRun extends Run {
   updateEnemies(dt) {
     const p = this.player;
     for (const e of this.enemies) {
+      const wasAttacking = e.attackT > 0;
       e.hitFlash = Math.max(0, e.hitFlash - dt);
       e.attackT = Math.max(0, e.attackT - dt);
       e.anim += dt * 8;
@@ -455,9 +456,9 @@ export class RealtimeRun extends Run {
         }
       }
 
-      // 接触伤害（无敌帧内免疫）；精英/Boss 接触伤害更高，逼你走位
-      if (d < p.r + e.r && p.invuln <= 0) {
-        e.attackT = 0.3;   // 触发攻击动画
+      // 接触攻击：抬手预警（attackT 0.3s 内只摆 pose，结束才结算伤害）
+      // 抬手结束 → 结算接触伤害（玩家若已走开则落空）
+      if (wasAttacking && e.attackT <= 0 && d < p.r + e.r + 8 && p.invuln <= 0) {
         const bigMul = e.kind === 'boss' ? 5.0 : e.kind === 'elite' ? 3.5 : 1;
         let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * bigMul * (1 - this.stats.dmgReduct));
         if (this.mech?.type === 'combo') dmg *= this.mech.mul;   // 武侠：连招增伤
@@ -471,6 +472,10 @@ export class RealtimeRun extends Run {
           this.emit('生命耗尽，你倒在裂缝之中……', 'death');
           return;
         }
+      }
+      // 贴身 → 开始抬手（可读预警，不立即掉血）
+      if (d < p.r + e.r && p.invuln <= 0 && e.attackT <= 0) {
+        e.attackT = 0.3;   // 抬手 0.3s
       }
     }
     if (this.enemies.some((e) => e.dead)) this.enemies = this.enemies.filter((e) => !e.dead);
