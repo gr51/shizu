@@ -196,6 +196,10 @@ export class RealtimeRun extends Run {
   get timeScaleDenom() { return this.diffKey === 'hard' ? 150 : this.diffKey === 'easy' ? 360 : 240; }
   /** 难度对应的刷怪速率系数（困难更多怪，简单更少） */
   get diffSpawnMul() { return this.diffKey === 'hard' ? 1.25 : this.diffKey === 'easy' ? 0.85 : 1; }
+  /** 当前武器弹体数（进化可视化） */
+  get projCount() {
+    return 1 + Math.floor(this.geneStep / 6) + (this.routeMech === 'multishot' ? 1 + (this.mechLvl.count ?? 0) : 0);
+  }
 
   get onScreen() { return this.enemies.length; }
 
