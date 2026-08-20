@@ -66,12 +66,12 @@ export function geneLockPowerBonus(geneLocks) {
 }
 
 /** 战力（指南 4.1）。新档 = 1.0。
- *  永久属性对 D（敌人强度）取开方 —— 让「成长」净收益为正：
- *  玩家攻击按 (1+pct) 线性涨，而敌人 HP 只按 sqrt(1+pct) 涨，玩家逐渐碾压（数值爆炸曲线）。 */
+ *  永久属性对 D（敌人强度）取 0.4 次方 —— 比开方更弱，让「成长」净收益更明显：
+ *  玩家攻击按 (1+pct) 线性涨，而敌人 HP 只按 (1+pct)^0.4 涨，玩家逐渐碾压（数值爆炸曲线）。 */
 export function computePower(player) {
-  const atkTerm = Math.sqrt(1 + player.permAtkPct / 100);
-  const hpTerm = Math.sqrt(1 + player.permHpPct / 100);
-  const spdTerm = Math.sqrt(1 + player.permSpeedPct / 100);
+  const atkTerm = Math.pow(1 + player.permAtkPct / 100, 0.4);
+  const hpTerm = Math.pow(1 + player.permHpPct / 100, 0.4);
+  const spdTerm = Math.pow(1 + player.permSpeedPct / 100, 0.4);
   return ((atkTerm + hpTerm + spdTerm) / 3)
     * geneLockPowerBonus(player.geneLocks)
     * gearPowerBonus(player.gear);

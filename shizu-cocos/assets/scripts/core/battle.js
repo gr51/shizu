@@ -883,16 +883,27 @@ export class RealtimeRun extends Run {
     p.devourCd = DEVOUR_CD;
     p.berserk = DEVOUR_BERSERK;
 
+    // 吞噬一切：全屏吸取所有基因尸体（力量幻想的「吸干全场」瞬间）
     let sucked = 0;
-    for (const o of this.orbs) {
-      if (Math.hypot(o.x - p.x, o.y - p.y) <= DEVOUR_RADIUS) { o.taken = true; sucked += o.genes; }
-    }
+    for (const o of this.orbs) { o.taken = true; sucked += o.genes; }
     if (sucked > 0) this.addGenes(sucked, true);
-    this.orbs = this.orbs.filter((o) => !o.taken);
+    this.orbs = [];
+
+    // 噬咬爆发：周身一圈伤害（吞噬主题的动作化表达）
+    for (const e of [...this.enemies]) {
+      if (Math.hypot(e.x - p.x, e.y - p.y) <= 160 + e.r) {
+        e.hp -= this.stats.atk * 1.5;
+        e.hitFlash = 0.15;
+        this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * 1.5), crit: false, life: 0.9 });
+        if (e.hp <= 0) this.killEnemy(e);
+      }
+    }
 
     this.heal(this.stats.maxHp * DEVOUR_HEAL_PCT, '吞噬', true);
     this.emitFx('devour', p.x, p.y);
-    this.emit(`【吞噬爆发】吸取 ${sucked} 基因，狂暴 ${DEVOUR_BERSERK}s`, 'gene');
+    this.emitFx('surge', p.x, p.y);
+    this.hitStop = 0.15;   // 吞噬的「压实」停顿
+    this.emit(`【吞噬爆发】吸取 ${sucked} 基因 · 噬咬周围 · 狂暴 ${DEVOUR_BERSERK}s`, 'gene');
     return true;
   }
 
