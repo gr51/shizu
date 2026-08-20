@@ -622,12 +622,17 @@ export class RealtimeRun extends Run {
       return;
     }
 
-    // 精英：小扇形弹幕
+    // 精英：小扇形弹幕（弹体跟着位面主题走，与 Boss 同风格但更弱）
+    const ELITE_SPRITE = {
+      dujie: 'lightning', aofa: 'magic_orb', jijia: 'bullet', jushen: 'quake_wave',
+      gongde: 'shockwave_gold', shihai: 'miasma', shanhai: 'stomp_wave',
+      jiguan: 'gear_blade', qiqiao: 'gear_blade', gongshengchao: 'tendril', wuxia: 'jiansheng_slash', zhutian: 'magic_orb',
+    }[plane] ?? 'projectile';
     const n = 9;
     const spread = Math.PI * 1.0;
     for (let i = 0; i < n; i++) {
       const a = base - spread / 2 + (spread * i) / (n - 1);
-      this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, atk: e.atk * mul, life: 3.5, sprite: 'projectile' });
+      this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, atk: e.atk * mul, life: 3.5, sprite: ELITE_SPRITE });
     }
     this.emitFx('burst', e.x, e.y);
   }
