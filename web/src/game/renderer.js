@@ -18,6 +18,7 @@ export class Renderer {
     this.fx = [];             // 活跃特效实例
     this.shake = 0;
     this.flash = 0;           // 全屏闪光（升级/进化瞬间）
+    this.pop = 0;             // 镜头缩放脉冲（升级瞬间 zoom）
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -58,7 +59,10 @@ export class Renderer {
     const ctx = this.ctx;
     const A = this.assets;
     ctx.save();
-    ctx.scale(this.scale, this.scale);
+    // 升级 zoom 脉冲：pop 1→0，先放大后回弹
+    this.pop = Math.max(0, this.pop - dt * 5);
+    const popScale = this.pop > 0 ? 1 + Math.sin((1 - this.pop) * Math.PI) * 0.035 : 1;
+    ctx.scale(this.scale * popScale, this.scale * popScale);
 
     this.shake = Math.max(0, this.shake - dt * 22);
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
@@ -162,9 +166,10 @@ export class Renderer {
     }
   }
 
-  /** 触发全屏闪光（升级/进化反馈） */
+  /** 触发全屏闪光 + 镜头缩放（升级/进化反馈） */
   pulse() {
     this.flash = 1;
+    this.pop = 1;
   }
 
   drawDamageNums(run) {
