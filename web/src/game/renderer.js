@@ -17,6 +17,7 @@ export class Renderer {
     this.planeId = planeId;
     this.fx = [];             // 活跃特效实例
     this.shake = 0;
+    this.flash = 0;           // 全屏闪光（升级/进化瞬间）
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -138,6 +139,19 @@ export class Renderer {
     this.drawDamageNums(run);
 
     ctx.restore();
+
+    // —— 全屏闪光（升级/进化瞬间的金色脉冲）——
+    if (this.flash > 0) {
+      const a = Math.min(0.5, this.flash) * 0.5;
+      ctx.fillStyle = `rgba(216, 189, 106, ${a})`;
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
+    this.flash = Math.max(0, this.flash - dt * 3);
+  }
+
+  /** 触发全屏闪光（升级/进化反馈） */
+  pulse() {
+    this.flash = 1;
   }
 
   drawDamageNums(run) {

@@ -112,7 +112,7 @@ export async function startBattle(ctx, plane) {
     // 玩家点不中（元素一直在销毁重建），帧率也被 DOM 重建拖垮。
     if (run.state !== lastState) {
       lastState = run.state;
-      if (run.state === RunState.CHOOSING) { paused = true; audio.sfx('levelup'); showChoice(); }
+      if (run.state === RunState.CHOOSING) { paused = true; audio.sfx('levelup'); renderer.pulse(); showChoice(); }
       else if (run.state === RunState.SLOT_CONFLICT) { paused = true; audio.sfx('levelup'); showSlotConflict(); }
       else if (run.state === RunState.WON || run.state === RunState.LOST) {
         audio.sfx(run.state === RunState.WON ? 'won' : 'lost');
