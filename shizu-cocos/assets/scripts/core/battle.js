@@ -170,7 +170,12 @@ export class RealtimeRun extends Run {
       if (e?.comboDmgPct) comboDmgPct = e.comboDmgPct;
       if (e?.rampMax) rampMax = e.rampMax;
     }
-    this.combo = { every: comboEvery, dmgPct: comboDmgPct, rampMax, hits: 0 };
+    this.combo = {
+      every: Math.max(1, comboEvery + (this.mechLvl.every ?? 0)),
+      dmgPct: comboDmgPct + (this.mechLvl.dmg ?? 0),
+      rampMax,
+      hits: 0,
+    };
 
     // 玩家武器：由基因锁等级最高的路线决定（剑=剑气、枪=子弹、雷=雷电……）
     this.weapon = currentWeapon(this.save.player.geneLocks);
@@ -633,10 +638,12 @@ export class RealtimeRun extends Run {
       e.hitFlash = 0.12;
       healed += dmg;
       if (e.hp <= 0) this.killEnemy(e);
-      // 渡劫·雷链弹射：命中后在敌人间跳跃（每跳 50% 伤害，最多 3 跳）
+      // 渡劫·雷链弹射：命中后在敌人间跳跃（构筑强化可 +跳数/+伤害）
       if (this.routeMech === 'chain') {
+        const jumps = 3 + (this.mechLvl.jumps ?? 0);
+        const chainDmg = 0.5 * (1 + (this.mechLvl.dmg ?? 0));
         let last = e;
-        for (let j = 0; j < 3; j++) {
+        for (let j = 0; j < jumps; j++) {
           let nb = null; let nd = Infinity;
           for (const o of this.enemies) {
             if (o === last || o.dead || o.hp <= 0) continue;
@@ -644,9 +651,9 @@ export class RealtimeRun extends Run {
             if (dd2 < nd && dd2 <= 140) { nd = dd2; nb = o; }
           }
           if (!nb) break;
-          nb.hp -= dmg * 0.5;
+          nb.hp -= dmg * chainDmg;
           nb.hitFlash = 0.12;
-          this.damageNums.push({ x: nb.x, y: nb.y - 24, v: Math.round(dmg * 0.5), crit: false, life: 0.9 });
+          this.damageNums.push({ x: nb.x, y: nb.y - 24, v: Math.round(dmg * chainDmg), crit: false, life: 0.9 });
           if (nb.hp <= 0) this.killEnemy(nb);
           last = nb;
         }
@@ -679,7 +686,7 @@ export class RealtimeRun extends Run {
     // 伤害飘字
     this.damageNums.push({ x: best.x, y: best.y - 24, v: Math.round(dmg), crit: isCrit, life: 0.9 });
     // 武器进化：等级越高弹体越多（Lv0-5 单发 → Lv6 三连 → Lv12 五连，扇形散射）；魔法路线弹幕再 +1
-    const projCount = 1 + Math.floor(this.geneStep / 6) + (this.routeMech === 'multishot' ? 1 : 0);
+    const projCount = 1 + Math.floor(this.geneStep / 6) + (this.routeMech === 'multishot' ? 1 + (this.mechLvl.count ?? 0) : 0);
     // 进化瞬间：弹体档位提升 = 成长仪式（全屏反馈）
     if (projCount > this.lastProjCount) {
       this.lastProjCount = projCount;
@@ -733,41 +740,47 @@ export class RealtimeRun extends Run {
     this.routeMechCd = interval;
 
     if (this.routeMech === 'missile') {
-      // 机甲·周期导弹：锁定 3 个最近敌人齐射
+      // 机甲·周期导弹：锁定最接近的 N 个敌人齐射（构筑可 +数量/+伤害）
+      const count = 3 + (this.mechLvl.count ?? 0);
+      const mDmg = 1.3 * (1 + (this.mechLvl.dmg ?? 0));
       const targets = this.enemies.slice().sort((a, b) =>
         (Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)));
-      for (let i = 0; i < Math.min(3, targets.length); i++) {
+      for (let i = 0; i < Math.min(count, targets.length); i++) {
         const e = targets[i];
-        e.hp -= this.stats.atk * 1.3;
+        e.hp -= this.stats.atk * mDmg;
         e.hitFlash = 0.12;
-        this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * 1.3), crit: false, life: 0.9 });
+        this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * mDmg), crit: false, life: 0.9 });
         if (e.hp <= 0) this.killEnemy(e);
       }
       this.emitFx('surge', p.x, p.y);
     } else if (this.routeMech === 'stomp') {
-      // 山海/巨化·践踏震荡：周身 AoE
+      // 山海/巨化·践踏震荡：周身 AoE（构筑可 +范围/+伤害）
+      const sR = 120 * (1 + (this.mechLvl.radius ?? 0));
+      const sDmg = 1.2 * (1 + (this.mechLvl.dmg ?? 0));
       for (const e of this.enemies) {
-        if (Math.hypot(e.x - p.x, e.y - p.y) <= 120 + e.r) {
-          e.hp -= this.stats.atk * 1.2;
+        if (Math.hypot(e.x - p.x, e.y - p.y) <= sR + e.r) {
+          e.hp -= this.stats.atk * sDmg;
           e.hitFlash = 0.12;
-          this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * 1.2), crit: false, life: 0.9 });
+          this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * sDmg), crit: false, life: 0.9 });
           if (e.hp <= 0) this.killEnemy(e);
         }
       }
       this.emitFx('burst', p.x, p.y);
       this.emitFx('surge', p.x, p.y);
     } else if (this.routeMech === 'laser') {
-      // 奇技·机关激光：直线贯穿
+      // 奇技·机关激光：直线贯穿（构筑可 +宽/+伤害）
+      const lW = 40 * (1 + (this.mechLvl.width ?? 0));
+      const lDmg = 1.5 * (1 + (this.mechLvl.dmg ?? 0));
       const ang = p.facing > 0 ? 0 : Math.PI;
       const ux = Math.cos(ang), uy = Math.sin(ang);
       for (const e of this.enemies) {
         const px = e.x - p.x, py = e.y - p.y;
         const proj = px * ux + py * uy;
         if (proj < 0 || proj > 500 + e.r) continue;
-        if (Math.abs(px * uy - py * ux) <= 40 + e.r) {
-          e.hp -= this.stats.atk * 1.5;
+        if (Math.abs(px * uy - py * ux) <= lW + e.r) {
+          e.hp -= this.stats.atk * lDmg;
           e.hitFlash = 0.12;
-          this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * 1.5), crit: false, life: 0.9 });
+          this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * lDmg), crit: false, life: 0.9 });
           if (e.hp <= 0) this.killEnemy(e);
         }
       }
@@ -907,17 +920,19 @@ export class RealtimeRun extends Run {
 
     // —— 路线机制：尸爆连锁 / 寄生反水（玩家的 Build，区别于位面机制）——
     if (this.routeMech === 'corpseBlast' && e.kind !== 'boss') {
+      const cR = 70 * (1 + (this.mechLvl.radius ?? 0));
+      const cDmg = 1.4 * (1 + (this.mechLvl.dmg ?? 0));
       for (const o of [...this.enemies]) {
         if (o === e || o.dead) continue;
-        if (Math.hypot(o.x - e.x, o.y - e.y) < 70) {
-          o.hp -= this.stats.atk * 1.4;
+        if (Math.hypot(o.x - e.x, o.y - e.y) < cR) {
+          o.hp -= this.stats.atk * cDmg;
           o.hitFlash = 0.15;
           if (o.hp <= 0) this.killEnemy(o);   // 尸爆连锁
         }
       }
       this.emitFx('burst', e.x, e.y);
     }
-    if (this.routeMech === 'parasite' && e.kind === 'minion' && this.rng() < 0.06) {
+    if (this.routeMech === 'parasite' && e.kind === 'minion' && this.rng() < 0.06 + (this.mechLvl.chance ?? 0)) {
       this.mechAllies.push({ x: e.x, y: e.y, atk: this.stats.atk * 0.8, life: 6, anim: 0 });
       this.emitFx('surge', e.x, e.y);
     }
@@ -1103,12 +1118,13 @@ export class RealtimeRun extends Run {
     this.emitFx('hit', p.x, p.y);
     // 功德·金身反击：挨打反震周身敌人
     if (this.routeMech === 'reflect') {
+      const rDmg = 0.9 * (1 + (this.mechLvl.dmg ?? 0));
       for (const o of [...this.enemies]) {
         if (o.dead) continue;
         if (Math.hypot(o.x - p.x, o.y - p.y) <= 90 + o.r) {
-          o.hp -= this.stats.atk * 0.9;
+          o.hp -= this.stats.atk * rDmg;
           o.hitFlash = 0.12;
-          this.damageNums.push({ x: o.x, y: o.y - 24, v: Math.round(this.stats.atk * 0.9), crit: false, life: 0.9 });
+          this.damageNums.push({ x: o.x, y: o.y - 24, v: Math.round(this.stats.atk * rDmg), crit: false, life: 0.9 });
           if (o.hp <= 0) this.killEnemy(o);
         }
       }

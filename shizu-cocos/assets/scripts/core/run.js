@@ -91,6 +91,7 @@ export class Run {
     this.state = RunState.FIGHTING;
     this.result = null;
     this.bossDrop = null;
+    this.mechLvl = {};   // 路线机制强化等级（三选一「构筑感」选项累积）
 
     // 指南 13.1 onRunStart：隐藏刻印开局自动装载，永不入三选一池
     this.engraved = engravedSkills(save);
@@ -266,6 +267,16 @@ export class Run {
     const option = this.pendingOptions.options[index];
     if (!option) return;
     this.pendingOptions = null;
+
+    if (option.kind === 'mech') {
+      for (const [k, v] of Object.entries(option.eff ?? {})) {
+        this.mechLvl[k] = (this.mechLvl[k] ?? 0) + v;
+      }
+      this.emit(`强化 <b>${option.name}</b>（${option.desc}）`, 'learn');
+      this.state = RunState.FIGHTING;
+      this.flushPendingUpgrade();
+      return;
+    }
 
     if (option.kind === 'attr') {
       applyAttrOption(this.stats, option);

@@ -42,5 +42,5 @@ export const MECH_UPGRADES = {
 
 /** 某路线机制的强化池（未激活该路线则空） */
 export function mechUpgradePool(routeMech) {
-  return (MECH_UPGRADES[routeMech] ?? []).map((m) => ({ ...m, kind: 'mech', mech: routeMech, rarity: 2 }));
+  return (MECH_UPGRADES[routeMech] ?? []).map((m) => ({ ...m, kind: 'mech', mech: routeMech, rarity: 'feature' }));
 }
