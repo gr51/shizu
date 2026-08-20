@@ -154,5 +154,7 @@ test('红线9：穿上装备 → 战力上升 → D 同步上升（不是局外�
 
   assert.ok(afterPower > beforePower, '装备未抬升战力');
   assert.ok(afterD > beforeD, '装备未抬升副本难度 D —— 难度进化闭环被破坏');
-  assert.equal((afterPower / beforePower).toFixed(4), '1.3125'); // 5×2.5×2.5% = +31.25%
+  // 装备战力进入 D 采用与永久属性一致的 0.4 次方，避免词条与敌人双重线性缩放。
+  const expectedRatio = Math.pow(gearPowerBonus(save.player.gear), 0.4);
+  assert.ok(Math.abs(afterPower / beforePower - expectedRatio) < 1e-9, '装备 D 缩放口径失配');
 });

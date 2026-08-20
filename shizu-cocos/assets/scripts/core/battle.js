@@ -190,6 +190,7 @@ export class RealtimeRun extends Run {
     this.bossWarnedStage = -1;   // 已预警 Boss 降临的阶段（张弛节奏）
     this.diffKey = this.save.player.difficultyLevel ?? 'normal';
     this.geneRainCd = 40;        // 基因雨事件倒计时（张弛的「饱餐」释放）
+    this.miniRushCd = 45;        // 周期性小波急袭（短时压力峰，不抬高整局平均压力）
   }
 
   /** 难度对应的时间坡分母（困难更快变强，简单更慢） */
@@ -247,6 +248,7 @@ export class RealtimeRun extends Run {
     this.updateOrbs(dt);
     this.mechanicsTick(dt);
     this.geneRainTick(dt);
+    this.miniRushTick(dt);
 
     if (this.stats.regen > 0) {
       this.heal(this.stats.maxHp * this.stats.regen * dt, '再生', true);
@@ -266,6 +268,21 @@ export class RealtimeRun extends Run {
       this.orbs.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, genes: 2, bob: this.rng() * 6 });
     }
     this.emit('🍃 基因雨洒落，去吞噬它们', 'gene');
+  }
+
+  /** 小波急袭：阶段 2 后每 45~60 秒出现，严格服从同屏上限，只制造短时压力峰 */
+  miniRushTick(dt) {
+    if (this.stageNo < 2 || this.closerSpawned) return;
+    this.miniRushCd -= dt;
+    if (this.miniRushCd > 0) return;
+    this.miniRushCd = 45 + this.rng() * 15;
+    const room = Math.max(0, MAX_ONSCREEN - this.enemies.length);
+    const count = Math.min(this.diffKey === 'hard' ? 4 : 2, room);
+    if (count <= 0) return;
+    const st = this.stage;
+    this.spawnSurge({ name: st.minionName, hp: st.minion.hp, atk: st.minion.atk }, count);
+    this.emit('⚠ 快怪急袭，从四周切入！', 'wave');
+    this.emitFx('surge', this.player.x, this.player.y);
   }
 
   updatePlayer(dt, input) {

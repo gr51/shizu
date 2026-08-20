@@ -66,15 +66,16 @@ export function geneLockPowerBonus(geneLocks) {
 }
 
 /** 战力（指南 4.1）。新档 = 1.0。
- *  永久属性对 D（敌人强度）取 0.4 次方 —— 比开方更弱，让「成长」净收益更明显：
- *  玩家攻击按 (1+pct) 线性涨，而敌人 HP 只按 (1+pct)^0.4 涨，玩家逐渐碾压（数值爆炸曲线）。 */
+ *  永久属性与装备战力进入 D 时都取 0.4 次方，让成长有明确净收益：
+ *  玩家词条按原值线性生效，而敌人强度只按战力^0.4 上涨，避免「穿装备反而更弱」的多重缩放陷阱。 */
 export function computePower(player) {
   const atkTerm = Math.pow(1 + player.permAtkPct / 100, 0.4);
   const hpTerm = Math.pow(1 + player.permHpPct / 100, 0.4);
   const spdTerm = Math.pow(1 + player.permSpeedPct / 100, 0.4);
+  const gearTerm = Math.pow(gearPowerBonus(player.gear), 0.4);
   return ((atkTerm + hpTerm + spdTerm) / 3)
     * geneLockPowerBonus(player.geneLocks)
-    * gearPowerBonus(player.gear);
+    * gearTerm;
 }
 
 /** 副本难度值 D = 战力 × 难度等级系数（指南 4.2；dynFactor 在敌人数值处再乘） */
