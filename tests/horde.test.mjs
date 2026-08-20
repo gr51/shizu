@@ -165,6 +165,23 @@ test('实时战斗：自动索敌**优先大件** —— 否则精英被杂兵�
   assert.ok(elite.hp < before, '精英没吃到伤害 —— 索敌被杂兵挡住了');
 });
 
+test('急袭事件形成风险→肃清→基因雨奖励闭环', () => {
+  const save = freshSave({ totalRuns: 5 });
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  const make = (id, tag) => ({ id, kind: 'minion', name: '急袭怪', hp: 1, maxHp: 1, atk: 0,
+    x: run.player.x + 100, y: run.player.y, r: 12, speed: 0, hitFlash: 0, anim: 0, eventTag: tag });
+  const a = make(1, 'miniRush'); const b = make(2, 'miniRush');
+  run.enemies = [a, b];
+  run.killEnemy(a);
+  assert.equal(run.orbs.length, 1, '第一只只应掉自己的普通基因，不得提前发急袭奖励');
+  run.killEnemy(b);
+  assert.ok(run.orbs.length >= 9, '最后一只急袭怪死亡后应洒落基因雨奖励');
+
+  const before = run.orbs.length;
+  const normal = make(3, null); run.enemies = [normal]; run.killEnemy(normal);
+  assert.equal(run.orbs.length, before + 1, '普通怪死亡不得触发急袭奖励');
+});
+
 test('实时战斗：一局是连续时间流，不是离散回合', () => {
   const save = freshSave({ totalRuns: 5 });
   const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);

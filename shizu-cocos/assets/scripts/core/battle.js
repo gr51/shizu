@@ -189,8 +189,7 @@ export class RealtimeRun extends Run {
     this.lastProjCount = 0;      // 武器进化档位（用于进化瞬间庆祝）
     this.bossWarnedStage = -1;   // 已预警 Boss 降临的阶段（张弛节奏）
     this.diffKey = this.save.player.difficultyLevel ?? 'normal';
-    this.geneRainCd = 40;        // 基因雨事件倒计时（张弛的「饱餐」释放）
-    this.miniRushCd = 45;        // 周期性小波急袭（短时压力峰，不抬高整局平均压力）
+    this.miniRushCd = 45;        // 周期性小波急袭（完成挑战后才结算基因雨奖励）
   }
 
   /** 难度对应的时间坡分母（困难更快变强，简单更慢） */
@@ -247,7 +246,6 @@ export class RealtimeRun extends Run {
     if (this.state !== RunState.FIGHTING) return;
     this.updateOrbs(dt);
     this.mechanicsTick(dt);
-    this.geneRainTick(dt);
     this.miniRushTick(dt);
 
     if (this.stats.regen > 0) {
@@ -255,19 +253,17 @@ export class RealtimeRun extends Run {
     }
   }
 
-  /** 基因雨：周期性在玩家周围洒落一批基因，制造「饱餐」释放时刻 */
-  geneRainTick(dt) {
-    this.geneRainCd -= dt;
-    if (this.geneRainCd > 0) return;
-    this.geneRainCd = 40 + this.rng() * 20;   // 40~60 秒一次
+  /** 急袭完成奖励：击破整波后才洒落基因，形成风险→胜利→奖励闭环 */
+  rewardMiniRush() {
     const p = this.player;
-    const n = 12;
+    const n = this.diffKey === 'hard' ? 10 : 8;
     for (let i = 0; i < n; i++) {
       const a = this.rng() * Math.PI * 2;
-      const r = 60 + this.rng() * 120;
+      const r = 45 + this.rng() * 80;
       this.orbs.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, genes: 2, bob: this.rng() * 6 });
     }
-    this.emit('🍃 基因雨洒落，去吞噬它们', 'gene');
+    this.emit('🍃 急袭肃清，基因雨洒落！', 'gene');
+    this.emitFx('gene', p.x, p.y);
   }
 
   /** 小波急袭：阶段 2 后每 45~60 秒出现，严格服从同屏上限，只制造短时压力峰 */
@@ -280,8 +276,8 @@ export class RealtimeRun extends Run {
     const count = Math.min(this.diffKey === 'hard' ? 4 : 2, room);
     if (count <= 0) return;
     const st = this.stage;
-    this.spawnSurge({ name: st.minionName, hp: st.minion.hp, atk: st.minion.atk }, count);
-    this.emit('⚠ 快怪急袭，从四周切入！', 'wave');
+    this.spawnSurge({ name: st.minionName, hp: st.minion.hp, atk: st.minion.atk }, count, 'miniRush');
+    this.emit('⚠ 快怪急袭，从四周切入！肃清它们可获得基因雨', 'wave');
     this.emitFx('surge', this.player.x, this.player.y);
   }
 
@@ -440,7 +436,7 @@ export class RealtimeRun extends Run {
    * 边缘刷的涌潮会被清场圈在半路吃掉，玩家根本感觉不到「潮」；
    * 环形包围才是割草里那个「屏幕一下子红了」的压力瞬间。
    */
-  spawnSurge(tpl, count) {
+  spawnSurge(tpl, count, eventTag = null) {
     const p = this.player;
     const ringR = 210 + this.rng() * 60;
     for (let i = 0; i < count; i++) {
@@ -458,7 +454,7 @@ export class RealtimeRun extends Run {
         atk: Math.round(tpl.atk * timeScale), x, y, r: 12,
         speed: (95 + this.rng() * 25) * v.speedMul * stageSpeed,
         spitCd: v.ranged ? this.rng() * SPIT_CD : 0,
-        hitFlash: 0, attackT: 0, anim: this.rng() * 10, isCloser: false,
+        hitFlash: 0, attackT: 0, anim: this.rng() * 10, isCloser: false, eventTag,
       });
     }
   }
@@ -995,6 +991,13 @@ export class RealtimeRun extends Run {
       }
       this.emitFx('burst', e.x, e.y);
     }
+    // 急袭挑战：最后一只标记怪死亡时结算基因雨奖励（标记先清，避免尸爆递归重复发奖）
+    const eventTag = e.eventTag;
+    e.eventTag = null;
+    if (eventTag === 'miniRush' && !this.enemies.some((o) => o !== e && !o.dead && o.eventTag === eventTag)) {
+      this.rewardMiniRush();
+    }
+
     // 死亡帧特效：渲染层据此播放死亡动画
     this.deaths.push({ x: e.x, y: e.y, kind: e.kind, variant: e.variant, id: e.id, sprite: e.sprite, facing: e.x < this.player.x ? 1 : -1, t: 0 });
 
