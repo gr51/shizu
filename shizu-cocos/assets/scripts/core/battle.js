@@ -50,7 +50,7 @@ export const BERSERK_MUL = 1.8;
  * 取 0.65 ——机器人打到第 4 阶段左右，真人会明显更好；
  * 剩下的由 dynFactor（每局 ±5~15%）与难度等级自动收敛。
  */
-export const CONTACT_DPS_SCALE = 0.65;
+export const CONTACT_DPS_SCALE = 1.1;
 
 /**
  * 小怪变体（关卡策划二章：各位面都写明了「远程弹幕 / 冲撞 / 混合敌群」）。

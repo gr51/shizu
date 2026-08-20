@@ -38,7 +38,7 @@ export const BASE_STATS = { atk: 10, hp: 100, speed: 220, crit: 0.05 };
  *   割草游戏里「一片杂兵秒杀 + 精英要磨几十秒」的对比才是爽点来源。
  */
 export const UNIT_BASE = {
-  minion: { baseHp: 8, baseAtk: 2 },
+  minion: { baseHp: 8, baseAtk: 4 },
   elite: { baseHp: 150, baseAtk: 8 },
   boss: { baseHp: 300, baseAtk: 12 },
 };
