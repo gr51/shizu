@@ -192,6 +192,25 @@ test('急袭事件形成风险→肃清→基因雨奖励闭环', () => {
   assert.equal(run.orbs.length, expiredBefore + 1, '过期急袭怪不得补发奖励');
 });
 
+test('伏击精英：不触发阶段推进；跨阶段未击杀则消失', () => {
+  const save = freshSave({ totalRuns: 5 });
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  const ambush = { id: 10, kind: 'elite', ambush: true, name: '伏击精英', hp: 1000, maxHp: 1000, atk: 10,
+    x: run.player.x + 80, y: run.player.y, r: 24, speed: 0, hitFlash: 0, anim: 0, eventTag: null };
+  run.enemies = [ambush];
+  run.killEnemy(ambush);
+  assert.equal(run.stageNo, 1, '击杀伏击精英不得推进阶段');
+  assert.ok(run.orbs.length >= 1, '伏击精英应产出基因');
+
+  const ambush2 = { id: 11, kind: 'elite', ambush: true, name: '伏击精英', hp: 1000, maxHp: 1000, atk: 10,
+    x: 30, y: 30, r: 24, speed: 0, hitFlash: 0, anim: 0 };
+  run.enemies = [ambush2];
+  const stageBefore = run.stageNo;
+  run.advanceStage();
+  assert.equal(run.stageNo, stageBefore + 1, '未击杀的伏击精英不应阻塞阶段推进');
+  assert.ok(!run.enemies.some((e) => e.ambush), '伏击精英应在跨阶段时消失');
+});
+
 test('实时战斗：一局是连续时间流，不是离散回合', () => {
   const save = freshSave({ totalRuns: 5 });
   const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);

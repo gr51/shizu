@@ -190,6 +190,8 @@ export class RealtimeRun extends Run {
     this.bossWarnedStage = -1;   // 已预警 Boss 降临的阶段（张弛节奏）
     this.diffKey = this.save.player.difficultyLevel ?? 'normal';
     this.miniRushCd = 45;        // 周期性小波急袭（完成挑战后才结算基因雨奖励）
+    this.ambushTimer = 15;       // 精英伏击事件倒计时（阶段中段高价值风险点）
+    this.ambushDoneStage = -1;   // 已触发伏击的阶段（每阶段一次）
   }
 
   /** 难度对应的时间坡分母（困难更快变强，简单更慢） */
@@ -249,6 +251,7 @@ export class RealtimeRun extends Run {
     this.updateOrbs(dt);
     this.mechanicsTick(dt);
     this.miniRushTick(dt);
+    this.ambushTick(dt);
 
     if (this.stats.regen > 0) {
       this.heal(this.stats.maxHp * this.stats.regen * dt, '再生', true);
@@ -266,6 +269,20 @@ export class RealtimeRun extends Run {
     }
     this.emit('🍃 急袭肃清，基因雨洒落！', 'gene');
     this.emitFx('gene', p.x, p.y);
+  }
+
+  /** 精英伏击：阶段 2-4 中段各一次，刷出一只高价值精英，掉落走 stageBoss；未击杀跨阶段消失 */
+  ambushTick(dt) {
+    if (this.stageNo < 2 || this.stageNo > 4 || this.closerSpawned) return;
+    if (this.ambushDoneStage === this.stageNo) return;
+    this.ambushTimer -= dt;
+    if (this.ambushTimer > 0) return;
+    this.ambushDoneStage = this.stageNo;
+    if (this.enemies.length >= MAX_ONSCREEN) return;   // 满屏让位，不硬塞
+    const st = this.stage;
+    this.spawnEnemy({ ...st.closer, name: `${st.closer.name}·伏击`, kind: 'elite', ambush: true }, false);
+    this.emit('⚠ 一只伏击精英现身！击杀它获得丰厚回报', 'death');
+    this.emitFx('elite', this.player.x, this.player.y);
   }
 
   /** 小波急袭：阶段 2 后每 45~60 秒出现，严格服从同屏上限，只制造短时压力峰 */
@@ -396,6 +413,7 @@ export class RealtimeRun extends Run {
       kind: tpl.kind,
       variant,
       sprite,
+      ambush: tpl.ambush ?? false,
       name: tpl.name,
       hp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1) * timeScale)),
       maxHp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1) * timeScale)),
@@ -1067,15 +1085,19 @@ export class RealtimeRun extends Run {
     this.orbs.push({ x: e.x, y: e.y, genes: drop.genes, bob: this.rng() * 6 });
 
     this.enemies = this.enemies.filter((x) => !x.dead);
-    if (e.kind === 'elite') {
+    if (e.kind === 'elite' && !e.ambush) {
       this.emit(`击破 <b>${e.name}</b>`, 'gene');
       this.advanceStage();
     }
   }
 
-  /** 阶段推进：重置时间轴游标；未完成的急袭挑战作废，奖励不得跨阶段结算 */
+  /** 阶段推进：重置时间轴游标；未完成的急袭挑战作废，伏击精英未击杀则消失，奖励不得跨阶段结算 */
   advanceStage() {
-    if (this.enemies.some((e) => e.kind === 'elite')) return;
+    if (this.enemies.some((e) => e.kind === 'elite' && !e.ambush)) return;
+    if (this.enemies.some((e) => e.ambush)) {
+      this.emit('伏击精英逃逸，奖励错过', 'death');
+      this.enemies = this.enemies.filter((e) => !e.ambush);
+    }
     if (this.stageIndex + 1 >= this.dungeon.stages.length) return;
     const rushLeft = this.miniRushRemaining;
     if (rushLeft > 0) {
