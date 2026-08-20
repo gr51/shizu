@@ -63,9 +63,11 @@ export const CONTACT_DPS_SCALE = 1.1;
  *   spitter 远程吐射，站在射程外打你 —— 逼玩家主动近身，不能龟在原地
  */
 export const MINION_VARIANTS = {
-  walker: { speedMul: 1.0, weight: 62, hpMul: 1 },
-  charger: { speedMul: 1.9, weight: 26, hpMul: 0.75 },
-  spitter: { speedMul: 0.55, weight: 12, hpMul: 0.85, ranged: true },
+  walker: { speedMul: 1.0, weight: 50, hpMul: 1 },
+  charger: { speedMul: 1.9, weight: 20, hpMul: 0.75 },
+  spitter: { speedMul: 0.55, weight: 10, hpMul: 0.85, ranged: true },
+  tank: { speedMul: 0.55, weight: 12, hpMul: 2.4 },          // 肉盾：慢而硬
+  bomber: { speedMul: 1.6, weight: 8, hpMul: 0.5, bomber: true }, // 自爆：快而脆，死了炸你
 };
 
 /** 每阶段刷的小怪 sprite（每阶段一对，5 阶段各不同） */
@@ -935,6 +937,14 @@ export class RealtimeRun extends Run {
     if (e.kind === 'minion') this.minionKills += 1;
     this.emitFx('burst', e.x, e.y);
     if (e.kind !== 'minion') this.hitStop = 0.08;   // 精英/Boss 击杀：命中停顿
+    // 自爆怪：死时爆炸，近身波及玩家（别贴脸杀它）
+    if (e.variant === 'bomber') {
+      const p = this.player;
+      if (Math.hypot(p.x - e.x, p.y - e.y) < 80 && p.invuln <= 0) {
+        this.hurtPlayer(Math.max(1, e.atk * 2.2), 0.4);
+      }
+      this.emitFx('burst', e.x, e.y);
+    }
     // 死亡帧特效：渲染层据此播放死亡动画
     this.deaths.push({ x: e.x, y: e.y, kind: e.kind, variant: e.variant, id: e.id, sprite: e.sprite, facing: e.x < this.player.x ? 1 : -1, t: 0 });
 
