@@ -318,6 +318,11 @@ html, body {
 }
 .slot.empty, .gear-slot.empty { color: #5c666e; }
 
+/* 人物头像 + 路线图标（面板实体资产） */
+.portrait-row { display: flex; justify-content: center; margin-bottom: 6px; }
+.portrait { width: 64px; height: 64px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 0 8px rgba(95,184,166,.4)); }
+.route-ic { width: 20px; height: 20px; object-fit: contain; image-rendering: pixelated; vertical-align: middle; margin-right: 6px; }
+
 /* 稀有度 */
 .r-white  { color: var(--r-white); }
 .r-green  { color: var(--r-green); }

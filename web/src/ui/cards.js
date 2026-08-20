@@ -22,6 +22,7 @@ export function playerCard(save, run = null) {
   const hp = run ? run.hp : stats.maxHp;
   const pct = Math.max(0, Math.min(100, (hp / stats.maxHp) * 100));
   return `
+    <div class="portrait-row"><img class="portrait" src="../shizu-cocos/assets/art/lobby/icons/portrait.png" alt="巢灵"></div>
     <h4>巢灵 · ${p.nestlingName}</h4>
     <div class="hpbar"><i style="width:${pct}%"></i></div>
     <p>HP ${Math.round(hp)} / ${Math.round(stats.maxHp)}</p>
@@ -38,7 +39,7 @@ export function geneCard(save, run = null) {
         const lv = geneLockLevel(save, r);
         const next = chargeToNextSegment(save, r);
         const tail = next === null ? '（已满）' : `（距下一段 ${next} 基因）`;
-        return `<div class="slot">${ROUTES[r].name} Lv${lv}/6 <span class="small">${tail}</span></div>`;
+        return `<div class="slot"><img class="route-ic" src="../shizu-cocos/assets/art/lobby/icons/route_${r}.png" alt=""> ${ROUTES[r].name} Lv${lv}/6 <span class="small">${tail}</span></div>`;
       }).join('')
     : '<p class="small">尚未激活任何路线。<br>首次进入某位面副本即可永久激活其路线基因锁。</p>';
   const sealed = save.player.sealedRoutes.length
@@ -52,7 +53,7 @@ export function gearCard(save) {
   const gear = save.player.gear;
   const rows = GEAR_SLOT_IDS.map((id) => {
     const item = gear[id];
-    return `<div class="gear-slot ${item ? '' : 'empty'}">${GEAR_SLOTS[id].name}：`
+    return `<div class="gear-slot ${item ? '' : 'empty'}"><img class="route-ic" src="../shizu-cocos/assets/art/items/gear_${id}.png" alt=""> ${GEAR_SLOTS[id].name}：`
       + (item
         ? `<span class="r-${item.rarity}">${item.name}</span>${'★'.repeat(item.star)}`
         : '空')
