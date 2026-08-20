@@ -186,7 +186,13 @@ export class RealtimeRun extends Run {
     this.routeMechCd = 0;
     this.lastProjCount = 0;      // 武器进化档位（用于进化瞬间庆祝）
     this.bossWarnedStage = -1;   // 已预警 Boss 降临的阶段（张弛节奏）
+    this.diffKey = this.save.player.difficultyLevel ?? 'normal';
   }
+
+  /** 难度对应的时间坡分母（困难更快变强，简单更慢） */
+  get timeScaleDenom() { return this.diffKey === 'hard' ? 150 : this.diffKey === 'easy' ? 360 : 240; }
+  /** 难度对应的刷怪速率系数（困难更多怪，简单更少） */
+  get diffSpawnMul() { return this.diffKey === 'hard' ? 1.25 : this.diffKey === 'easy' ? 0.85 : 1; }
 
   get onScreen() { return this.enemies.length; }
 
@@ -270,7 +276,7 @@ export class RealtimeRun extends Run {
   spawnTick(dt) {
     const st = this.stage;
 
-    this.spawnCarry += st.spawnRate * dt;
+    this.spawnCarry += st.spawnRate * this.diffSpawnMul * dt;
     let n = Math.floor(this.spawnCarry);
     this.spawnCarry -= n;
 
@@ -345,7 +351,7 @@ export class RealtimeRun extends Run {
     // 阶段越后敌人越快（整体策划 3.2「数量 → **速度** → 复杂度 → 精度」的第二项）
     const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
     // 难度随时间坡：每 4 分钟敌人血量/攻击 +1 倍（吸血鬼幸存者式难度曲线）
-    const timeScale = 1 + this.time / 240;
+    const timeScale = 1 + this.time / this.timeScaleDenom;
 
     this.enemies.push({
       id: this.nextId++,
@@ -403,7 +409,7 @@ export class RealtimeRun extends Run {
       const variant = this.rollVariant();
       const v = MINION_VARIANTS[variant];
       const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
-      const timeScale = 1 + this.time / 240;
+      const timeScale = 1 + this.time / this.timeScaleDenom;
       this.enemies.push({
         id: this.nextId++, kind: 'minion', variant, name: tpl.name,
         hp: Math.max(1, Math.round(tpl.hp * (v.hpMul ?? 1) * timeScale)),
@@ -419,7 +425,7 @@ export class RealtimeRun extends Run {
   updateEnemies(dt) {
     const p = this.player;
     for (const e of this.enemies) {
-      const wasAttacking = e.attackT > 0;
+      const prevAttackT = e.attackT;
       e.hitFlash = Math.max(0, e.hitFlash - dt);
       e.attackT = Math.max(0, e.attackT - dt);
       e.anim += dt * 8;
@@ -469,9 +475,8 @@ export class RealtimeRun extends Run {
         }
       }
 
-      // 接触攻击：抬手预警（attackT 0.3s 内只摆 pose，结束才结算伤害）
-      // 抬手结束 → 结算接触伤害（玩家若已走开则落空）
-      if (wasAttacking && e.attackT <= 0 && d < p.r + e.r + 8 && p.invuln <= 0) {
+      // 接触攻击：抬手预警 → 劈砍帧（attackT 跨过 0.15）结算伤害，与动画同步
+      if (prevAttackT > 0.15 && e.attackT <= 0.15 && d < p.r + e.r + 8 && p.invuln <= 0) {
         const bigMul = e.kind === 'boss' ? 5.0 : e.kind === 'elite' ? 3.5 : 1;
         let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * bigMul * (1 - this.stats.dmgReduct));
         if (this.mech?.type === 'combo') dmg *= this.mech.mul;   // 武侠：连招增伤
