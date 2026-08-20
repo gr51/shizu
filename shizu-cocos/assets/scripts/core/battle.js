@@ -185,6 +185,7 @@ export class RealtimeRun extends Run {
     this.routeMech = currentRouteMech(this.save.player.geneLocks);
     this.routeMechCd = 0;
     this.lastProjCount = 0;      // 武器进化档位（用于进化瞬间庆祝）
+    this.bossWarnedStage = -1;   // 已预警 Boss 降临的阶段（张弛节奏）
   }
 
   get onScreen() { return this.enemies.length; }
@@ -298,6 +299,13 @@ export class RealtimeRun extends Run {
           : `【${st.closer.name}】出现`,
         'death',
       );
+    }
+
+    // 张弛节奏：Boss/精英降临前 4 秒预警，制造压迫感（每阶段一次）
+    if (!this.closerSpawned && this.bossWarnedStage !== this.stageNo && this.stageElapsed >= st.closerAt - 4) {
+      this.bossWarnedStage = this.stageNo;
+      this.emit('⚠ 一股强大的气息正在逼近……', 'death');
+      this.emitFx('boss', this.player.x, this.player.y);
     }
 
     const room = MAX_ONSCREEN - this.enemies.length;
