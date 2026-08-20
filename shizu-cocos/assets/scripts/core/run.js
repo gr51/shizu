@@ -405,6 +405,9 @@ export class Run {
 
     const dyn = adjustDynamicFactor(save, victory, this.rng);
 
+    // 元进度锚点：记录历史最佳阶段（跨局成长的可感知反馈）
+    save.stats.bestStage = Math.max(save.stats.bestStage ?? 0, this.stageNo);
+
     let firstClear = false;
     if (plane.id === ZHUTIAN_ID && victory && !save.stats.firstClear) {
       save.stats.firstClear = true;

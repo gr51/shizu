@@ -11,7 +11,7 @@ export function metaLine(save, extra = '') {
   const p = save.player;
   return `战力 <b>${computePower(p).toFixed(2)}</b>`
     + ` · 难度 <b>${DIFFICULTY_LABEL[p.difficultyLevel]}</b>`
-    + ` · 动态系数 <b>${p.dynFactor.toFixed(2)}</b>`
+    + ` · 最佳 <b>阶段 ${save.stats.bestStage ?? 0}/5</b>`
     + ` · 通关 <b>${p.wins}</b>/${p.totalRuns}`
     + (extra ? ` · ${extra}` : '');
 }

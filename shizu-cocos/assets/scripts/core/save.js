@@ -87,6 +87,7 @@ export function createDefaultSave() {
       gearPity: 0,
       firstClear: false,
       endlessUnlocked: false,
+      bestStage: 0,          // 历史最佳阶段（元进度锚点：一眼看到自己在变强）
       achievementFlags: {},
     },
   };

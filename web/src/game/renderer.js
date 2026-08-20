@@ -262,6 +262,15 @@ export class Renderer {
     const p = run.player;
     const blink = p.invuln > 0 && Math.floor(p.invuln * 20) % 2 === 0;
     if (blink) return;
+    // 可读性：玩家脚下光圈，60 只怪里一眼认出自己
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#5fb8a6';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 16, 14, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
     // 进化皮肤（待机时显示路线形态）；攻击/走路复用基础动作帧
     const skinBase = run.skin ? `units/player_${run.skin}.png` : 'units/player.png';
     let rel = 'units/player.png';

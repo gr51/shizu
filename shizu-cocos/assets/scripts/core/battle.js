@@ -746,6 +746,8 @@ export class RealtimeRun extends Run {
       n.y -= 42 * dt;
     }
     this.damageNums = this.damageNums.filter((n) => n.life > 0);
+    // 可读性（readable chaos）：同屏飘字太多反而糊成一团，最多留 22 个，丢最旧的
+    if (this.damageNums.length > 22) this.damageNums = this.damageNums.slice(-22);
   }
 
   /** 路线机制：周期型（导弹/践踏/激光）按 CD 触发；链式/尸爆/寄生等挂在本方法外 */
