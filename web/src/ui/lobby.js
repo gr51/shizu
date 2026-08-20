@@ -100,11 +100,16 @@ function openRift(ctx) {
 
 function openDifficulty(ctx) {
   const { save } = ctx;
+  const MECH = {
+    easy: '敌人弱 · 成长慢 · 怪少（新手）',
+    normal: '基准 · 标准成长 · 标准刷怪',
+    hard: '敌人强 · 成长快 · 怪多（挑战）',
+  };
   view.showModal({
     title: '难度等级',
-    body: `<p class="small">副本敌人数值 = 你的战力 × 难度系数 × 动态系数。难度越高，掉落越丰厚。</p>`
+    body: `<p class="small">难度越高，敌人越强、成长越快、刷怪越多，但掉落越丰厚。</p>`
       + Object.keys(DIFFICULTY_COEF).map((k) =>
-        `<div class="diff-row"><b>${DIFFICULTY_LABEL[k]}</b> 系数 ${DIFFICULTY_COEF[k]}`
+        `<div class="diff-row"><b>${DIFFICULTY_LABEL[k]}</b> 系数 ${DIFFICULTY_COEF[k]}<div class="small">${MECH[k]}</div>`
         + (save.player.difficultyLevel === k ? ' <span class="gold">← 当前</span>' : '') + '</div>').join(''),
     buttons: [
       ...Object.keys(DIFFICULTY_COEF).map((k) => ({

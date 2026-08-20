@@ -443,9 +443,15 @@ export class RealtimeRun extends Run {
         const want = d > SPIT_RANGE ? 1 : d < SPIT_RANGE * 0.7 ? -1 : 0;
         e.x += (dx / d) * e.speed * want * dt;
         e.y += (dy / d) * e.speed * want * dt;
-        e.spitCd -= dt;
-        if (e.spitCd <= 0 && d <= SPIT_RANGE) {
-          e.spitCd = SPIT_CD;
+        // 瞄准抬手 → 发射（与近战预警一致：有 0.4s 可躲）
+        if (e.attackT <= 0) {
+          e.spitCd -= dt;
+          if (e.spitCd <= 0 && d <= SPIT_RANGE) {
+            e.attackT = 0.4;   // 瞄准
+            e.spitCd = SPIT_CD;
+          }
+        }
+        if (prevAttackT > 0.2 && e.attackT <= 0.2 && d <= SPIT_RANGE + 40) {
           this.shots.push({
             x: e.x, y: e.y, vx: (dx / d) * SPIT_SPEED, vy: (dy / d) * SPIT_SPEED,
             atk: e.atk, life: 3,
