@@ -925,6 +925,20 @@ export class RealtimeRun extends Run {
   /** 吞噬爆发冷却进度 0..1（UI 画环用） */
   get devourReady() { return this.player.devourCd <= 0; }
 
+  /** 主动槽只读状态：UI 展示技能名/剩余冷却，不复制战斗逻辑 */
+  get activeSkillStatus() {
+    const slots = this.save.player.skillSlots;
+    return ['activeA', 'activeB'].map((key) => {
+      const slot = slots[key];
+      if (!slot || slot.kind !== 'active') return null;
+      const skill = findSkill(slot.skillId) ?? findHiddenSkill(slot.skillId);
+      if (!skill) return null;
+      const cd = skill.cd ?? 30;
+      const left = Math.max(0, this.skillCd.get(slot.skillId) ?? 0);
+      return { key, name: skill.name, left, cd, ready: left <= 0 };
+    }).filter(Boolean);
+  }
+
   /**
    * 主动技能自动释放。
    * 单摇杆游戏里主动技通常**自动施放**（整体策划 2.3 只给了移动 + 吞噬两个操作），

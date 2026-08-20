@@ -45,7 +45,8 @@ export async function startBattle(ctx, plane) {
         <b class="gene" data-genes></b> · 噬灭 <b data-kills></b> · 同屏 <span data-screen></span>
         <span class="hud-cd" data-devour></span><span class="hud-cd" data-dodge></span>
       </div>
-      <div class="hud-mech" data-mech></div>`;
+      <div class="hud-mech" data-mech></div>
+      <div class="hud-active" data-active></div>`;
     return {
       hpBar: hud.querySelector('.hud-hp i'),
       hp: hud.querySelector('[data-hp]'),
@@ -56,6 +57,7 @@ export async function startBattle(ctx, plane) {
       devour: hud.querySelector('[data-devour]'),
       dodge: hud.querySelector('[data-dodge]'),
       mech: hud.querySelector('[data-mech]'),
+      active: hud.querySelector('[data-active]'),
     };
   }
 
@@ -151,6 +153,8 @@ export async function startBattle(ctx, plane) {
     H.mech.textContent = run.miniRushRemaining > 0
       ? `⚠ 急袭挑战 · 剩余 ${run.miniRushRemaining}`
       : run.routeMech ? `${MECH_LABEL[run.routeMech] ?? ''} · 弹体×${run.projCount ?? 1}` : `弹体×${run.projCount ?? 1}`;
+    H.active.innerHTML = run.activeSkillStatus.map((s) =>
+      `<span class="hud-cd ${s.ready ? 'ready' : ''}">${s.name} ${s.ready ? '就绪' : `${s.left.toFixed(0)}s`}</span>`).join('');
   }
 
   function resume() {
