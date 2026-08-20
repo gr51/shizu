@@ -187,6 +187,7 @@ export class RealtimeRun extends Run {
     this.lastProjCount = 0;      // 武器进化档位（用于进化瞬间庆祝）
     this.bossWarnedStage = -1;   // 已预警 Boss 降临的阶段（张弛节奏）
     this.diffKey = this.save.player.difficultyLevel ?? 'normal';
+    this.geneRainCd = 40;        // 基因雨事件倒计时（张弛的「饱餐」释放）
   }
 
   /** 难度对应的时间坡分母（困难更快变强，简单更慢） */
@@ -239,10 +240,26 @@ export class RealtimeRun extends Run {
     if (this.state !== RunState.FIGHTING) return;
     this.updateOrbs(dt);
     this.mechanicsTick(dt);
+    this.geneRainTick(dt);
 
     if (this.stats.regen > 0) {
       this.heal(this.stats.maxHp * this.stats.regen * dt, '再生', true);
     }
+  }
+
+  /** 基因雨：周期性在玩家周围洒落一批基因，制造「饱餐」释放时刻 */
+  geneRainTick(dt) {
+    this.geneRainCd -= dt;
+    if (this.geneRainCd > 0) return;
+    this.geneRainCd = 40 + this.rng() * 20;   // 40~60 秒一次
+    const p = this.player;
+    const n = 12;
+    for (let i = 0; i < n; i++) {
+      const a = this.rng() * Math.PI * 2;
+      const r = 60 + this.rng() * 120;
+      this.orbs.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, genes: 2, bob: this.rng() * 6 });
+    }
+    this.emit('🍃 基因雨洒落，去吞噬它们', 'gene');
   }
 
   updatePlayer(dt, input) {
