@@ -448,6 +448,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .hud-hp i { display: block; height: 100%; background: linear-gradient(90deg, #a8465a, #d06a7a); transition: width .1s; }
 .hud-mid { color: var(--text-dim); }
 .hud-right .gene { color: var(--gene); }
+.hud-mech { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 10px; background: rgba(20,26,32,.8); color: var(--gold); font-size: 12px; pointer-events: none; }
 
 #canvasWrap {
   flex: 1; display: flex; align-items: center; justify-content: center;

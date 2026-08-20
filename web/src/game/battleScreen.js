@@ -7,6 +7,7 @@ import { RunState } from '../../../shizu-cocos/assets/scripts/core/run.js';
 import { generateDungeon } from '../../../shizu-cocos/assets/scripts/core/dungeon.js';
 import { SLOT_LABEL } from '../../../shizu-cocos/assets/scripts/core/skillSlots.js';
 import { ROUTES } from '../../../shizu-cocos/assets/scripts/data/routes.js';
+import { relicById } from '../../../shizu-cocos/assets/scripts/data/relics.js';
 import { Assets } from './assets.js';
 import { Renderer } from './renderer.js';
 import { Input } from './input.js';
@@ -43,7 +44,8 @@ export async function startBattle(ctx, plane) {
       <div class="hud-right">
         <b class="gene" data-genes></b> · 噬灭 <b data-kills></b> · 同屏 <span data-screen></span>
         <span class="hud-cd" data-devour></span><span class="hud-cd" data-dodge></span>
-      </div>`;
+      </div>
+      <div class="hud-mech" data-mech></div>`;
     return {
       hpBar: hud.querySelector('.hud-hp i'),
       hp: hud.querySelector('[data-hp]'),
@@ -53,6 +55,7 @@ export async function startBattle(ctx, plane) {
       screen: hud.querySelector('[data-screen]'),
       devour: hud.querySelector('[data-devour]'),
       dodge: hud.querySelector('[data-dodge]'),
+      mech: hud.querySelector('[data-mech]'),
     };
   }
 
@@ -65,6 +68,21 @@ export async function startBattle(ctx, plane) {
   let lastState = null;
   let timeScale = 1;          // 调试用倍速，见 __shizu.setTimeScale
   ctx.setTimeScale = (n) => { timeScale = Math.max(0.1, Math.min(60, n)); };
+
+  // 新手引导：首局显示一次
+  if (ctx.save.player.totalRuns === 0) {
+    view.showModal({
+      title: '第一次苏醒',
+      body: `<div class="small" style="line-height:1.9">
+        · <b>拖动</b>屏幕移动你的巢灵<br>
+        · <b>自动攻击</b>：靠近敌人就出招<br>
+        · 击杀掉落<b>基因</b>，靠近自动吸收<br>
+        · 基因攒满触发<b>三选一升级</b>，越升越强<br>
+        · 活着击破<b>位面之主</b>，带回战利品回巢
+      </div>`,
+      buttons: [{ text: '醒来，去吞噬', style: 'primary', onClick: () => view.closeModal() }],
+    });
+  }
 
   function frame(now) {
     const real = Math.min((now - last) / 1000, 0.05);
@@ -126,6 +144,11 @@ export async function startBattle(ctx, plane) {
     H.devour.className = `hud-cd ${p.devourCd > 0 ? '' : 'ready'}`;
     H.dodge.textContent = p.dodgeCd > 0 ? '闪避 …' : '闪避 就绪';
     H.dodge.className = `hud-cd ${p.dodgeCd > 0 ? '' : 'ready'}`;
+    const MECH_LABEL = {
+      combo: '⚔️ 连击连招', chain: '⚡ 雷链弹射', corpseBlast: '💀 尸爆连锁', missile: '🚀 周期导弹',
+      multishot: '🎯 弹幕翻倍', parasite: '🩸 寄生反水', reflect: '🛡 金身反击', stomp: '👣 践踏震荡', laser: '🔦 机关激光',
+    };
+    H.mech.textContent = run.routeMech ? MECH_LABEL[run.routeMech] ?? '' : '';
   }
 
   function resume() {
@@ -189,11 +212,32 @@ export async function startBattle(ctx, plane) {
       lines.push(`<div class="diff-row">${ROUTES[c.route].name} 基因锁：第 ${c.from} → 第 ${c.to} 段</div>`);
     }
     if (r.hiddenSkill) lines.push(`<div class="diff-row" style="color:#e0a3d8">🔥 禁忌显现：<b>${r.hiddenSkill.name}</b></div>`);
+    if (r.relics.length) {
+      lines.push(`<div class="diff-row" style="color:#c9b8ff">⟡ 传承残影：</div>`);
+      for (const id of r.relics) {
+        const relic = relicById(id);
+        lines.push(`<div class="small" style="padding:4px 8px;line-height:1.5;color:#9aa4af"><b class="gold">${relic.name}</b>　${relic.story}</div>`);
+      }
+    }
     if (r.gear.length) {
       lines.push(`<div class="diff-row">装备 ×${r.gear.length}</div>`
         + r.gear.slice(0, 5).map((g) => `<div class="bag-item">${gearItemHtml(g)}</div>`).join(''));
     }
     lines.push(`<div class="diff-row small">难度进化：${r.dyn.before.toFixed(2)} → <b>${r.dyn.after.toFixed(2)}</b></div>`);
+
+    // 结局演出：首通诸天之心 → 巢灵成新噬祖
+    if (r.victory && r.plane.id === 'zhutian' && r.firstClear) {
+      view.showModal({
+        title: '结局 · 诸天归一',
+        body: `
+          <p class="gold" style="font-size:17px;line-height:1.7">「诸天又连成一片了。可裂缝还会再开。到时候，记得回来吃饭。」</p>
+          <p class="small" style="margin-top:10px">—— 巢灵吞噬了崩坏之影，成为新的噬祖。</p>
+          <p class="small">诸天重归完整。而所有的吞噬，都有了归处。</p>
+          <p class="small gold" style="margin-top:10px">《噬祖》 · 完　★ 无尽模式已解锁</p>`,
+        buttons: [{ text: '回 巢', style: 'primary', onClick: () => { view.closeModal(); ctx.toLobby(); } }],
+      });
+      return;
+    }
 
     view.showModal({
       title: r.victory ? `噬灭 · ${r.plane.name}` : `身陨 · ${r.plane.name}`,

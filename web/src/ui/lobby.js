@@ -8,6 +8,8 @@ import { GEAR_RARITY, RARITY_ORDER } from '../../../shizu-cocos/assets/scripts/d
 import { ALL_ROUTES, ROUTES, mutexOf } from '../../../shizu-cocos/assets/scripts/data/routes.js';
 import { planes } from '../../../shizu-cocos/assets/scripts/data/planes.js';
 import { nestLine } from '../../../shizu-cocos/assets/scripts/data/lines.js';
+import { RELICS, relicById } from '../../../shizu-cocos/assets/scripts/data/relics.js';
+import { ACHIEVEMENTS, unlockedAchievements } from '../../../shizu-cocos/assets/scripts/data/achievements.js';
 import { gearCard, gearItemHtml, geneCard, metaLine, playerCard, slotsCard } from './cards.js';
 import * as view from './view.js';
 
@@ -22,8 +24,11 @@ export function renderLobby(ctx) {
   const p = save.player;
   const lines = [
     { text: `「${nestLine(save, rng)}」　—— 噬祖`, cls: 'hidden' },
-    { text: `已开裂缝 <b>${p.totalRuns}</b> 次，噬灭 <b>${p.wins}</b> 个位面。`, cls: 'info' },
   ];
+  if (p.totalRuns === 0) {
+    lines.unshift({ text: '「诸天崩坏，裂缝涌现。噬祖，醒来。」', cls: 'gold' });
+  }
+  lines.push({ text: `已开裂缝 <b>${p.totalRuns}</b> 次，噬灭 <b>${p.wins}</b> 个位面。`, cls: 'info' });
   const active = activatedRoutes(save);
   if (active.length) {
     lines.push({ text: `已激活基因锁：${active.map((r) => `${ROUTES[r].name} Lv${geneLockLevel(save, r)}`).join('、')}`, cls: 'learn' });
@@ -247,12 +252,29 @@ export function openCodex(ctx) {
     return `<div class="codex-row ${visited ? 'active' : ''}"><span>${String(p.codex).padStart(2, '0')} ${p.name}</span><span class="small">${p.boss}</span></div>`;
   }).join('');
 
+  // 传承残影：已收集的传承 + 故事
+  const relicRows = save.inventory.relics.length
+    ? save.inventory.relics.map((id) => {
+        const r = relicById(id);
+        return `<div class="codex-row"><span>${r.name}</span><span class="small">${r.rare ? '稀有' : ''}</span></div>
+          <div class="small" style="padding:0 8px 8px;color:#8f98a3;line-height:1.5">${r.story}</div>`;
+      }).join('')
+    : '<p class="small">尚未获得传承 —— 噬灭位面之主可得。</p>';
+
+  // 成就：已解锁高亮，未解锁灰
+  const unlocked = unlockedAchievements(save);
+  const achRows = ACHIEVEMENTS.map((a) => {
+    const got = unlocked.has(a.id);
+    return `<div class="codex-row ${got ? 'active' : ''}"><span>${got ? '★' : '·'} ${a.name}</span><span class="small">${a.desc}</span></div>`;
+  }).join('');
+
   view.showModal({
     title: '进化图鉴',
     body: `<h4 class="gold">基因锁 · 10 路线</h4>${routeRows}
       <h4 class="gold" style="margin-top:14px">位面图鉴 · 12 副本</h4>${planeRows}
+      <h4 class="gold" style="margin-top:14px">传承残影 · ${save.inventory.relics.length} 已获</h4>${relicRows}
+      <h4 class="gold" style="margin-top:14px">成就 · ${unlocked.size}/${ACHIEVEMENTS.length}</h4>${achRows}
       <h4 class="gold" style="margin-top:14px">收藏</h4>
-      <div class="codex-row"><span>传承</span><span>${save.inventory.relics.length}</span></div>
       <div class="codex-row"><span>传说技能</span><span>${save.inventory.comboSkills.length}</span></div>
       <div class="codex-row"><span>隐藏技能（禁忌）</span><span>${save.inventory.hiddenSkills.length} / 10</span></div>`,
     buttons: [{ text: '关闭', onClick: () => { view.closeModal(); renderLobby(ctx); } }],

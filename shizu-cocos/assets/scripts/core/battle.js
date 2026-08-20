@@ -68,19 +68,19 @@ export const MINION_VARIANTS = {
   spitter: { speedMul: 0.55, weight: 12, hpMul: 0.85, ranged: true },
 };
 
-/** 每阶段刷的小怪 sprite（每阶段一对；位面没细分到 5 对时复用最后一对） */
+/** 每阶段刷的小怪 sprite（每阶段一对，5 阶段各不同） */
 export const MINION_SPRITE_BY_STAGE = {
   wuxia: [['maozei', 'jiutu'], ['shanzei', 'biaoshi'], ['quanshi', 'gunseng'], ['anqi', 'gongshou'], ['hanfei', 'shashou']],
-  aofa: [['yuan_jingling', 'huo_bing']],
-  qiqiao: [['jiguan_shou', 'fashu_jiguan']],
-  dujie: [['lei_jing', 'jianxiu_kuilei']],
-  gongde: [['jinlian_shicong', 'luohan_wuseng']],
-  shihai: [['sangshi', 'bianyi_quan']],
-  gongshengchao: [['jishengchong', 'fuhua_chong']],
-  shanhai: [['huangshou', 'jujiao_shou']],
-  jijia: [['shaojie', 'zizou_pao']],
-  jushen: [['ju_ying', 'shi_juren']],
-  zhutian: [['weimian_canying', 'ziwo_jingxiang']],
+  aofa: [['yuan_jingling', 'huo_bing'], ['huo_bing', 'bing_yuansu'], ['bing_yuansu', 'aoshu_shicong'], ['aoshu_shicong', 'huo_yao'], ['huo_yao', 'yuan_jingling']],
+  qiqiao: [['jiguan_shou', 'fashu_jiguan'], ['fashu_jiguan', 'jing_ling'], ['jing_ling', 'chilun_shou'], ['chilun_shou', 'jiguan_qishi'], ['jiguan_qishi', 'jiguan_shou']],
+  dujie: [['lei_jing', 'jianxiu_kuilei'], ['jianxiu_kuilei', 'lei_shou'], ['lei_shou', 'tianlei_zi'], ['tianlei_zi', 'leijie_kuilei'], ['leijie_kuilei', 'lei_jing']],
+  gongde: [['jinlian_shicong', 'luohan_wuseng'], ['luohan_wuseng', 'jinlian_wushi'], ['jinlian_wushi', 'chifan_seng'], ['chifan_seng', 'jinjia_lishi'], ['jinjia_lishi', 'jinlian_shicong']],
+  shihai: [['sangshi', 'bianyi_quan'], ['bianyi_quan', 'bianyi_shi'], ['bianyi_shi', 'shi_wu'], ['shi_wu', 'fenghe_guai'], ['fenghe_guai', 'sangshi']],
+  gongshengchao: [['jishengchong', 'fuhua_chong'], ['fuhua_chong', 'jisheng_zhu'], ['jisheng_zhu', 'fuhua_muti'], ['fuhua_muti', 'gongsheng_jushou'], ['gongsheng_jushou', 'jishengchong']],
+  shanhai: [['huangshou', 'jujiao_shou'], ['jujiao_shou', 'huo_shou'], ['huo_shou', 'bing_shou'], ['bing_shou', 'shanyue_shou'], ['shanyue_shou', 'huangshou']],
+  jijia: [['shaojie', 'zizou_pao'], ['zizou_pao', 'wuren_ji'], ['wuren_ji', 'zhongzhuang_jijia'], ['zhongzhuang_jijia', 'guidao_paotai'], ['guidao_paotai', 'shaojie']],
+  jushen: [['ju_ying', 'shi_juren'], ['shi_juren', 'shuang_juren'], ['shuang_juren', 'duyan_juren'], ['duyan_juren', 'shanling_juren'], ['shanling_juren', 'ju_ying']],
+  zhutian: [['weimian_canying', 'ziwo_jingxiang'], ['ziwo_jingxiang', 'benghuai_suipian'], ['benghuai_suipian', 'weimian_jingxiang'], ['weimian_jingxiang', 'xukong_jiti'], ['xukong_jiti', 'weimian_canying']],
 };
 
 /** Boss sprite 映射（位面 → boss 名） */
@@ -91,7 +91,7 @@ export const BOSS_BY_PLANE = {
 };
 
 /** 远程小怪散集：这些 sprite 用远程弹体，其余一律近战 */
-const RANGED_SPRITES = new Set(['anqi', 'gongshou', 'yuan_jingling', 'huo_bing', 'fashu_jiguan', 'lei_jing', 'shaojie', 'zizou_pao', 'weimian_canying']);
+const RANGED_SPRITES = new Set(['anqi', 'gongshou', 'yuan_jingling', 'huo_bing', 'bing_yuansu', 'aoshu_shicong', 'fashu_jiguan', 'jing_ling', 'lei_jing', 'tianlei_zi', 'shi_wu', 'wuren_ji', 'guidao_paotai', 'shaojie', 'zizou_pao', 'benghuai_suipian', 'weimian_canying', 'xukong_jiti']);
 
 /** 远程小怪的射击参数 */
 export const SPIT_RANGE = 300;
@@ -220,6 +220,7 @@ export class RealtimeRun extends Run {
     this.updateAttack(dt);
     this.updatePlayerShots(dt);
     this.updateDamageNums(dt);
+    this.routeMechTick(dt);
     this.updateActiveSkills(dt);
     this.updateShots(dt);
     if (this.state !== RunState.FIGHTING) return;
@@ -349,6 +350,7 @@ export class RealtimeRun extends Run {
       hitFlash: 0,
       attackT: 0,
       bossSkillCd: isBig ? 2.5 : 0,   // 精英/Boss 技能首秀CD
+      telegraphT: 0,             // 技能预警倒计时（抬手可躲）
       anim: this.rng() * 10,
       isCloser,
     });
@@ -435,12 +437,20 @@ export class RealtimeRun extends Run {
         e.y += (dy / d) * e.speed * dt;
       }
 
-      // 精英/Boss 技能：按 CD 释放（弹幕/剑域等，不是只会追着撞）
+      // 精英/Boss 技能：预警抬手 → 释放（弹幕/剑域等，不是只会追着撞）
       if (e.kind !== 'minion') {
-        e.bossSkillCd -= dt;
-        if (e.bossSkillCd <= 0) {
-          e.bossSkillCd = e.kind === 'boss' ? 4.0 : 6.0;
-          this.bossSkill(e);
+        if (e.telegraphT > 0) {
+          // 预警中：给玩家一个可见的抬手信号
+          e.telegraphT -= dt;
+          if (e.telegraphT <= 0) this.bossSkill(e);
+        } else {
+          e.bossSkillCd -= dt;
+          if (e.bossSkillCd <= 0) {
+            e.bossSkillCd = e.kind === 'boss' ? 4.0 : 6.0;
+            e.telegraphT = 0.6;               // 抬手 0.6s，期间可躲
+            this.emitFx('boss', e.x, e.y);
+            this.emit(e.kind === 'boss' ? '⚠ 位面之主蓄势待发！' : '⚠ 精英即将出手！', 'death');
+          }
         }
       }
 
@@ -476,13 +486,99 @@ export class RealtimeRun extends Run {
   /** 精英/Boss 技能：朝向玩家扇形弹幕（后续按位面换弹体形态） */
   bossSkill(e) {
     const p = this.player;
-    const n = e.kind === 'boss' ? 14 : 9;
-    const mul = e.kind === 'boss' ? 2.5 : 1.8;   // Boss/精英技能弹幕更疼
+    const plane = this.dungeon.plane.id;
     const base = Math.atan2(p.y - e.y, p.x - e.x);
-    const spread = e.kind === 'boss' ? Math.PI * 1.6 : Math.PI * 1.0;
+    const mul = e.kind === 'boss' ? 2.5 : 1.8;
+
+    if (e.kind === 'boss') {
+      // —— 每位面之主一套专属技能（不再人人同款扇形弹幕）——
+      if (plane === 'jiguan') {
+        // 傀儡巨像：激光横扫（朝玩家方向的直线，二连）
+        const ang = base;
+        for (let k = 0; k < 2; k++) {
+          this.shots.push({ x: e.x, y: e.y, vx: Math.cos(ang) * 320, vy: Math.sin(ang) * 320, atk: e.atk * mul, life: 2.5, r: 10, sprite: 'gear_blade' });
+        }
+      } else if (plane === 'dujie') {
+        // 雷劫神君：落雷（随机方向闪电）
+        for (let i = 0; i < 7; i++) {
+          const a = this.rng() * Math.PI * 2;
+          this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 240, vy: Math.sin(a) * 240, atk: e.atk * mul, life: 3, sprite: 'lightning' });
+        }
+        this.emitFx('surge', e.x, e.y);
+      } else if (plane === 'jijia') {
+        // 零式：导弹齐射（追踪玩家长达 4 秒）
+        for (let i = 0; i < 4; i++) {
+          this.mechProjectiles.push({ x: e.x, y: e.y, vx: 0, vy: 0, kind: 'missile', atk: e.atk * 1.2, life: 4, r: 9 });
+        }
+      } else if (plane === 'aofa') {
+        // 秘法王：弹幕法阵（满圆 18 发魔法弹）
+        for (let i = 0; i < 18; i++) {
+          const a = (i / 18) * Math.PI * 2;
+          this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 200, vy: Math.sin(a) * 200, atk: e.atk * mul, life: 3.2, sprite: 'magic_orb' });
+        }
+      } else if (plane === 'jushen') {
+        // 泰坦巨人：震地（巨大慢速冲击波）
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 130, vy: Math.sin(a) * 130, atk: e.atk * mul, life: 4, r: 12, sprite: 'quake_wave' });
+        }
+        this.emitFx('surge', e.x, e.y);
+      } else if (plane === 'gongde') {
+        // 金身佛陀：佛光普照（扇形 + 自愈）
+        for (let i = 0; i < 14; i++) {
+          const a = base - Math.PI * 1.3 / 2 + (Math.PI * 1.3 * i) / 13;
+          this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 190, vy: Math.sin(a) * 190, atk: e.atk * mul, life: 3.2, sprite: 'shockwave_gold' });
+        }
+        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.08);   // 自愈 8%
+      } else if (plane === 'shihai') {
+        // 湮灭者：尸潮爆裂（周身 AoE 直接伤害）
+        for (const o of this.enemies) {
+          if (o === e || o.dead) continue;
+        }
+        // 直接对玩家方向爆发绿雾弹
+        for (let i = 0; i < 10; i++) {
+          const a = base - 0.4 + (0.8 * i) / 9;
+          this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220, atk: e.atk * mul, life: 3, sprite: 'miasma' });
+        }
+      } else if (plane === 'gongshengchao') {
+        // 万生：召唤孵化（招 3 只小怪）
+        for (let i = 0; i < 3; i++) {
+          this.spawnEnemy({ kind: 'minion', name: '孵化虫', hp: this.stage.minion.hp, atk: this.stage.minion.atk }, false);
+        }
+        this.emit('万生母体孵化出新的寄生物', 'death');
+      } else if (plane === 'shanhai') {
+        // 饕餮：吞噬（把玩家朝自己拽 + 扇形）
+        const dx = e.x - p.x, dy = e.y - p.y; const d = Math.hypot(dx, dy) || 1;
+        p.x += (dx / d) * 90; p.y += (dy / d) * 90;
+        for (let i = 0; i < 12; i++) {
+          const a = base - Math.PI * 1.2 / 2 + (Math.PI * 1.2 * i) / 11;
+          this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, atk: e.atk * mul, life: 3, sprite: 'stomp_wave' });
+        }
+      } else if (plane === 'zhutian') {
+        // 崩坏之影：全机制融合（随机两种）
+        const pick = Math.floor(this.rng() * 4);
+        if (pick === 0) { for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 200, vy: Math.sin(a) * 200, atk: e.atk * mul, life: 3, sprite: 'magic_orb' }); } }
+        else if (pick === 1) { for (let i = 0; i < 3; i++) this.mechProjectiles.push({ x: e.x, y: e.y, vx: 0, vy: 0, kind: 'missile', atk: e.atk * 1.2, life: 4, r: 9 }); }
+        else if (pick === 2) { for (let i = 0; i < 6; i++) { const a = this.rng() * Math.PI * 2; this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 260, vy: Math.sin(a) * 260, atk: e.atk * mul, life: 3, sprite: 'lightning' }); } }
+        else { for (let i = 0; i < 3; i++) this.spawnEnemy({ kind: 'minion', name: '崩坏碎片', hp: this.stage.minion.hp, atk: this.stage.minion.atk }, false); }
+      } else {
+        // 奇巧/功德/武侠等：扇形弹幕（剑圣无名之外默认）
+        const n = 14; const spread = Math.PI * 1.6;
+        for (let i = 0; i < n; i++) {
+          const a = base - spread / 2 + (spread * i) / (n - 1);
+          this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, atk: e.atk * mul, life: 3.5, sprite: plane === 'wuxia' ? 'jiansheng_slash' : 'projectile' });
+        }
+      }
+      this.emitFx('burst', e.x, e.y);
+      return;
+    }
+
+    // 精英：小扇形弹幕
+    const n = 9;
+    const spread = Math.PI * 1.0;
     for (let i = 0; i < n; i++) {
-      const a = n === 1 ? base : base - spread / 2 + (spread * i) / (n - 1);
-      this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, atk: e.atk * mul, life: 3.5, sprite: 'jiansheng_slash' });
+      const a = base - spread / 2 + (spread * i) / (n - 1);
+      this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, atk: e.atk * mul, life: 3.5, sprite: 'projectile' });
     }
     this.emitFx('burst', e.x, e.y);
   }
@@ -531,6 +627,24 @@ export class RealtimeRun extends Run {
       e.hitFlash = 0.12;
       healed += dmg;
       if (e.hp <= 0) this.killEnemy(e);
+      // 渡劫·雷链弹射：命中后在敌人间跳跃（每跳 50% 伤害，最多 3 跳）
+      if (this.routeMech === 'chain') {
+        let last = e;
+        for (let j = 0; j < 3; j++) {
+          let nb = null; let nd = Infinity;
+          for (const o of this.enemies) {
+            if (o === last || o.dead || o.hp <= 0) continue;
+            const dd2 = Math.hypot(o.x - last.x, o.y - last.y);
+            if (dd2 < nd && dd2 <= 140) { nd = dd2; nb = o; }
+          }
+          if (!nb) break;
+          nb.hp -= dmg * 0.5;
+          nb.hitFlash = 0.12;
+          this.damageNums.push({ x: nb.x, y: nb.y - 24, v: Math.round(dmg * 0.5), crit: false, life: 0.9 });
+          if (nb.hp <= 0) this.killEnemy(nb);
+          last = nb;
+        }
+      }
     };
 
     if (pattern === 'single') {
@@ -558,8 +672,8 @@ export class RealtimeRun extends Run {
     }
     // 伤害飘字
     this.damageNums.push({ x: best.x, y: best.y - 24, v: Math.round(dmg), crit: isCrit, life: 0.9 });
-    // 武器进化：等级越高弹体越多（Lv0-5 单发 → Lv6 三连 → Lv12 五连，扇形散射）
-    const projCount = 1 + Math.floor(this.geneStep / 6);
+    // 武器进化：等级越高弹体越多（Lv0-5 单发 → Lv6 三连 → Lv12 五连，扇形散射）；魔法路线弹幕再 +1
+    const projCount = 1 + Math.floor(this.geneStep / 6) + (this.routeMech === 'multishot' ? 1 : 0);
     const dx = best.x - p.x, dy = best.y - p.y;
     const dd = Math.hypot(dx, dy) || 1;
     const baseAng = Math.atan2(dy, dx);
@@ -594,6 +708,59 @@ export class RealtimeRun extends Run {
       n.y -= 42 * dt;
     }
     this.damageNums = this.damageNums.filter((n) => n.life > 0);
+  }
+
+  /** 路线机制：周期型（导弹/践踏/激光）按 CD 触发；链式/尸爆/寄生等挂在本方法外 */
+  routeMechTick(dt) {
+    if (!this.routeMech) return;
+    const p = this.player;
+    const interval = this.routeMech === 'missile' ? 3 : this.routeMech === 'stomp' ? 4 : this.routeMech === 'laser' ? 5 : 0;
+    if (!interval) return;
+    this.routeMechCd -= dt;
+    if (this.routeMechCd > 0) return;
+    this.routeMechCd = interval;
+
+    if (this.routeMech === 'missile') {
+      // 机甲·周期导弹：锁定 3 个最近敌人齐射
+      const targets = this.enemies.slice().sort((a, b) =>
+        (Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)));
+      for (let i = 0; i < Math.min(3, targets.length); i++) {
+        const e = targets[i];
+        e.hp -= this.stats.atk * 1.3;
+        e.hitFlash = 0.12;
+        this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * 1.3), crit: false, life: 0.9 });
+        if (e.hp <= 0) this.killEnemy(e);
+      }
+      this.emitFx('surge', p.x, p.y);
+    } else if (this.routeMech === 'stomp') {
+      // 山海/巨化·践踏震荡：周身 AoE
+      for (const e of this.enemies) {
+        if (Math.hypot(e.x - p.x, e.y - p.y) <= 120 + e.r) {
+          e.hp -= this.stats.atk * 1.2;
+          e.hitFlash = 0.12;
+          this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * 1.2), crit: false, life: 0.9 });
+          if (e.hp <= 0) this.killEnemy(e);
+        }
+      }
+      this.emitFx('burst', p.x, p.y);
+      this.emitFx('surge', p.x, p.y);
+    } else if (this.routeMech === 'laser') {
+      // 奇技·机关激光：直线贯穿
+      const ang = p.facing > 0 ? 0 : Math.PI;
+      const ux = Math.cos(ang), uy = Math.sin(ang);
+      for (const e of this.enemies) {
+        const px = e.x - p.x, py = e.y - p.y;
+        const proj = px * ux + py * uy;
+        if (proj < 0 || proj > 500 + e.r) continue;
+        if (Math.abs(px * uy - py * ux) <= 40 + e.r) {
+          e.hp -= this.stats.atk * 1.5;
+          e.hitFlash = 0.12;
+          this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * 1.5), crit: false, life: 0.9 });
+          if (e.hp <= 0) this.killEnemy(e);
+        }
+      }
+      this.emitFx('surge', p.x, p.y);
+    }
   }
 
   // ===== 玩家动词（整体策划 2.3）=====
@@ -724,6 +891,23 @@ export class RealtimeRun extends Run {
       this.mechAllies.push({ x: e.x, y: e.y, atk: 12 * this.dungeon.D, life: mech.duration, anim: 0 });
       this.emitFx('surge', e.x, e.y);
       this.emit('🩸 寄生反水：一只小怪倒戈助你', 'gene');
+    }
+
+    // —— 路线机制：尸爆连锁 / 寄生反水（玩家的 Build，区别于位面机制）——
+    if (this.routeMech === 'corpseBlast' && e.kind !== 'boss') {
+      for (const o of [...this.enemies]) {
+        if (o === e || o.dead) continue;
+        if (Math.hypot(o.x - e.x, o.y - e.y) < 70) {
+          o.hp -= this.stats.atk * 1.4;
+          o.hitFlash = 0.15;
+          if (o.hp <= 0) this.killEnemy(o);   // 尸爆连锁
+        }
+      }
+      this.emitFx('burst', e.x, e.y);
+    }
+    if (this.routeMech === 'parasite' && e.kind === 'minion' && this.rng() < 0.06) {
+      this.mechAllies.push({ x: e.x, y: e.y, atk: this.stats.atk * 0.8, life: 6, anim: 0 });
+      this.emitFx('surge', e.x, e.y);
     }
 
     if (e.kind === 'boss') {
@@ -905,6 +1089,19 @@ export class RealtimeRun extends Run {
     p.invuln = invuln;
     p.hitFlash = 0.18;
     this.emitFx('hit', p.x, p.y);
+    // 功德·金身反击：挨打反震周身敌人
+    if (this.routeMech === 'reflect') {
+      for (const o of [...this.enemies]) {
+        if (o.dead) continue;
+        if (Math.hypot(o.x - p.x, o.y - p.y) <= 90 + o.r) {
+          o.hp -= this.stats.atk * 0.9;
+          o.hitFlash = 0.12;
+          this.damageNums.push({ x: o.x, y: o.y - 24, v: Math.round(this.stats.atk * 0.9), crit: false, life: 0.9 });
+          if (o.hp <= 0) this.killEnemy(o);
+        }
+      }
+      this.emitFx('burst', p.x, p.y);
+    }
     if (this.hp <= 0) {
       this.hp = 0;
       this.state = RunState.LOST;
