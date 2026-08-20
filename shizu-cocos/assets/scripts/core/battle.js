@@ -18,6 +18,7 @@ import { calcDamage } from './balance.js';
 import { rollKillDrop } from './drop.js';
 import { findSkill } from '../data/skills.js';
 import { findHiddenSkill } from '../data/hiddenSkills.js';
+import { currentWeapon, currentSkin, currentRouteMech } from '../data/weaponAttack.js';
 
 /** 相机视野尺寸（逻辑坐标）：不是边界，而是「屏幕上能看见多大」。世界无限，玩家自由移动。 */
 export const ARENA = { w: 960, h: 560 };
@@ -27,6 +28,7 @@ export const SUCK_RADIUS = 40;        // 基因吸取半径 40pt
 export const ATTACK_RANGE = 150;      // 自动索敌基础射程
 /** 基础攻击频率（次/秒）。割草要「不停地砍」，1.6 太慢，清不动怪潮 */
 export const ATTACK_RATE = 3.0;
+export const WINDUP = 0.12;             // 攻击抬手前摇（秒）：抬手 → 命中
 export const INVULN_ON_HIT = 0.6;     // 受击后无敌帧（秒）
 
 /** 闪避翻滚（整体策划 2.3：触发后 0.25s 无敌帧，可穿怪） */
@@ -65,6 +67,31 @@ export const MINION_VARIANTS = {
   charger: { speedMul: 1.9, weight: 26, hpMul: 0.75 },
   spitter: { speedMul: 0.55, weight: 12, hpMul: 0.85, ranged: true },
 };
+
+/** 每阶段刷的小怪 sprite（每阶段一对；位面没细分到 5 对时复用最后一对） */
+export const MINION_SPRITE_BY_STAGE = {
+  wuxia: [['maozei', 'jiutu'], ['shanzei', 'biaoshi'], ['quanshi', 'gunseng'], ['anqi', 'gongshou'], ['hanfei', 'shashou']],
+  aofa: [['yuan_jingling', 'huo_bing']],
+  qiqiao: [['jiguan_shou', 'fashu_jiguan']],
+  dujie: [['lei_jing', 'jianxiu_kuilei']],
+  gongde: [['jinlian_shicong', 'luohan_wuseng']],
+  shihai: [['sangshi', 'bianyi_quan']],
+  gongshengchao: [['jishengchong', 'fuhua_chong']],
+  shanhai: [['huangshou', 'jujiao_shou']],
+  jijia: [['shaojie', 'zizou_pao']],
+  jushen: [['ju_ying', 'shi_juren']],
+  zhutian: [['weimian_canying', 'ziwo_jingxiang']],
+};
+
+/** Boss sprite 映射（位面 → boss 名） */
+export const BOSS_BY_PLANE = {
+  wuxia: 'jiansheng', aofa: 'aofa_boss', qiqiao: 'qiqiao_boss', dujie: 'dujie_boss',
+  gongde: 'gongde_boss', shihai: 'shihai_boss', gongshengchao: 'gongshengchao_boss',
+  shanhai: 'shanhai_boss', jijia: 'jijia_boss', jushen: 'jushen_boss', zhutian: 'zhutian_boss',
+};
+
+/** 远程小怪散集：这些 sprite 用远程弹体，其余一律近战 */
+const RANGED_SPRITES = new Set(['anqi', 'gongshou', 'yuan_jingling', 'huo_bing', 'fashu_jiguan', 'lei_jing', 'shaojie', 'zizou_pao', 'weimian_canying']);
 
 /** 远程小怪的射击参数 */
 export const SPIT_RANGE = 300;
@@ -108,6 +135,9 @@ export class RealtimeRun extends Run {
       berserk: 0,      // 狂暴剩余秒数
       state: 'idle',   // idle | walk | attack | dodge
       anim: 0,
+      windup: 0,         // 攻击前摇剩余（抬手）
+      pendingTarget: null, // 前摇结束后要结算的目标
+      dmgTimer: 0,        // 受击伤害飘字的累积（不用于逻辑）
     };
 
     /** 主动槽技能的冷却表：skillId → 剩余秒数 */
@@ -128,6 +158,27 @@ export class RealtimeRun extends Run {
     this.mechAllies = [];        // 寄生反水：友军单位
     this.mechProjectiles = [];   // 弹幕 / 导弹
     this.deaths = [];            // 死亡特效（渲染层播放死亡帧用）
+    this.playerShots = [];       // 玩家刀波/剑气（纯视觉飞行弹）
+    this.damageNums = [];        // 伤害飘字
+    this.hitStop = 0;            // 命中停顿（慢动作计时，秒）
+
+    // 路线流派机制：从已学技能聚合「连击/连招/暴击」等特殊战斗规则
+    let comboEvery = 0, comboDmgPct = 0, rampMax = 0;
+    for (const id of this.learnedSkills) {
+      const e = findSkill(id)?.eff;
+      if (e?.comboEvery) comboEvery = e.comboEvery;
+      if (e?.comboDmgPct) comboDmgPct = e.comboDmgPct;
+      if (e?.rampMax) rampMax = e.rampMax;
+    }
+    this.combo = { every: comboEvery, dmgPct: comboDmgPct, rampMax, hits: 0 };
+
+    // 玩家武器：由基因锁等级最高的路线决定（剑=剑气、枪=子弹、雷=雷电……）
+    this.weapon = currentWeapon(this.save.player.geneLocks);
+    // 玩家进化形态皮肤：由基因锁等级最高的路线决定（无则基础形态）
+    this.skin = currentSkin(this.save.player.geneLocks);
+    // 玩家路线机制：每条路线一种独特玩法（雷链/尸爆/导弹/弹幕/寄生/反击/践踏/激光/连击）
+    this.routeMech = currentRouteMech(this.save.player.geneLocks);
+    this.routeMechCd = 0;
   }
 
   get onScreen() { return this.enemies.length; }
@@ -151,7 +202,13 @@ export class RealtimeRun extends Run {
    */
   update(dt, input) {
     if (this.state !== RunState.FIGHTING) return;
+    const rawDt = dt;
     dt = Math.min(dt, 1 / 20);          // 防止切后台后一帧跳太多
+    // 命中停顿：击杀精英/Boss 短暂慢动作，制造「压实」打击感
+    if (this.hitStop > 0) {
+      this.hitStop = Math.max(0, this.hitStop - rawDt);
+      dt *= 0.15;
+    }
     this.time += dt;
     this.elapsed = Math.round(this.time);
     this.stageElapsed += dt;
@@ -161,6 +218,8 @@ export class RealtimeRun extends Run {
     this.updateEnemies(dt);
     this.updateDeaths(dt);
     this.updateAttack(dt);
+    this.updatePlayerShots(dt);
+    this.updateDamageNums(dt);
     this.updateActiveSkills(dt);
     this.updateShots(dt);
     if (this.state !== RunState.FIGHTING) return;
@@ -258,26 +317,38 @@ export class RealtimeRun extends Run {
     else { x = p.x - hw - m; y = p.y + (this.rng() * 2 - 1) * hh; }
 
     const isBig = tpl.kind !== 'minion';
-    const variant = isBig ? null : this.rollVariant();
+    const sprite = isBig
+      ? (tpl.kind === 'boss' ? (BOSS_BY_PLANE[this.dungeon.plane.id] ?? null) : null)
+      : this.stageMinionSprite();
+    // 武侠位面（已配齐 10 小怪、近战/远程分明）：远程造型→spitter，近战→walker/charger，不串味；
+    // 其余位面（每面才 2 小怪、未配齐近战/远程比例）：维持旧的权重随机（守平衡测试，串味待补图后修）
+    const variant = isBig ? null
+      : (this.dungeon.plane.id === 'wuxia'
+        ? (RANGED_SPRITES.has(sprite) ? 'spitter' : (this.rng() < 0.7 ? 'walker' : 'charger'))
+        : this.rollVariant());
     const v = variant ? MINION_VARIANTS[variant] : null;
     // 阶段越后敌人越快（整体策划 3.2「数量 → **速度** → 复杂度 → 精度」的第二项）
     const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
+    // 难度随时间坡：每 4 分钟敌人血量/攻击 +1 倍（吸血鬼幸存者式难度曲线）
+    const timeScale = 1 + this.time / 240;
 
     this.enemies.push({
       id: this.nextId++,
       kind: tpl.kind,
       variant,
+      sprite,
       name: tpl.name,
-      hp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1))),
-      maxHp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1))),
-      atk: tpl.atk,
+      hp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1) * timeScale)),
+      maxHp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1) * timeScale)),
+      atk: Math.round(tpl.atk * timeScale),
       x, y,
       r: isBig ? (tpl.kind === 'boss' ? 40 : 24) : 12,
-      speed: (isBig ? (tpl.kind === 'boss' ? 55 : 75) : 95 + this.rng() * 25)
+      speed: (isBig ? (tpl.kind === 'boss' ? 135 : 150) : 95 + this.rng() * 25)
         * (v?.speedMul ?? 1) * stageSpeed,
       spitCd: v?.ranged ? this.rng() * SPIT_CD : 0,
       hitFlash: 0,
       attackT: 0,
+      bossSkillCd: isBig ? 2.5 : 0,   // 精英/Boss 技能首秀CD
       anim: this.rng() * 10,
       isCloser,
     });
@@ -291,6 +362,14 @@ export class RealtimeRun extends Run {
       if (r <= 0) return k;
     }
     return 'walker';
+  }
+
+  /** 当前阶段刷的小怪 sprite（每阶段 2 种轮换），未配表则返回 null 走变体兜底 */
+  stageMinionSprite() {
+    const pairs = MINION_SPRITE_BY_STAGE[this.dungeon.plane.id];
+    if (!pairs?.length) return null;
+    const pair = pairs[Math.min(this.stageNo - 1, pairs.length - 1)];
+    return pair[this.nextId % pair.length];
   }
 
   /**
@@ -308,11 +387,12 @@ export class RealtimeRun extends Run {
       const variant = this.rollVariant();
       const v = MINION_VARIANTS[variant];
       const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
+      const timeScale = 1 + this.time / 240;
       this.enemies.push({
         id: this.nextId++, kind: 'minion', variant, name: tpl.name,
-        hp: Math.max(1, Math.round(tpl.hp * (v.hpMul ?? 1))),
-        maxHp: Math.max(1, Math.round(tpl.hp * (v.hpMul ?? 1))),
-        atk: tpl.atk, x, y, r: 12,
+        hp: Math.max(1, Math.round(tpl.hp * (v.hpMul ?? 1) * timeScale)),
+        maxHp: Math.max(1, Math.round(tpl.hp * (v.hpMul ?? 1) * timeScale)),
+        atk: Math.round(tpl.atk * timeScale), x, y, r: 12,
         speed: (95 + this.rng() * 25) * v.speedMul * stageSpeed,
         spitCd: v.ranged ? this.rng() * SPIT_CD : 0,
         hitFlash: 0, attackT: 0, anim: this.rng() * 10, isCloser: false,
@@ -346,6 +426,7 @@ export class RealtimeRun extends Run {
           this.shots.push({
             x: e.x, y: e.y, vx: (dx / d) * SPIT_SPEED, vy: (dy / d) * SPIT_SPEED,
             atk: e.atk, life: 3,
+            sprite: e.sprite === 'gongshou' ? 'arrow' : 'projectile',   // 弓手=箭，其余=飞镖
           });
           this.emitFx('spit', e.x, e.y);
         }
@@ -354,10 +435,20 @@ export class RealtimeRun extends Run {
         e.y += (dy / d) * e.speed * dt;
       }
 
-      // 接触伤害（无敌帧内免疫）
+      // 精英/Boss 技能：按 CD 释放（弹幕/剑域等，不是只会追着撞）
+      if (e.kind !== 'minion') {
+        e.bossSkillCd -= dt;
+        if (e.bossSkillCd <= 0) {
+          e.bossSkillCd = e.kind === 'boss' ? 4.0 : 6.0;
+          this.bossSkill(e);
+        }
+      }
+
+      // 接触伤害（无敌帧内免疫）；精英/Boss 接触伤害更高，逼你走位
       if (d < p.r + e.r && p.invuln <= 0) {
         e.attackT = 0.3;   // 触发攻击动画
-        let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * (1 - this.stats.dmgReduct));
+        const bigMul = e.kind === 'boss' ? 5.0 : e.kind === 'elite' ? 3.5 : 1;
+        let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * bigMul * (1 - this.stats.dmgReduct));
         if (this.mech?.type === 'combo') dmg *= this.mech.mul;   // 武侠：连招增伤
         this.hp -= dmg;
         p.invuln = INVULN_ON_HIT;
@@ -382,7 +473,21 @@ export class RealtimeRun extends Run {
     this.deaths = this.deaths.filter((d) => d.t < 0.5);
   }
 
-  /** 自动索敌：每 1/攻速 秒打一次射程内最近的敌人 */
+  /** 精英/Boss 技能：朝向玩家扇形弹幕（后续按位面换弹体形态） */
+  bossSkill(e) {
+    const p = this.player;
+    const n = e.kind === 'boss' ? 14 : 9;
+    const mul = e.kind === 'boss' ? 2.5 : 1.8;   // Boss/精英技能弹幕更疼
+    const base = Math.atan2(p.y - e.y, p.x - e.x);
+    const spread = e.kind === 'boss' ? Math.PI * 1.6 : Math.PI * 1.0;
+    for (let i = 0; i < n; i++) {
+      const a = n === 1 ? base : base - spread / 2 + (spread * i) / (n - 1);
+      this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, atk: e.atk * mul, life: 3.5, sprite: 'jiansheng_slash' });
+    }
+    this.emitFx('burst', e.x, e.y);
+  }
+
+  /** 自动索敌：每 1/攻速 秒打一次射程内最近的敌人（攻击抬手用 state='attack' 的帧动画表现，不额外延迟结算） */
   updateAttack(dt) {
     const p = this.player;
     if (p.attackCd > 0) return;
@@ -390,7 +495,6 @@ export class RealtimeRun extends Run {
     const range = ATTACK_RANGE * this.stats.range;
     // 索敌优先级：**大件优先**。同屏 60 只杂兵时若只打最近的，
     // 精英/位面之主永远轮不到，阶段推不动（实测卡死 20 分钟）。
-    // 现实里自动索敌也该优先大威胁 —— 它们体型大、就杵在你脸上。
     let best = null;
     let bestD = Infinity;
     let bestBig = false;
@@ -406,24 +510,90 @@ export class RealtimeRun extends Run {
     p.attackCd = 1 / Math.max(0.2, this.stats.aspd * ATTACK_RATE * (p.berserk > 0 ? BERSERK_MUL : 1));
     p.facing = best.x >= p.x ? 1 : -1;
 
-    // aoe 决定溅射范围：割草的「一次清一片」
-    const splash = 34 * this.stats.range + this.stats.aoe * 40;
+    // 连击/连招（侠客·剑气流）：每次命中累积
+    this.combo.hits += 1;
+    let comboMul = 1;
+    if (this.combo.dmgPct && this.combo.hits % this.combo.every === 0) comboMul *= 1 + this.combo.dmgPct;
+    if (this.combo.rampMax) comboMul *= 1 + Math.min(this.combo.rampMax, this.combo.hits * 0.05);
+
+    // 攻击形状 = 武器自带属性：single单体 / line直线 / circle环绕 / aoe溅射
+    const pattern = this.weapon.pattern ?? 'aoe';
+    // 武器进化：等级越高，伤害越强、范围越大（力量幻想核心）
+    const lvlMul = 1 + this.geneStep * 0.06;                       // 每级 +6% 伤害
+    const splash = 34 * this.stats.range + this.stats.aoe * 40 + this.geneStep * 3;
     const isCrit = this.rng() < this.stats.crit;
     const berserk = p.berserk > 0 ? BERSERK_MUL : 1;
-    let dmg = calcDamage(this.stats.atk * berserk, 1, isCrit);
+    let dmg = calcDamage(this.stats.atk * berserk * comboMul * lvlMul, 1, isCrit);
     if (this.mech?.type === 'armor') dmg *= (1 - this.mech.factor);   // 功德：金身减伤
     let healed = 0;
+    const hitFn = (e) => {
+      e.hp -= dmg;
+      e.hitFlash = 0.12;
+      healed += dmg;
+      if (e.hp <= 0) this.killEnemy(e);
+    };
 
-    for (const e of this.enemies) {
-      if (e === best || Math.hypot(e.x - best.x, e.y - best.y) <= splash) {
-        e.hp -= dmg;
-        e.hitFlash = 0.12;
-        healed += dmg;
-        if (e.hp <= 0) this.killEnemy(e);
+    if (pattern === 'single') {
+      hitFn(best);
+    } else if (pattern === 'line') {
+      const ang = Math.atan2(best.y - p.y, best.x - p.x);
+      const ux = Math.cos(ang), uy = Math.sin(ang);
+      hitFn(best);
+      for (const e of this.enemies) {
+        if (e === best) continue;
+        const px = e.x - p.x, py = e.y - p.y;
+        const proj = px * ux + py * uy;
+        if (proj < 0 || proj > range + e.r) continue;
+        if (Math.abs(px * uy - py * ux) <= 30 + e.r) hitFn(e);
+      }
+    } else if (pattern === 'circle') {
+      hitFn(best);
+      for (const e of this.enemies) {
+        if (e !== best && Math.hypot(e.x - best.x, e.y - best.y) <= 60 * this.stats.range + this.stats.aoe * 30 + e.r) hitFn(e);
+      }
+    } else {
+      for (const e of this.enemies) {
+        if (e === best || Math.hypot(e.x - best.x, e.y - best.y) <= splash) hitFn(e);
       }
     }
-    this.emitFx(isCrit ? 'crit' : 'slash', best.x, best.y);
+    // 伤害飘字
+    this.damageNums.push({ x: best.x, y: best.y - 24, v: Math.round(dmg), crit: isCrit, life: 0.9 });
+    // 武器进化：等级越高弹体越多（Lv0-5 单发 → Lv6 三连 → Lv12 五连，扇形散射）
+    const projCount = 1 + Math.floor(this.geneStep / 6);
+    const dx = best.x - p.x, dy = best.y - p.y;
+    const dd = Math.hypot(dx, dy) || 1;
+    const baseAng = Math.atan2(dy, dx);
+    for (let i = 0; i < projCount; i++) {
+      const spread = projCount <= 1 ? 0 : (i - (projCount - 1) / 2) * 0.16;
+      const ang = baseAng + spread;
+      this.playerShots.push({
+        x: p.x + Math.cos(ang) * 14, y: p.y + Math.sin(ang) * 14,
+        vx: Math.cos(ang) * 540, vy: Math.sin(ang) * 540,
+        life: Math.max(0.18, Math.min(0.4, dd / 540)),
+        sprite: this.weapon.projectile,
+      });
+    }
+    this.emitFx(isCrit ? 'crit' : 'sword_hit', best.x, best.y);
     if (this.stats.lifesteal > 0) this.heal(healed * this.stats.lifesteal, '吸血', true);
+  }
+
+  /** 玩家剑气/刀波等飞行弹：位移 + 到期回收（纯视觉，伤害不在弹体上结算） */
+  updatePlayerShots(dt) {
+    for (const s of this.playerShots) {
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.life -= dt;
+    }
+    this.playerShots = this.playerShots.filter((s) => s.life > 0);
+  }
+
+  /** 伤害飘字：上浮 + 到期回收 */
+  updateDamageNums(dt) {
+    for (const n of this.damageNums) {
+      n.life -= dt;
+      n.y -= 42 * dt;
+    }
+    this.damageNums = this.damageNums.filter((n) => n.life > 0);
   }
 
   // ===== 玩家动词（整体策划 2.3）=====
@@ -534,8 +704,9 @@ export class RealtimeRun extends Run {
     this.kills += 1;
     if (e.kind === 'minion') this.minionKills += 1;
     this.emitFx('burst', e.x, e.y);
+    if (e.kind !== 'minion') this.hitStop = 0.08;   // 精英/Boss 击杀：命中停顿
     // 死亡帧特效：渲染层据此播放死亡动画
-    this.deaths.push({ x: e.x, y: e.y, kind: e.kind, variant: e.variant, facing: e.x < this.player.x ? 1 : -1, t: 0 });
+    this.deaths.push({ x: e.x, y: e.y, kind: e.kind, variant: e.variant, id: e.id, sprite: e.sprite, facing: e.x < this.player.x ? 1 : -1, t: 0 });
 
     // 位面机制：尸爆连锁 / 寄生反水（挂在击杀上）
     const mech = this.mech;

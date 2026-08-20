@@ -5,6 +5,8 @@
 
 const ART = '../shizu-cocos/assets/art';
 
+import { MINION_SPRITE_BY_STAGE, BOSS_BY_PLANE } from '../../../shizu-cocos/assets/scripts/core/battle.js';
+
 function loadImage(src) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -28,28 +30,41 @@ export class Assets {
 
     // 静态图
     want('units/player.png');
-    for (let f = 0; f < 4; f++) want(`units/player_f${f}.png`);   // 玩家走路帧
-    // 武侠位面：命名小怪的完整资产（走路/攻击/死亡 + 特效）
-    if (planeId === 'wuxia') {
-      for (const m of ['maozei']) {
-        for (const n of ['walk0', 'walk1', 'walk2', 'walk3', 'atk0', 'atk1', 'atk2', 'death']) {
-          want(`units/${m}_${n}.png`);
-        }
-        want(`effects/${m}_slash.png`);
+    for (let f = 0; f < 4; f++) want(`units/player_walk${f}.png`);   // 玩家走路帧
+    for (let f = 0; f < 3; f++) want(`units/player_atk${f}.png`);    // 玩家攻击帧
+    want('units/player_death.png');
+    // 10 进化路线皮肤
+    for (const r of ['dujie', 'gongde', 'sangshi', 'gongsheng', 'xiake', 'shanhai', 'mofa', 'qiji', 'jijia', 'juhua']) {
+      want(`units/player_${r}.png`);
+    }
+    // 通用特效
+    want('effects/slash.png');
+    want('effects/crit.png');
+    want('effects/hit.png');
+    want('effects/projectile.png');
+    want('effects/arrow.png');        // 弓手箭矢
+    want('effects/jiansheng_slash.png'); // Boss剑气
+    want('effects/sword_qi.png');    // 玩家剑气弹体
+    want('effects/sword_hit.png');   // 剑气命中剑痕
+    // 10 路线武器弹体
+    for (const p of ['bullet', 'lightning', 'magic_orb', 'shockwave_gold', 'stomp_wave', 'miasma', 'tendril', 'gear_blade', 'quake_wave']) {
+      want(`effects/${p}.png`);
+    }
+    // 敌人：本位面的小怪（按阶段表）+ Boss（数据驱动）
+    const stagePairs = MINION_SPRITE_BY_STAGE[planeId] ?? [];
+    const units = new Set();
+    for (const pair of stagePairs) for (const m of pair) units.add(m);
+    const bossName = BOSS_BY_PLANE[planeId];
+    if (bossName) units.add(bossName);
+    for (const m of units) {
+      for (const n of ['walk0', 'walk1', 'walk2', 'walk3', 'atk0', 'atk1', 'atk2', 'death']) {
+        want(`units/${m}_${n}.png`);
       }
+      want(`effects/${m}_slash.png`);
     }
-    // 小怪三种变体：walker(近战) / charger(冲撞) / spitter(远程)
-    for (const v of ['walker', 'charger', 'spitter']) {
-      want(`units/minion_${v}_${planeId}.png`);
-      for (let f = 0; f < 4; f++) want(`units/minion_${v}_${planeId}_f${f}.png`);
-    }
-    want(`units/minion_${planeId}.png`);
-    for (let f = 0; f < 4; f++) want(`units/minion_${planeId}_f${f}.png`);   // 兜底走路帧
     want(`units/elite_${planeId}.png`);
     want(`units/boss_${planeId}.png`);
     want('items/gene_orb.png');
-    const bgFile = BG_FILE[planeId] ?? 'nest';
-    want(`backgrounds/${bgFile}.png`);
     want(`backgrounds/floor_${planeId}.png`);   // 无缝地砖
 
     // 动画片段

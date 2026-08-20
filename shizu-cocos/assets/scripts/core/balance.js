@@ -38,7 +38,7 @@ export const BASE_STATS = { atk: 10, hp: 100, speed: 220, crit: 0.05 };
  *   割草游戏里「一片杂兵秒杀 + 精英要磨几十秒」的对比才是爽点来源。
  */
 export const UNIT_BASE = {
-  minion: { baseHp: 5, baseAtk: 2 },
+  minion: { baseHp: 8, baseAtk: 2 },
   elite: { baseHp: 150, baseAtk: 8 },
   boss: { baseHp: 300, baseAtk: 12 },
 };
@@ -65,11 +65,13 @@ export function geneLockPowerBonus(geneLocks) {
   return 1 + segs * GENE_LOCK_POWER_PER_SEG;
 }
 
-/** 战力（指南 4.1）。新档 = 1.0 */
+/** 战力（指南 4.1）。新档 = 1.0。
+ *  永久属性对 D（敌人强度）取开方 —— 让「成长」净收益为正：
+ *  玩家攻击按 (1+pct) 线性涨，而敌人 HP 只按 sqrt(1+pct) 涨，玩家逐渐碾压（数值爆炸曲线）。 */
 export function computePower(player) {
-  const atkTerm = 1 + player.permAtkPct / 100;
-  const hpTerm = 1 + player.permHpPct / 100;
-  const spdTerm = 1 + player.permSpeedPct / 100;
+  const atkTerm = Math.sqrt(1 + player.permAtkPct / 100);
+  const hpTerm = Math.sqrt(1 + player.permHpPct / 100);
+  const spdTerm = Math.sqrt(1 + player.permSpeedPct / 100);
   return ((atkTerm + hpTerm + spdTerm) / 3)
     * geneLockPowerBonus(player.geneLocks)
     * gearPowerBonus(player.gear);

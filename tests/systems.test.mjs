@@ -111,7 +111,7 @@ test('红线1：数量型/单体型只改小怪 HP 与配套刷怪速率，精�
 
   const save = freshSave({ totalRuns: 5 });
   const d = generateDungeon(plane('shihai'), save, 1);
-  assert.equal(d.stages[0].minion.hp, Math.ceil(5 * 0.75 * d.D * STAGE_COEF[0] * d.dynFactor));
+  assert.equal(d.stages[0].minion.hp, Math.ceil(UNIT_BASE.minion.baseHp * 0.75 * d.D * STAGE_COEF[0] * d.dynFactor));
   const std = generateDungeon(plane('aofa'), save, 1);
   assert.equal(d.stages[2].closer.hp, std.stages[2].closer.hp, '精英不该受 spawnStyle 影响');
 });

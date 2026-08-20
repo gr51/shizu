@@ -3,9 +3,10 @@
 
 import { ARENA } from '../../../shizu-cocos/assets/scripts/core/battle.js';
 
+// 特效类型 → effects/ 目录下的静态图文件名
 const FX_SPRITE = {
-  hit: 'hit_spark', crit: 'crit_star', gene: 'gene_pickup',
-  slash: 'slash', burst: null, surge: null,
+  hit: 'hit', crit: 'crit', gene: 'gene_pickup',
+  slash: 'slash', sword_hit: 'sword_hit', burst: null, surge: null,
 };
 
 export class Renderer {
@@ -45,8 +46,9 @@ export class Renderer {
       } else {
         const s = FX_SPRITE[e.type];
         if (s) this.fx.push({ sprite: s, x: e.x, y: e.y, t: 0 });
-        if (e.type === 'hit') this.shake = Math.max(this.shake, 4);
-        if (e.type === 'crit') this.shake = Math.max(this.shake, 2);
+        if (e.type === 'hit') this.shake = Math.max(this.shake, 5);
+        if (e.type === 'crit') this.shake = Math.max(this.shake, 3);
+        if (e.type === 'sword_hit') this.shake = Math.max(this.shake, 2);
       }
     }
   }
@@ -109,23 +111,50 @@ export class Renderer {
     const sorted = [...run.enemies].sort((a, b) => a.y - b.y);
     for (const e of sorted) this.drawEnemy(e, run.player);
 
+    // —— 远程弹幕（暗器/飞弹）——
+    this.drawShots(run);
+
+    // —— 玩家剑气（飞行弹）——
+    this.drawPlayerShots(run);
+
     // —— 死亡帧（尸体淡出）——
     this.drawDeaths(run);
 
     // —— 玩家 ——
     this.drawPlayer(run);
 
-    // —— 特效 ——
+    // —— 特效（静态图，随时间扩散 + 淡出）——
     for (const f of this.fx) f.t += dt;
     this.fx = this.fx.filter((f) => {
-      const clip = A.clip(f.sprite);
-      if (!clip) return false;
-      const frame = Math.floor(f.t * clip.fps);
-      if (frame >= clip.frames) return false;
-      this.blitFrame(f.sprite, frame, f.x, f.y, 1);
+      const dur = 0.25;
+      if (f.t >= dur) return false;
+      const a = 1 - f.t / dur;
+      const size = 24 + f.t * 44;   // 从小扩散到大
+      this.blitSprite(`effects/${f.sprite}.png`, f.x, f.y, size, false, 1, a);
       return true;
     });
 
+    // —— 伤害飘字（暴击金色）——
+    this.drawDamageNums(run);
+
+    ctx.restore();
+  }
+
+  drawDamageNums(run) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const n of run.damageNums ?? []) {
+      const a = Math.min(1, n.life / 0.4);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = n.crit ? '#ffd76a' : '#f5f5f5';
+      ctx.font = n.crit ? 'bold 17px monospace' : 'bold 14px monospace';
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.lineWidth = 3;
+      ctx.strokeText(String(n.v), n.x, n.y);
+      ctx.fillText(String(n.v), n.x, n.y);
+    }
     ctx.restore();
   }
 
@@ -135,21 +164,24 @@ export class Renderer {
     const facing = player && player.x < e.x ? -1 : 1;
     // 按目标高度缩放，跨关卡散图尺寸不同也能统一体型
     const targetH = kind === 'boss' ? 95 : kind === 'elite' ? 60 : 34;
-    // 程序化走路颠簸：AI 走路帧没变化，用上下颠簸表现移动
-    const bob = kind === 'minion' ? Math.sin(e.anim * 6) * 2.5 : 0;
-    const y = e.y + bob;
-    const base = this.spriteBase(kind, e.variant);
+    const y = e.y;   // 不加颠簸，走路全靠 4 帧拼接（颠簸会「一跳一跳」）
+    const base = e.sprite || this.spriteBase(kind, e.variant, e.id);
     let ok = false;
-    if (kind === 'minion' && e.attackT > 0) {
-      // 攻击动画：attackT 0.3→0，按进度切 起手→劈砍→收招
+    if (e.attackT > 0) {
+      // 攻击动画：attackT 0.3→0，按进度切 起手→劈砍→收招（小怪/精英/Boss 通用）
       const prog = 1 - e.attackT / 0.3;
       const f = prog < 0.35 ? 'atk0' : prog < 0.7 ? 'atk1' : 'atk2';
       ok = this.blitSprite(`units/${base}_${f}.png`, e.x, y, targetH, e.hitFlash > 0, facing)
-        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing);
-      // 刀光特效
-      this.blitSprite(`effects/${base}_slash.png`, e.x + facing * 16, e.y, targetH * 0.75, false, facing);
+        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing)
+        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing);
+      // 刀光特效（优先专属，回退通用）
+      this.blitSprite(`effects/${base}_slash.png`, e.x + facing * 16, e.y, targetH * 0.75, false, facing)
+        || this.blitSprite('effects/slash.png', e.x + facing * 16, e.y, targetH * 0.75, false, facing);
     } else {
-      ok = this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing)
+      // 走路动画：4 帧循环（e.anim 每秒 +8）+ 轻微上下颠簸
+      const walkF = Math.floor(e.anim) % 4;
+      ok = this.blitSprite(`units/${base}_walk${walkF}.png`, e.x, y, targetH, e.hitFlash > 0, facing)
+        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing)
         || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing)
         || this.blitSprite(`units/minion_${this.planeId}.png`, e.x, y, targetH, e.hitFlash > 0, facing);
     }
@@ -162,21 +194,53 @@ export class Renderer {
     }
   }
 
-  /** 敌人 → 资产 basename */
-  spriteBase(kind, variant) {
-    if (kind !== 'minion') return `${kind}_${this.planeId}`;
-    if (this.planeId === 'wuxia') return 'maozei';   // 测试：武侠小怪先全用毛贼
+  /** 敌人 → 资产 basename（武侠按变体分池，id 轮换取不同造型） */
+  spriteBase(kind, variant, id) {
+    if (kind !== 'minion') {
+      if (this.planeId === 'wuxia' && kind === 'boss') return 'jiansheng';
+      return `${kind}_${this.planeId}`;
+    }
+    if (this.planeId === 'wuxia') {
+      const pools = {
+        walker: ['maozei', 'shanzei', 'biaoshi'],   // 近战
+        charger: ['jiutu', 'quanshi'],              // 冲撞/重击
+        spitter: ['gunseng'],                       // 远程
+      };
+      const pool = pools[variant] ?? pools.walker;
+      return pool[Math.abs(id ?? 0) % pool.length];
+    }
     return `minion_${variant ?? 'walker'}_${this.planeId}`;
   }
 
-  /** 死亡帧淡出 */
+  /** 死亡帧淡出（尸体按宽度缩放，避免躺倒姿势被拉成横向巨物） */
   drawDeaths(run) {
     for (const d of run.deaths) {
-      const base = this.spriteBase(d.kind, d.variant);
-      const targetH = d.kind === 'minion' ? 34 : d.kind === 'elite' ? 60 : 95;
+      const base = d.sprite || this.spriteBase(d.kind, d.variant, d.id);
+      const targetW = d.kind === 'minion' ? 30 : d.kind === 'elite' ? 50 : 70;
       const a = Math.max(0, 1 - d.t / 0.5);
-      this.blitSprite(`units/${base}_death.png`, d.x, d.y, targetH, false, d.facing, a)
-        || this.blitSprite(`units/${base}_walk0.png`, d.x, d.y, targetH, false, d.facing, a);
+      this.blitSpriteW(`units/${base}_death.png`, d.x, d.y, targetW, false, d.facing, a)
+        || this.blitSprite(`units/${base}_walk0.png`, d.x, d.y, d.kind === 'minion' ? 34 : d.kind === 'elite' ? 60 : 95, false, d.facing, a);
+    }
+  }
+
+  /** 远程弹幕（小怪吐出的飞镖/箭/Boss剑气） */
+  drawShots(run) {
+    for (const s of run.shots ?? []) {
+      const facing = s.vx < 0 ? -1 : 1;
+      const sprite = s.sprite ?? 'projectile';
+      const ok = this.blitSprite(`effects/${sprite}.png`, s.x, s.y, 14, false, facing);
+      if (!ok) this.dot(s.x, s.y, 4, '#5fb8a6');
+    }
+  }
+
+  /** 玩家武器弹体（剑=剑气/枪=子弹/雷=雷电…，朝速度方向翻转） */
+  drawPlayerShots(run) {
+    for (const s of run.playerShots ?? []) {
+      const facing = s.vx < 0 ? -1 : 1;
+      const a = Math.min(1, s.life / 0.15);
+      const sprite = s.sprite ?? 'sword_qi';
+      const ok = this.blitSprite(`effects/${sprite}.png`, s.x, s.y, 22, false, facing, a);
+      if (!ok) this.dot(s.x, s.y, 5, '#b8e6d0');
     }
   }
 
@@ -184,12 +248,16 @@ export class Renderer {
     const p = run.player;
     const blink = p.invuln > 0 && Math.floor(p.invuln * 20) % 2 === 0;
     if (blink) return;
-    // 移动时播走路动画，静止/攻击用基础帧
+    // 进化皮肤（待机时显示路线形态）；攻击/走路复用基础动作帧
+    const skinBase = run.skin ? `units/player_${run.skin}.png` : 'units/player.png';
     let rel = 'units/player.png';
-    if (p.state === 'walk') {
-      const frame = Math.floor(p.anim) % 4;
-      rel = `units/player_f${frame}.png`;
-    }
+    if (p.state === 'attack') {
+      // 攻击动画：attackCd 初段=抬手(atk0)，中段=劈砍(atk1)，末段=收招(atk2)
+      const prog = 1 - Math.max(0, p.attackCd) / 0.333;
+      const f = prog < 0.35 ? 0 : prog < 0.7 ? 1 : 2;
+      rel = `units/player_atk${f}.png`;
+    } else if (p.state === 'walk') rel = `units/player_walk${Math.floor(p.anim) % 4}.png`;
+    else rel = skinBase;
     const ok = this.blitSprite(rel, p.x, p.y, 46, p.hitFlash > 0, p.facing)
       || this.blitSprite('units/player.png', p.x, p.y, 46, p.hitFlash > 0, p.facing);
     if (!ok) this.dot(p.x, p.y, p.r, '#e8e2d6');
@@ -259,6 +327,33 @@ export class Renderer {
     // 墨线描边：沿 alpha 轮廓加一圈细黑边，让角色从背景里跳出来
     if ('filter' in ctx) ctx.filter = 'drop-shadow(0 0 1.5px rgba(0,0,0,0.85))';
 
+    if (facing < 0) {
+      ctx.translate(dx + dw, dy);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, dw, dh);
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(img, 0, 0, dw, dh); }
+    } else {
+      ctx.drawImage(img, dx, dy, dw, dh);
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(img, dx, dy, dw, dh); }
+    }
+    if ('filter' in ctx) ctx.filter = 'none';
+    ctx.restore();
+    return true;
+  }
+
+  /** 按目标宽度绘制（用于躺倒的尸体等横向 sprite，避免按高度缩放被拉巨大） */
+  blitSpriteW(rel, x, y, targetW, flash = false, facing = 1, alpha = 1) {
+    const img = this.assets.img(rel);
+    if (!img) return false;
+    const scale = targetW / img.width;
+    const dw = Math.round(img.width * scale);
+    const dh = Math.round(img.height * scale);
+    const dx = Math.round(x - dw / 2);
+    const dy = Math.round(y - dh / 2);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if ('filter' in ctx) ctx.filter = 'drop-shadow(0 0 1.5px rgba(0,0,0,0.85))';
     if (facing < 0) {
       ctx.translate(dx + dw, dy);
       ctx.scale(-1, 1);

@@ -20,17 +20,15 @@ import { activatedRoutes, geneLockLevel } from './geneLock.js';
 import { rngFactory } from './rng.js';
 
 /**
- * 局内升级的累计基因阈值。
- * 平衡表 7.1 给的是 80→120→170→230→300 递增，但那套数是按
- * 「小怪掉 5-10 基因、6-10 只/分钟」标的；割草下击杀量高一个量级，
- * 小怪改为掉 1 基因（见 drop.js），故阈值同比重标，
- * 保持整体策划 4.3「单局总计 6-12 次升级」的节奏不变。
- *
- * 阈值按实时战斗的基因流速重标：首档 75 让**首次升级落在 40 秒内**
- *（4.3 要求 30-60s；原先 120 档要等到 63s，开局太干）。
- * 全表 7 档 + 4 次阶段结算 ≈ 11 次/局，落在 6-12 区间。
+ * 局内升级的累计基因阈值（30 级）。
+ * 幸存者like 的「多巴胺节拍」：前期经验少、升级快（约 15-20s 一级），
+ * 后期阈值超线性抬升、越来越难（约 1 分钟一级），一局 15 分钟约升到 30 级。
+ * 阈值公式 threshold(n) = 18 * n^1.5（n=1..30），累计约 3000 基因 ≈ 15 分钟流速。
  */
-export const UPGRADE_GENE_STEPS = [75, 250, 550, 1000, 1600, 2400, 3400];
+export const UPGRADE_LEVEL_CAP = 30;
+export const UPGRADE_GENE_STEPS = Array.from({ length: UPGRADE_LEVEL_CAP }, (_, i) =>
+  Math.round(18 * Math.pow(i + 1, 1.5)),
+);
 
 /**
  * 主动技折算成「持续贡献」的权重。
@@ -227,8 +225,21 @@ export class Run {
   addGenes(amount, allowUpgrade) {
     this.genes += amount;
     if (!allowUpgrade) return;
-    while (
+    // 一次只触发一级，避免「一次拿大量基因跳级丢选择」；多余阈值在 choose() 后再补触发
+    if (
       this.geneStep < UPGRADE_GENE_STEPS.length
+      && this.genes >= UPGRADE_GENE_STEPS[this.geneStep]
+    ) {
+      this.geneStep += 1;
+      this.openChoice('吞噬充能已满');
+    }
+  }
+
+  /** 选完后若基因仍够下一档，立即补开下一次三选一（连续升级） */
+  flushPendingUpgrade() {
+    if (
+      this.state === RunState.FIGHTING
+      && this.geneStep < UPGRADE_GENE_STEPS.length
       && this.genes >= UPGRADE_GENE_STEPS[this.geneStep]
     ) {
       this.geneStep += 1;
@@ -261,6 +272,7 @@ export class Run {
       if (option.eff.hpPct) this.hp = Math.min(this.stats.maxHp, this.hp * (1 + option.eff.hpPct));
       this.emit(`获得 <b>${option.name}</b>（${option.desc}）`, 'learn');
       this.state = RunState.FIGHTING;
+      this.flushPendingUpgrade();
       return;
     }
 
@@ -280,6 +292,7 @@ export class Run {
     if (slotKey === null) {
       this.emit(`放弃了 <b>${skill.name}</b>`, 'info');
       this.state = RunState.FIGHTING;
+      this.flushPendingUpgrade();
       return;
     }
     this.commitSkill(skill, learnSkill(this.save, skill, slotKey));
@@ -295,6 +308,7 @@ export class Run {
       this.emit(`习得 <b>${skill.name}</b> · 第${skill.lv}段${tail}`, 'learn');
     }
     this.state = RunState.FIGHTING;
+    this.flushPendingUpgrade();
   }
 
   /**
