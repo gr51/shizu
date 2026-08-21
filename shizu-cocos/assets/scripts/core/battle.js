@@ -753,8 +753,9 @@ export class RealtimeRun extends Run {
     let healed = 0;
     const execBonus = this.stats.execute ?? 0;
     const hitFn = (e) => {
-      // 斩杀本能：残血（<30%）目标吃额外伤害，奖励「补刀收割」的打法
-      let eDmg = execBonus > 0 && e.hp / Math.max(1, e.maxHp) < 0.3 ? dmg * (1 + execBonus) : dmg;
+      // 斩杀本能：残血目标吃额外伤害（阈值可由共鸣放宽），奖励「补刀收割」的打法
+      const execThreshold = this.stats.executeThreshold ?? 0.3;
+      let eDmg = execBonus > 0 && e.hp / Math.max(1, e.maxHp) < execThreshold ? dmg * (1 + execBonus) : dmg;
       // 铁壁词缀：减伤（换来更慢的移动，用走位可以拉扯）
       eDmg *= e.affix?.eff.dmgTaken ?? 1;
       e.hp -= eDmg;

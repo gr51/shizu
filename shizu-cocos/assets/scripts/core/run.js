@@ -16,6 +16,7 @@ import { applyHiddenSkill, engravedSkills, learnSkill } from './skillSlots.js';
 import { rollBossDrop, rollKillDrop } from './drop.js';
 import { ZHUTIAN_ID } from '../data/planes.js';
 import { skillsByRoute } from '../data/skills.js';
+import { newlyFiredSynergies } from '../data/synergies.js';
 import { activatedRoutes, geneLockLevel } from './geneLock.js';
 import { rngFactory } from './rng.js';
 
@@ -103,6 +104,8 @@ export class Run {
     this.banished = new Set();   // 本局被放逐的选项 id（不再出现）
     this.rerollUsed = 0;         // 已重掷次数（决定下次价格）
     this.banishUsed = 0;         // 已放逐次数（一局有限）
+    this.ownedPicks = new Set(); // 本局已获得的选项 id（供构筑共鸣判定）
+    this.firedSynergies = new Set(); // 已触发的共鸣 id（每条一局一次）
 
     // 指南 13.1 onRunStart：隐藏刻印开局自动装载，永不入三选一池
     this.engraved = engravedSkills(save);
@@ -317,6 +320,28 @@ export class Run {
   /** 剩余放逐次数（一局 2 次，稀缺才有决策价值） */
   get banishLeft() { return Math.max(0, BANISH_PER_RUN - this.banishUsed); }
 
+  /**
+   * 构筑共鸣：记录本次获得的 id，若与已有选项凑成套则一次性给永久强化。
+   * 让「选什么」从叠数字变成凑套 —— 这是构筑深度的核心。
+   */
+  checkSynergies(pickedId) {
+    if (!pickedId) return;
+    this.ownedPicks.add(pickedId);
+    for (const syn of newlyFiredSynergies(this.ownedPicks, this.firedSynergies)) {
+      this.firedSynergies.add(syn.id);
+      const e = syn.eff ?? {};
+      if (e.critDmg) this.stats.critDmg = (this.stats.critDmg ?? 0) + e.critDmg;
+      if (e.thornMul) this.stats.thorn = (this.stats.thorn ?? 0) * (1 + e.thornMul);
+      if (e.execute) this.stats.execute = (this.stats.execute ?? 0) + e.execute;
+      if (e.executeThreshold) this.stats.executeThreshold = (this.stats.executeThreshold ?? 0.3) + e.executeThreshold;
+      if (e.lifesteal) this.stats.lifesteal += e.lifesteal;
+      if (e.regen) this.stats.regen += e.regen;
+      if (e.aoe) this.stats.aoe = (this.stats.aoe ?? 0) + e.aoe;
+      if (e.aspdPct) this.stats.aspd *= 1 + e.aspdPct;
+      this.emit(`✨ ${syn.name} —— ${syn.desc}`, 'win');
+    }
+  }
+
   choose(index) {
     if (this.state !== RunState.CHOOSING || !this.pendingOptions) return;
     const option = this.pendingOptions.options[index];
@@ -328,6 +353,7 @@ export class Run {
         this.mechLvl[k] = (this.mechLvl[k] ?? 0) + v;
       }
       this.emit(`强化 <b>${option.name}</b>（${option.desc}）`, 'learn');
+      this.checkSynergies(option.id);
       this.state = RunState.FIGHTING;
       this.flushPendingUpgrade();
       return;
@@ -337,6 +363,7 @@ export class Run {
       applyAttrOption(this.stats, option);
       if (option.eff.hpPct) this.hp = Math.min(this.stats.maxHp, this.hp * (1 + option.eff.hpPct));
       this.emit(`获得 <b>${option.name}</b>（${option.desc}）`, 'learn');
+      this.checkSynergies(option.id);
       this.state = RunState.FIGHTING;
       this.flushPendingUpgrade();
       return;

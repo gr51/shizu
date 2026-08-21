@@ -303,6 +303,28 @@ test('放逐：被放逐的选项本局不再出现，且次数有限', () => {
   assert.equal(run.banish(0), false, '用完后必须拒绝');
 });
 
+test('构筑共鸣：凑齐组合触发一次性强化，且不重复触发', () => {
+  const save = freshSave({ totalRuns: 5 });
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  const critBefore = run.stats.critDmg ?? 0;
+
+  // 只拿到暴击率，不该触发
+  run.checkSynergies('attr_crit');
+  assert.equal(run.firedSynergies.size, 0, '只集齐一半不得触发');
+  assert.equal(run.stats.critDmg ?? 0, critBefore, '未触发时不应改数值');
+
+  // 补上暴击伤害 → 共鸣成立
+  run.checkSynergies('attr_critdmg');
+  assert.ok(run.firedSynergies.has('syn_crit'), '凑齐后应触发共鸣');
+  const afterFire = run.stats.critDmg;
+  assert.ok(afterFire > critBefore, '共鸣应实际提升暴击伤害');
+
+  // 再次获得同类不得重复触发
+  run.checkSynergies('attr_crit');
+  assert.equal(run.stats.critDmg, afterFire, '同一条共鸣不得重复结算');
+  assert.equal(run.firedSynergies.size, 1, '仍只触发一条');
+});
+
 // ===== 存档迁移 =====
 
 test('迁移：残缺旧档补齐全部默认字段而不丢玩家数据', () => {

@@ -8,6 +8,7 @@ import { generateDungeon } from '../../../shizu-cocos/assets/scripts/core/dungeo
 import { SLOT_LABEL } from '../../../shizu-cocos/assets/scripts/core/skillSlots.js';
 import { ROUTES } from '../../../shizu-cocos/assets/scripts/data/routes.js';
 import { relicById } from '../../../shizu-cocos/assets/scripts/data/relics.js';
+import { SYNERGIES } from '../../../shizu-cocos/assets/scripts/data/synergies.js';
 import { Assets } from './assets.js';
 import { Renderer } from './renderer.js';
 import { Input } from './input.js';
@@ -263,13 +264,28 @@ export async function startBattle(ctx, plane) {
       if (e.lifesteal) p.push(`吸血 +${Math.round(e.lifesteal * 100)}%`);
       return p.join(' · ');
     };
+    // 构筑共鸣提示：告诉玩家「再拿哪一个就能凑成套」，让选择有目标
+    const synergyHint = () => {
+      const rows = [];
+      for (const syn of SYNERGIES) {
+        if (run.firedSynergies.has(syn.id)) continue;
+        const missing = syn.need.filter((id) => !run.ownedPicks.has(id));
+        if (missing.length !== 1) continue;
+        const key = missing[0];
+        const inThisRoll = options.some((o) => o.id === key);
+        rows.push(`<div class="small${inThisRoll ? ' gold' : ''}">${inThisRoll ? '★ ' : ''}${syn.name}：还差 1 件即可成立${inThisRoll ? '（本次可选）' : ''}</div>`);
+      }
+      const fired = [...run.firedSynergies];
+      const head = fired.length ? `<div class="small gold">已成立共鸣 ×${fired.length}</div>` : '';
+      return head + rows.slice(0, 3).join('');
+    };
     view.showModal({
-      title: `${reason} · 选择你的进化`,
-      body: options.map((o) => {
+      title: `${reason} · 选择你的进化`,      body: options.map((o) => {
         if (o.kind === 'skill') return `<div class="pick"><b>【技能】${o.name}</b> <span class="small">${ROUTES[o.route].name}·第 ${o.lv} 段</span><span>${o.desc}　<i class="gold">${o.val}</i></span></div>`;
         if (o.kind === 'mech') return `<div class="pick attr"><b>【强化】${o.name}</b><span>${o.desc}</span></div>`;
         return `<div class="pick attr"><b>【属性】${o.name}</b><span>${o.desc}</span><span class="gold">${deltas(o)}</span></div>`;
       }).join('')
+        + synergyHint()
         + `<p class="small">基因 <b class="gold">${run.genes}</b>　重掷 ${run.rerollCost} 基因　放逐剩 ${run.banishLeft} 次</p>`,
       buttons: [
         ...options.map((o, i) => ({
