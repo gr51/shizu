@@ -90,9 +90,12 @@ function allButtons(node, out = []) {
   }
   return out;
 }
+/** 按钮文案：UiKit 把 Label 挂在 Button 的子节点上，按钮自身没有 string */
+function buttonText(btn) {
+  return btn.children.map((ch) => ch.getComponent(cc.Label)?.string ?? '').join('');
+}
 function buttonByText(node, keyword) {
-  return allButtons(node).find((b) =>
-    b.children.some((ch) => ch.getComponent(cc.Label)?.string?.includes(keyword)));
+  return allButtons(node).find((b) => buttonText(b).includes(keyword));
 }
 
 const lobbyButtons = allButtons(canvas);
@@ -121,9 +124,19 @@ console.log('\n[4] 实时战斗推进');
 const DT = 1 / 60;
 let frames = 0;
 let modals = 0;
-// 按住方向键：往 cc 替身的键盘事件里塞 KeyD/KeyS 轮换
+let shops = 0;
+let shopTried = false;   // 本次开门是否已试过购入：买不起时别再点同一颗按钮，否则原地打转
+// 走位：八方向绕圈，与 tools/probe-battle.mjs / playtest.mjs 的盲走机器人同构
+//（那两个是平衡标定用的参照物，CONTACT_DPS_SCALE 就是照它们扫出来的）。
+// 不能沿单轴长按直线跑：玩家 220 的移速快过绝大多数小怪，一路直冲会把整场敌人
+// 甩在 150 射程之外 —— 于是既杀不动也死不掉，跑满 20 分钟上限都走不到结算。
 const KEY = { A: 65, D: 68, S: 83, W: 87 };
-const press = (code) => { root_.keys.clear(); root_.keys.add(code); };
+const ORBIT = [
+  [KEY.D], [KEY.D, KEY.S], [KEY.S], [KEY.A, KEY.S],
+  [KEY.A], [KEY.A, KEY.W], [KEY.W], [KEY.D, KEY.W],
+];
+const ORBIT_HOLD = 40;   // 每个方向按住 40 帧 ⇒ 绕一圈 320 帧，半径约 150，与盲走机器人同量级
+const press = (codes) => { root_.keys.clear(); for (const c of codes) root_.keys.add(c); };
 
 for (let i = 0; i < 60 * 60 * 20; i++) {
   const st = snap().state;
@@ -136,12 +149,26 @@ for (let i = 0; i < 60 * 60 * 20; i++) {
     modals += 1;
     continue;
   }
-  press([KEY.D, KEY.S, KEY.A, KEY.W][Math.floor(i / 180) % 4]);
+  // 黑市开门期间 run.update() 直接 return —— 不点掉它，这一局就再也走不到结算
+  if (st === 'shopping') {
+    const buy = allButtons(canvas).find((b) => buttonText(b).startsWith('购入'));
+    if (buy && !shopTried) { shopTried = true; buy.simulateClick(); continue; }
+    const leave = buttonByText(canvas, '离开黑市');
+    if (!leave) { fail('黑市弹窗没有「离开黑市」出口，卡死'); break; }
+    shopTried = false;
+    shops += 1;
+    leave.simulateClick();
+    continue;
+  }
+  press(ORBIT[Math.floor(frames / ORBIT_HOLD) % ORBIT.length]);
   root_.update(DT);
   frames += 1;
 }
-ok(`驱动 ${frames} 帧（游戏内 ${(frames / 60 / 60).toFixed(1)} 分钟），处理 ${modals} 次弹窗`);
-check(root_.run.kills > 100, `实时战斗产生了击杀：${root_.run.kills} 只`);
+ok(`驱动 ${frames} 帧（游戏内 ${(frames / 60 / 60).toFixed(1)} 分钟），处理 ${modals} 次弹窗 / ${shops} 次黑市`);
+// 门槛卡**速率**而不是绝对值：机器人活多久是随机的（实测 0.6~13 分钟都出现过），
+// 而这条断言要证的是「割草」—— 每分钟能不能成片地噬灭，与活多久无关。
+const killsPerMin = root_.run.kills / Math.max(1 / 60, frames / 3600);
+check(killsPerMin > 60, `实时战斗产生了击杀：${root_.run.kills} 只（${killsPerMin.toFixed(0)} 只/分钟）`);
 check(root_.run.onScreen >= 0, `同屏敌人数可读：${root_.run.onScreen}`);
 
 // —— 6. 结算 ——

@@ -244,10 +244,7 @@ export class GameRoot extends Component {
       this.refreshBattleHud();
       this.drawField(run);        // 每帧只**移动节点、换帧**，不重建节点树
     }
-    if (run.state !== this.lastState) {
-      this.lastState = run.state;
-      this.renderBattle();
-    }
+    if (run.state !== this.lastState) this.renderBattle();
   }
 
   /** 键盘（编辑器预览用）。触摸摇杆接入见 UiKit 的 joystick 资源 */
@@ -293,10 +290,17 @@ export class GameRoot extends Component {
     switch (run.state) {
       case RunState.CHOOSING: this.showChoice(); break;
       case RunState.SLOT_CONFLICT: this.showSlotConflict(); break;
+      case RunState.SHOPPING: this.showShop(); break;
       case RunState.WON:
       case RunState.LOST: this.showSettle(); break;
       default: break;
     }
+
+    // 记的是「刚画出来的是哪个状态」，而且必须记在 switch 之后：
+    // 弹窗回调（选完进化、离开黑市）会直接调 renderBattle()，若只有 update() 维护这个游标，
+    // 就会出现 lastState 停在 choosing、而本帧 run.update() 内部又刚好重开一次三选一的情况 ——
+    // 那一帧的 `state !== lastState` 判定为假，弹窗永远不再弹出，整局静止在无按钮的战斗画面。
+    this.lastState = run.state;
   }
 
   /** 战场缩放：逻辑坐标（ARENA 960×560）→ 屏幕坐标 */
@@ -436,6 +440,53 @@ export class GameRoot extends Component {
           text: '放弃新技能',
           onClick: () => {
             run.resolveSlotConflict(null);
+            this.renderBattle();
+          },
+        },
+      ],
+    });
+  }
+
+  /**
+   * 裂缝黑市（阶段间开门，core/run.js 的 RunState.SHOPPING）。
+   *
+   * 这一屏不是可选的装饰：RealtimeRun.update() 对任何非 FIGHTING 态直接 return，
+   * 界面若不给出「离开黑市」的出口，整局就永远停在开门这一刻 ——
+   * 表现为战斗静止、阶段推不动、玩家除了杀进程没有别的办法。
+   */
+  private showShop(): void {
+    const run = this.run;
+    const items = run.shopItems ?? [];
+    const rows: ModalRow[] = [
+      { text: `当前基因 ${run.genes}　—— 花掉的基因不再计入升级进度，权衡再买`, size: 15, color: C.dim },
+    ];
+    for (const it of items) {
+      const bought = run.shopBought?.has(it.id);
+      const afford = run.genes >= it.price;
+      rows.push({
+        text: `${bought ? '✔ ' : ''}${it.name}　${it.price} 基因${bought ? '（已购）' : afford ? '' : '（不足）'}`,
+        color: bought ? C.dim : afford ? C.gold : C.dim,
+      });
+      rows.push({ text: `　 ${it.desc}`, size: 15, color: C.dim });
+    }
+
+    this.modal.show({
+      title: `裂缝黑市 · 阶段 ${run.stageNo}`,
+      rows,
+      buttons: [
+        ...items.map((it: any, i: number) => ({
+          text: `购入 ${it.name}（${it.price}）`,
+          style: !run.shopBought?.has(it.id) && run.genes >= it.price ? ('primary' as const) : ('normal' as const),
+          onClick: () => {
+            // 买不起 / 已购时 buyShopItem 静默失败；无论成败都重开一次，价签与基因数才是当前值
+            run.buyShopItem(i);
+            this.showShop();
+          },
+        })),
+        {
+          text: '离开黑市',
+          onClick: () => {
+            run.closeShop();
             this.renderBattle();
           },
         },
