@@ -244,6 +244,8 @@ export class RealtimeRun extends Run {
     this.shield = 0;             // 护盾剩余吸收量（机甲·护盾）
     this.shieldTimer = 0;        // 护盾刷新倒计时
     this.dodgeAspdT = 0;         // 闪避后攻速加成剩余秒（侠客·身法）
+    this.aspdStealT = 0;         // 汲取攻速窗口剩余秒（共生_1；命中刷新）
+    this.missileSalvoT = 0;      // 周期导弹齐射计时（机甲_5 / 钢铁巨神组合技）
     this.playerSlowT = 0;        // 玩家踉跄剩余秒（tank 践踏；禅心 ccResist 缩短它）
     this.elementalSlows = new Map(); // 元素减速：enemyId → 剩余减速秒
   }
@@ -924,13 +926,24 @@ export class RealtimeRun extends Run {
 
     // 侠客·身法：闪避后的攻速窗口叠加
     const dodgeAspdBonus = this.dodgeAspdT > 0 ? (1 + (this.stats.dodgeAspd ?? 0)) : 1;
-    p.attackCd = 1 / Math.max(0.2, this.stats.aspd * ATTACK_RATE * (p.berserk > 0 ? BERSERK_MUL : 1) * dodgeAspdBonus);
+    // 共生·汲取：命中夺取攻速的窗口（命中时刷新，见 hitFn）
+    const stealBonus = this.aspdStealT > 0 ? (1 + (this.stats.aspdSteal ?? 0)) : 1;
+    p.attackCd = 1 / Math.max(0.2, this.stats.aspd * ATTACK_RATE * (p.berserk > 0 ? BERSERK_MUL : 1) * dodgeAspdBonus * stealBonus);
     p.facing = best.x >= p.x ? 1 : -1;
 
     // 连击/连招（侠客·剑气流）：每次命中累积
     this.combo.hits += 1;
     let comboMul = 1;
-    if (this.combo.dmgPct && this.combo.hits % this.combo.every === 0) comboMul *= 1 + this.combo.dmgPct;
+    if (this.combo.dmgPct && this.combo.hits % this.combo.every === 0) {
+      comboMul *= 1 + this.combo.dmgPct;
+      // 血脉武者（侠客+山海组合技）：连招触发时体型增长——清场半径与身板一起涨，
+      // 上限 ×2 防失控；size 影响攻击溅射半径（见下方 splash 计算）
+      if (this.hasCombo('xuemai_wuzhe') && (this.stats.size ?? 1) < 2) {
+        this.stats.size = Math.min(2, (this.stats.size ?? 1) + 0.05);
+        p.r = Math.round(14 * this.stats.size);
+        this.emitFx('surge', p.x, p.y);
+      }
+    }
     if (this.combo.rampMax) comboMul *= 1 + Math.min(this.combo.rampMax, this.combo.hits * 0.05);
 
     // 攻击形状 = 武器自带属性：single单体 / line直线 / circle环绕 / aoe溅射
@@ -945,6 +958,8 @@ export class RealtimeRun extends Run {
     let healed = 0;
     const execBonus = this.stats.execute ?? 0;
     const hitFn = (e) => {
+      // 共生·汲取：命中即刷新攻速夺取窗口（结算见 attackCd 的 stealBonus）
+      if (this.stats.aspdSteal) this.aspdStealT = Math.max(this.aspdStealT, 0.5);
       // 斩杀本能：残血目标吃额外伤害（阈值可由共鸣放宽），奖励「补刀收割」的打法
       const execThreshold = this.stats.executeThreshold ?? 0.3;
       let eDmg = execBonus > 0 && e.hp / Math.max(1, e.maxHp) < execThreshold ? dmg * (1 + execBonus) : dmg;
@@ -972,8 +987,11 @@ export class RealtimeRun extends Run {
       if (e.hp <= 0) this.killEnemy(e);
       // 渡劫·雷链弹射：命中后在敌人间跳跃（构筑强化可 +跳数/+伤害）
       if (this.routeMech === 'chain') {
-        const jumps = 3 + (this.mechLvl.jumps ?? 0);
+        const jumps = 3 + (this.mechLvl.jumps ?? 0) + (this.stats.chainJumps ?? 0);
         const chainDmg = 0.5 * (1 + (this.mechLvl.dmg ?? 0));
+        // 渡劫_3「雷链」提供 chainDecay：每跳伤害按保留比例递减（默认 1 = 不衰减，
+        // 与接线前的平坦行为完全一致——不削弱任何既有 Build）
+        const decay = this.stats.chainDecay || 1;
         let last = e;
         for (let j = 0; j < jumps; j++) {
           let nb = null; let nd = Infinity;
@@ -983,9 +1001,10 @@ export class RealtimeRun extends Run {
             if (dd2 < nd && dd2 <= 140) { nd = dd2; nb = o; }
           }
           if (!nb) break;
-          nb.hp -= dmg * chainDmg;
+          const jumpDmg = dmg * chainDmg * Math.pow(decay, j);
+          nb.hp -= jumpDmg;
           nb.hitFlash = 0.12;
-          this.damageNums.push({ x: nb.x, y: nb.y - 24, v: Math.round(dmg * chainDmg), crit: false, life: 0.9 });
+          this.damageNums.push({ x: nb.x, y: nb.y - 24, v: Math.round(jumpDmg), crit: false, life: 0.9 });
           if (nb.hp <= 0) this.killEnemy(nb);
           last = nb;
         }
@@ -1250,7 +1269,23 @@ export class RealtimeRun extends Run {
     if (e.allStatsPct) p.berserk = Math.max(p.berserk, e.duration ?? 5);
     if (e.devourHealPct) this.heal(this.stats.maxHp * e.devourHealPct * 3, skill.name, true);
     if (e.summon) {
-      // 召唤类折算成一次范围清扫（真正的随从留给后续版本）
+      // 召唤类：真随从（复用寄生友军 AI）+ 保留一次范围清扫作为「落地爆发」。
+      // inherit / summonDuration 此前是死字段——现在决定随从的继承属性与存在时长。
+      // 注意 qiji 的召唤技是主动技：装备时不经 applySkillEff，字段直接从 eff 读。
+      const n = Math.max(1, Math.round(e.summon));
+      const inherit = Math.max(0.3, e.inherit ?? this.stats.inherit ?? 0.3);
+      const life = e.summonDuration ?? this.stats.summonDuration ?? 6;
+      for (let k = 0; k < n; k++) {
+        this.mechAllies.push({
+          x: p.x + (k - (n - 1) / 2) * 26,
+          y: p.y + 20,
+          atk: this.stats.atk * inherit,
+          life,
+          anim: 0,
+          // 奇法傀儡（魔法+奇巧组合技）：机关单位继承元素附加——攻击附带冰霜减速
+          el: this.hasCombo('qifa_kuilei') && (this.stats.elemental ?? 0) > 0,
+        });
+      }
       for (const en of [...this.enemies]) {
         if (Math.hypot(en.x - p.x, en.y - p.y) > 200) continue;
         en.hp -= this.stats.atk * 0.6 * e.summon;
@@ -1301,10 +1336,12 @@ export class RealtimeRun extends Run {
 
     // 位面机制：尸爆连锁 / 寄生反水（挂在击杀上）
     const mech = this.mech;
+    // 尸生共融（丧尸+共生组合技）：尸爆范围 +50%
+    const blastMul = this.hasCombo('shisheng_gongrong') ? 1.5 : 1;
     if (mech?.type === 'corpseBlast' && e.kind !== 'boss') {
       for (const o of [...this.enemies]) {
         if (o === e || o.dead) continue;
-        if (Math.hypot(o.x - e.x, o.y - e.y) < mech.radius) {
+        if (Math.hypot(o.x - e.x, o.y - e.y) < mech.radius * blastMul) {
           o.hp -= e.atk * mech.mul;
           o.hitFlash = 0.15;
           if (o.hp <= 0) this.killEnemy(o);   // 连锁
@@ -1319,7 +1356,7 @@ export class RealtimeRun extends Run {
 
     // —— 路线机制：尸爆连锁 / 寄生反水（玩家的 Build，区别于位面机制）——
     if (this.routeMech === 'corpseBlast' && e.kind !== 'boss') {
-      const cR = 70 * (1 + (this.mechLvl.radius ?? 0));
+      const cR = 70 * (1 + (this.mechLvl.radius ?? 0)) * blastMul;   // 尸生共融：范围 +50%
       const cDmg = 1.4 * (1 + (this.mechLvl.dmg ?? 0));
       for (const o of [...this.enemies]) {
         if (o === e || o.dead) continue;
@@ -1333,6 +1370,13 @@ export class RealtimeRun extends Run {
     }
     if (this.routeMech === 'parasite' && e.kind === 'minion' && this.rng() < 0.06 + (this.mechLvl.chance ?? 0)) {
       this.mechAllies.push({ x: e.x, y: e.y, atk: this.stats.atk * 0.8, life: 6, anim: 0 });
+      this.emitFx('surge', e.x, e.y);
+    }
+
+    // 寄生（共生_3）：击杀精英概率反水一只友军（此前 parasiteChance 是死字段）
+    if (e.kind === 'elite' && (this.stats.parasiteChance ?? 0) > 0 && this.rng() < this.stats.parasiteChance) {
+      this.mechAllies.push({ x: e.x, y: e.y, atk: this.stats.atk * 0.8, life: 8, anim: 0 });
+      this.emit('🩸 寄生：精英倒戈助你', 'gene');
       this.emitFx('surge', e.x, e.y);
     }
 
@@ -1465,7 +1509,20 @@ export class RealtimeRun extends Run {
 
     // 计时型 buff/状态必定随时间走（与 DoT 有无无关，避免「没毒就不减速」）
     this.dodgeAspdT = Math.max(0, this.dodgeAspdT - dt);
+    this.aspdStealT = Math.max(0, this.aspdStealT - dt);
     this.playerSlowT = Math.max(0, this.playerSlowT - dt);
+
+    // 周期导弹齐射（机甲_5 被动；钢铁巨神组合技在狂暴期间加速为每 3s 一轮）
+    const berserkSalvo = this.hasCombo('gangtie_jushen') && this.player.berserk > 0;
+    let salvoEvery = this.stats.missileEvery ?? Infinity;
+    if (berserkSalvo) salvoEvery = Math.min(salvoEvery, 3);
+    if (Number.isFinite(salvoEvery)) {
+      this.missileSalvoT += dt;
+      if (this.missileSalvoT >= salvoEvery) {
+        this.missileSalvoT = 0;
+        this.fireMissileSalvo();
+      }
+    }
     if (this.elementalSlows.size) {
       for (const [id, t] of this.elementalSlows) {
         const nt = t - dt;
@@ -1517,6 +1574,27 @@ export class RealtimeRun extends Run {
   }
   emitFxMin(type, x, y) {
     if (this.hits.length < 30) this.emitFx(type, x, y);
+  }
+
+  /**
+   * 周期导弹齐射（机甲_5「导弹」被动 / 钢铁巨神组合技狂暴态）：
+   * 打最近的最多 3 个目标，单发 atk × missileMul。
+   * 只在该玩家拥有相应内容时才会被调度——不改变无此技能局的任何行为与随机流。
+   */
+  fireMissileSalvo() {
+    const mul = this.stats.missileMul ?? 1.5;
+    const px = this.player.x; const py = this.player.y;
+    const targets = [...this.enemies]
+      .filter((e) => !e.dead)
+      .sort((a, b2) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b2.x - px, b2.y - py))
+      .slice(0, 3);
+    for (const t of targets) {
+      t.hp -= this.stats.atk * mul;
+      t.hitFlash = 0.15;
+      this.emitFx('burst', t.x, t.y);
+      if (t.hp <= 0) this.killEnemy(t);
+    }
+    if (targets.length) this.emit('🚀 导弹齐射', 'learn');
   }
 
   // ===== 位面主题机制 =====
@@ -1706,6 +1784,8 @@ export class RealtimeRun extends Run {
       if (d < 18 + best.r) {
         best.hp -= a.atk * dt;
         best.hitFlash = Math.max(best.hitFlash, 0.1);
+        // 奇法傀儡：继承元素附加的机关单位，啃咬附带冰霜减速
+        if (a.el) this.elementalSlows.set(best.id, 1.5);
         if (best.hp <= 0) this.killEnemy(best);
       }
     }

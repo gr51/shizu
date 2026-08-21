@@ -19,6 +19,7 @@ import { ZHUTIAN_ID } from '../data/planes.js';
 import { skillsByRoute } from '../data/skills.js';
 import { findSkill } from '../data/skills.js';
 import { newlyFiredSynergies } from '../data/synergies.js';
+import { COMBO_SKILLS } from '../data/routes.js';
 import { aggregateNestEff } from '../data/nestUpgrades.js';
 import { aggregateRelicEff } from '../data/relics.js';
 import { claimAchievements } from '../data/achievements.js';
@@ -215,7 +216,18 @@ export class Run {
         'gene',
       );
     }
+    // 双路线组合技：两条路线同时永久激活 → 开局自动生效（duo boon，backlog #2）
+    this.combos = this.activeComboIds();
+    for (const id of this.combos) {
+      const c = COMBO_SKILLS.find((x) => x.id === id);
+      if (c) this.emit(`【组合技】${c.name} —— ${c.desc}`, 'hidden');
+    }
     return loaded;
+  }
+
+  /** 组合技是否生效（战斗层每处挂钩用它查询，避免魔法字符串散落） */
+  hasCombo(id) {
+    return (this.combos ?? []).includes(id);
   }
 
   /**
@@ -591,7 +603,10 @@ export class Run {
     if (e.range) this.stats.range *= 1 + e.range;
     // —— 割草成长：这些都变成「一次能扫到几只」——
     if (e.splashMul) this.stats.aoe += e.splashMul;      // 践踏 / 震地
-    if (e.chain) this.stats.aoe += e.chain * 0.3;        // 雷链弹射
+    if (e.chain) {                                       // 雷链弹射：更宽的清场 + 额外跳数
+      this.stats.aoe += e.chain * 0.3;
+      this.stats.chainJumps = (this.stats.chainJumps ?? 0) + e.chain;
+    }
     if (e.projectiles) this.stats.aoe += e.projectiles * 0.4; // 弹幕 +1
     if (e.aoeMul) this.stats.aoe += e.aoeMul * 0.5;      // 九重雷劫 / 万剑归宗
     if (e.corpseBlastMul) this.stats.aoe += e.corpseBlastMul; // 尸爆连锁
@@ -633,6 +648,33 @@ export class Run {
     if (e.vsEliteDmgPct) this.stats.vsEliteDmgPct = (this.stats.vsEliteDmgPct ?? 0) + e.vsEliteDmgPct;
     // 击杀额外基因（丧尸·腐肉）
     if (e.geneBonus) this.stats.geneBonus = (this.stats.geneBonus ?? 0) + e.geneBonus;
+    // —— 死字段还债（backlog #1）：以下字段曾声明却从未聚合 ——
+    // 汲取（共生_1）：命中夺取攻速，结算在 battle.js 命中分支
+    if (e.aspdSteal) this.stats.aspdSteal = (this.stats.aspdSteal ?? 0) + e.aspdSteal;
+    // 寄生（共生_3）：击杀精英概率反水一只友军
+    if (e.parasiteChance) this.stats.parasiteChance = Math.min(1, (this.stats.parasiteChance ?? 0) + e.parasiteChance);
+    // 母体分裂（共生_5）：死亡时额外复活次数
+    if (e.extraLife) this.reviveLeft += e.extraLife;
+    // 剑气（侠客_5）：远程剑气伤害乘区（弹体结算在 battle.js）
+    if (e.rangedMul) this.stats.rangedMul = Math.max(this.stats.rangedMul ?? 0, e.rangedMul);
+    // 周期导弹齐射（机甲_5）：每 N 秒一轮，单发伤害乘区
+    if (e.missileEvery) this.stats.missileEvery = Math.min(this.stats.missileEvery ?? Infinity, e.missileEvery);
+    if (e.missileMul) this.stats.missileMul = Math.max(this.stats.missileMul ?? 0, e.missileMul);
+    // 雷链衰减（渡劫_3）：每跳伤害保留比例；不设则默认 0.5（见 battle.js 链式分支）
+    if (e.chainDecay) this.stats.chainDecay = Math.max(this.stats.chainDecay ?? 0, e.chainDecay);
+    // 机关继承（奇巧_1/_5）：召唤物继承属性比例与存在时长
+    if (e.inherit) this.stats.inherit = Math.max(this.stats.inherit ?? 0, e.inherit);
+    if (e.summonDuration) this.stats.summonDuration = Math.max(this.stats.summonDuration ?? 0, e.summonDuration);
+  }
+
+  /**
+   * 双路线组合技（COMBO_SKILLS）：两条路线同时永久激活时开局自动生效。
+   * 这是 Hades「duo boon」的对应物——组合改变规则，而不是叠加数值。
+   * @returns {string[]} 生效的组合技 id 列表
+   */
+  activeComboIds() {
+    const locks = this.save.player.geneLocks ?? {};
+    return COMBO_SKILLS.filter((c) => c.routes.every((rt) => (locks[rt] ?? 0) > 0)).map((c) => c.id);
   }
 
   // ===== 结算（指南 13.3）=====
