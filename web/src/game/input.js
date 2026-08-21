@@ -10,16 +10,22 @@ export class Input {
     this.holdT = 0;
     this.touch = { active: false, id: null, ox: 0, oy: 0, mx: 0, my: 0 };
     this.radius = 60;
+    /** 已注册监听，dispose() 时统一摘除（多次开局不会叠加多套输入） */
+    this._bound = [];
+    const on = (target, type, fn, opts) => {
+      target.addEventListener(type, fn, opts);
+      this._bound.push([target, type, fn, opts]);
+    };
 
-    window.addEventListener('keydown', (e) => {
+    on(window, 'keydown', (e) => {
       if (KEY_MAP[e.code] || ACTION_KEYS[e.code]) e.preventDefault();
       if (this.keys.has(e.code)) return;           // 忽略系统重复触发
       this.keys.add(e.code);
       const act = ACTION_KEYS[e.code];
       if (act) this.pending[act] = true;
     });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => this.keys.clear());
+    on(window, 'keyup', (e) => this.keys.delete(e.code));
+    on(window, 'blur', () => this.keys.clear());
 
     const start = (e) => {
       const t = e.changedTouches ? e.changedTouches[0] : e;
@@ -49,13 +55,21 @@ export class Input {
       this.touch.my = 0;
     };
 
-    surface.addEventListener('touchstart', start, { passive: false });
-    surface.addEventListener('touchmove', move, { passive: false });
-    surface.addEventListener('touchend', end);
-    surface.addEventListener('touchcancel', end);
-    surface.addEventListener('mousedown', start);
-    surface.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', end);
+    on(surface, 'touchstart', start, { passive: false });
+    on(surface, 'touchmove', move, { passive: false });
+    on(surface, 'touchend', end);
+    on(surface, 'touchcancel', end);
+    on(surface, 'mousedown', start);
+    on(surface, 'mousemove', move);
+    on(window, 'mouseup', end);
+  }
+
+  /** 摘除全部监听：战斗结束时调用，避免多次开局叠加输入处理 */
+  dispose() {
+    for (const [target, type, fn, opts] of this._bound) target.removeEventListener(type, fn, opts);
+    this._bound = [];
+    this.keys.clear();
+    this.touch.active = false;
   }
 
   /** @returns {{mx:number,my:number}} 归一化方向 */

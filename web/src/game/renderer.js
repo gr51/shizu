@@ -20,7 +20,14 @@ export class Renderer {
     this.flash = 0;           // 全屏闪光（升级/进化瞬间）
     this.pop = 0;             // 镜头缩放脉冲（升级瞬间 zoom）
     this.resize();
-    window.addEventListener('resize', () => this.resize());
+    this._onResize = () => this.resize();
+    window.addEventListener('resize', this._onResize);
+  }
+
+  /** 摘除 resize 监听：战斗结束时调用，避免每局叠加一个渲染器监听 */
+  dispose() {
+    if (this._onResize) window.removeEventListener('resize', this._onResize);
+    this._onResize = null;
   }
 
   resize() {

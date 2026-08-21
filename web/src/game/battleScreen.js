@@ -135,6 +135,8 @@ export async function startBattle(ctx, plane) {
   const cleanup = () => {
     window.removeEventListener('keydown', onKey);
     document.removeEventListener('visibilitychange', onVisibility);
+    input.dispose();
+    renderer.dispose();
   };
 
   // 新手引导：首局显示一次
