@@ -145,6 +145,10 @@ export async function startBattle(ctx, plane) {
     drawHud(dt);
     pumpToast();
     drawStick();
+    // 动态音乐：Boss 在场或血量过低时，BGM 提速加层（紧张度驱动）
+    const lowHp = run.hp / Math.max(1, run.stats.maxHp) < 0.3;
+    const bossOn = (run.enemies ?? []).some((e) => e.kind === 'boss' && !e.dead);
+    audio.setIntensity(bossOn || lowHp ? 1 : 0);
 
     // 只在**状态发生变化**时弹一次窗。
     // 早期版本每帧都调 showChoice()，模态框每秒重建 60 次 ——
