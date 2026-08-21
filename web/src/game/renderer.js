@@ -198,6 +198,23 @@ export class Renderer {
     const targetH = kind === 'boss' ? 95 : kind === 'elite' ? 60 : 34;
     const y = e.y;   // 不加颠簸，走路全靠 4 帧拼接（颠簸会「一跳一跳」）
     const base = e.sprite || this.spriteBase(kind, e.variant, e.id);
+    // 特殊敌人可读性：脚下光环区分（自爆红 / 坦克灰蓝 / 伏击金 / 精英橙 / Boss 紫）
+    const RING = { bomber: '#e0653c', tank: '#7fa8c9' };
+    const ringColor = e.ambush ? '#d8bd6a'
+      : kind === 'boss' ? '#a678d4'
+      : kind === 'elite' ? '#e08a4c'
+      : RING[e.variant] ?? null;
+    if (ringColor) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = ringColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(e.x, e.y + e.r * 0.45, e.r * 1.15, e.r * 0.42, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     let ok = false;
     if (e.attackT > 0) {
       // 攻击动画：attackT 0.3→0，按进度切 起手→劈砍→收招（小怪/精英/Boss 通用）
@@ -219,10 +236,19 @@ export class Renderer {
     }
     if (!ok) this.dot(e.x, e.y, e.r, e.kind === 'boss' ? '#a678d4' : '#c9556a');
 
-    // 精英 / BOSS 血条
+    // 精英 / BOSS 血条；伏击精英额外标注，提示高价值目标
     if (e.kind !== 'minion') {
       const w = e.kind === 'boss' ? 64 : 40;
-      this.bar(e.x - w / 2, e.y - e.r - 10, w, 4, e.hp / e.maxHp, '#c9556a');
+      this.bar(e.x - w / 2, e.y - e.r - 10, w, 4, e.hp / e.maxHp, e.ambush ? '#d8bd6a' : '#c9556a');
+      if (e.ambush) {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.fillStyle = '#d8bd6a';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('伏击', e.x, e.y - e.r - 16);
+        ctx.restore();
+      }
     }
   }
 
