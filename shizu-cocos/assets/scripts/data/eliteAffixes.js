@@ -46,6 +46,21 @@ export const ELITE_AFFIXES = [
     desc: '周围杂兵移动更快',
     eff: { auraSpeed: 1.25, auraRadius: 220 },
   },
+  // —— backlog #3：S3 断档修补的两条纯行为词缀（无新美术，靠行为制造阶段压力）——
+  {
+    id: 'summoner',
+    name: '召唤者',
+    color: '#9ac97f',
+    desc: '周期在脚下孵出两只杂兵——清场不及时会越滚越多',
+    eff: { summonEvery: 9 },
+  },
+  {
+    id: 'aegis',
+    name: '坚壁',
+    color: '#b0aa98',
+    desc: '周围杂兵受到的伤害减半（先杀光环或拉开距离）',
+    eff: { auraRadius: 180, auraMul: 0.5 },
+  },
 ];
 
 /** 按 rng 抽一条精英词缀；chance 未命中则返回 null（不是每只都带）

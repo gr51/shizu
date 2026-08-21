@@ -246,6 +246,8 @@ export class RealtimeRun extends Run {
     this.dodgeAspdT = 0;         // 闪避后攻速加成剩余秒（侠客·身法）
     this.aspdStealT = 0;         // 汲取攻速窗口剩余秒（共生_1；命中刷新）
     this.missileSalvoT = 0;      // 周期导弹齐射计时（机甲_5 / 钢铁巨神组合技）
+    this.chestSpawnedForStage = -1;  // 宝箱守卫已生成的阶段号（每阶段一只，S3-S4）
+    this.chestQueue = false;     // 击破守卫后排队开箱（update 消费）
     this.playerSlowT = 0;        // 玩家踉跄剩余秒（tank 践踏；禅心 ccResist 缩短它）
     this.elementalSlows = new Map(); // 元素减速：enemyId → 剩余减速秒
   }
@@ -320,6 +322,12 @@ export class RealtimeRun extends Run {
     this.mechanicsTick(dt);
     this.miniRushTick(dt);
     this.ambushTick(dt);
+    this.chestTick(dt);
+    // 宝箱开箱消费：击破守卫时若正处于其他结算流程，这里统一兜住
+    if (this.chestQueue) {
+      this.chestQueue = false;
+      this.openChest();
+    }
 
     if (this.stats.regen > 0) {
       this.heal(this.stats.maxHp * this.stats.regen * dt, '再生', true);
@@ -478,10 +486,13 @@ export class RealtimeRun extends Run {
     const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
     // 难度随时间坡：每 4 分钟敌人血量/攻击 +1 倍（吸血鬼幸存者式难度曲线）
     const timeScale = this.timeScale;
-    // 精英词缀：同一只精英换词缀就换打法（不改精英基准数值，只改行为与乘区）
-    const affix = tpl.kind === 'elite'
-      ? rollEliteAffix(this.rng, this.dungeon.mods?.affixChance ?? undefined)
-      : null;
+    // 精英词缀：同一只精英换词缀就换打法（不改精英基准数值，只改行为与乘区）。
+    // 概率随阶段递增（backlog #3：S1 0.2 → S3 0.5+）——S3 断档修补的一半；
+    // 裂缝变异的 affixChance 仍是最高优先（玩家主动选的风险）。
+    const AFFIX_CHANCE_BY_STAGE = [0.2, 0.35, 0.5, 0.6, 0.6];
+    const affixChance = this.dungeon.mods?.affixChance
+      ?? AFFIX_CHANCE_BY_STAGE[Math.min(this.stageNo - 1, AFFIX_CHANCE_BY_STAGE.length - 1)];
+    const affix = tpl.kind === 'elite' ? rollEliteAffix(this.rng, affixChance) : null;
     const affixHp = affix?.eff.hpMul ?? 1;
     const affixSpeed = affix?.eff.speedMul ?? 1;
 
@@ -515,6 +526,8 @@ export class RealtimeRun extends Run {
       // 随机流，把「与本次改动无关」的平衡基线（单局时长/基因产出）全部抽重签。
       slamCd: variant === 'tank' ? 2.0 : 0,
       slamWindup: 0,   // > 0 = 正在蓄力（原地不动，收缩圈可读）
+      // 召唤者词缀：孵化计时（仅 summoner 词缀的精英使用，其余恒 0 不触发）
+      summonT: affix?.eff.summonEvery ?? 0,
       hitFlash: 0,
       attackT: 0,
       bossSkillCd: isBig ? 2.5 : 0,   // 精英/Boss 技能首秀CD
@@ -586,6 +599,29 @@ export class RealtimeRun extends Run {
       // 无限画布：被甩开太远的小怪静默回收，压力始终集中在玩家附近。
       // 阈值给足余量（2.5 倍视野），正常战斗绝不回收，只有刻意跑路许久才触发。
       if (e.kind === 'minion' && d > ARENA.w * 2.5) { e.dead = true; continue; }
+
+      // 召唤者词缀：周期在脚下孵两只杂兵（backlog #3 行为词缀）。
+      // 孵化不消耗 rng、受同屏上限约束；「清场不及时就滚雪球」是它对玩家的全部要求。
+      const summonEvery = e.affix?.eff.summonEvery;
+      if (summonEvery) {
+        e.summonT = (e.summonT ?? summonEvery) - dt;
+        if (e.summonT <= 0) {
+          e.summonT = summonEvery;
+          if (this.enemies.length < MAX_ONSCREEN) {
+            for (let k = 0; k < 2; k++) {
+              this.enemies.push({
+                id: this.nextId++, kind: 'minion', variant: 'walker', sprite: e.sprite ?? null,
+                name: '孵体', hp: Math.max(1, Math.round(e.maxHp * 0.06)), maxHp: Math.max(1, Math.round(e.maxHp * 0.06)),
+                atk: Math.max(1, Math.round(e.atk * 0.5)),
+                x: e.x + (k ? 26 : -26), y: e.y, r: 9,
+                speed: 110, spitCd: 99, hitFlash: 0, attackT: 0, anim: 0, isCloser: false, eventTag: null,
+              });
+            }
+            this.emitFx('surge', e.x, e.y);
+            this.emit('🥚 召唤者孵出了杂兵！', 'wave');
+          }
+        }
+      }
 
       // 元素减速（魔法·冰霜）：被冻住的敌人移动变慢
       const slowMul = this.elementalSlows.has(e.id) ? 0.55 : 1;
@@ -691,6 +727,17 @@ export class RealtimeRun extends Run {
           m.auraMul = want;
         }
       }
+    }
+    // 坚壁词缀：光环内杂兵受伤减半（backlog #3 新增行为词缀）。
+    // 每帧重算标记；伤害侧在 hitFn 里读 aegis 打折——近战主伤害生效，DoT/弹幕 v1 不减免。
+    const aegises = this.enemies.filter((e) => e.affix?.eff.auraMul && !e.dead);
+    if (aegises.length) {
+      for (const m of this.enemies) {
+        if (m.kind !== 'minion' || m.dead) continue;
+        m.aegis = aegises.some((w) => !w.dead && Math.hypot(m.x - w.x, m.y - w.y) <= (w.affix.eff.auraRadius ?? 180));
+      }
+    } else if (this.enemies.some((m) => m.aegis)) {
+      for (const m of this.enemies) m.aegis = false;
     }
     // 简单互斥：同类之间轻推开，避免全部叠在一个点上
     separate(this.enemies);
@@ -968,6 +1015,8 @@ export class RealtimeRun extends Run {
       if (vsElite > 0 && e.kind !== 'minion') eDmg *= 1 + vsElite;
       // 铁壁词缀：减伤（换来更慢的移动，用走位可以拉扯）
       eDmg *= e.affix?.eff.dmgTaken ?? 1;
+      // 坚壁光环（召唤者批次新增词缀）：光环内杂兵受伤减半——优先处理坚壁精英
+      if (e.aegis) eDmg *= 0.5;
       e.hp -= eDmg;
       e.hitFlash = 0.12;
       healed += eDmg;
@@ -1341,6 +1390,7 @@ export class RealtimeRun extends Run {
     // 急袭挑战：最后一只标记怪死亡时结算基因雨奖励（标记先清，避免尸爆递归重复发奖）
     const eventTag = e.eventTag;
     e.eventTag = null;
+    if (eventTag === 'chest') this.chestQueue = true;   // 击破守卫 → 排队开宝箱（update 消费）
     if (eventTag === 'miniRush' && !this.enemies.some((o) => o !== e && !o.dead && o.eventTag === eventTag)) {
       this.rewardMiniRush();
     }
@@ -1804,6 +1854,26 @@ export class RealtimeRun extends Run {
       }
     }
     if (this.mechAllies.some((a) => a.life <= 0)) this.mechAllies = this.mechAllies.filter((a) => a.life > 0);
+  }
+
+  /**
+   * 宝箱事件（backlog #4）：S3-S4 各出现一只宝箱守卫，击破 → 高稀有度三选一。
+   * 「释放」节拍：S3 考验（守卫+词缀）、开箱即释放——补上阶段曲线的断档。
+   * 守卫复用涌潮生成与 eventTag 机制；开箱复用 CHOOSING——零新增状态。
+   */
+  chestTick(dt) {
+    void dt;
+    if (this.stageNo !== 3 && this.stageNo !== 4) return;
+    if (this.chestSpawnedForStage === this.stageNo) return;
+    if (this.state !== RunState.FIGHTING) return;
+    const st = this.stage;
+    this.chestSpawnedForStage = this.stageNo;
+    this.spawnSurge(
+      { name: '🧰 宝箱守卫', hp: Math.round(st.minion.hp * 4), atk: st.minion.atk },
+      1,
+      'chest',
+    );
+    this.emit('🧰 宝箱守卫出现了！击破它可获得高稀有进化', 'wave');
   }
 
   /** 弹幕 / 导弹投射物 */

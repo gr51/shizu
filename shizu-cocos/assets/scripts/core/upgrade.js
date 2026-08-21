@@ -81,9 +81,15 @@ export function attrPool() {
  * @param {() => number} rng
  * @returns {Array} 最多 3 个去重选项
  */
-export function rollUpgradeOptions(dungeon, save, runState, rng) {
-  // 权重：稀有度为默认档位，条目可用显式 weight 覆盖（情境型属性压低，避免稀释核心成长）
-  const weightOf = (x) => x.weight ?? RARITY_WEIGHT[x.rarity] ?? 1;
+export function rollUpgradeOptions(dungeon, save, runState, rng, opts = {}) {
+  // 权重：稀有度为默认档位，条目可用显式 weight 覆盖（情境型属性压低，避免稀释核心成长）。
+  // opts.rarityBias：按稀有度乘权重——宝箱事件用（rare/legend 抬高、base/feature 压低），
+  // 让「开宝箱」在体感上明显优于普通升级，兑现「爆发性奖励」的节拍承诺。
+  const bias = opts.rarityBias ?? null;
+  const weightOf = (x) => {
+    const w = x.weight ?? RARITY_WEIGHT[x.rarity] ?? 1;
+    return bias && bias[x.rarity] ? w * bias[x.rarity] : w;
+  };
   // 渐进复杂度：开局只给核心成长（攻/血/速/攻速/范围），专精类选项到中期才进池。
   // 早期就混入情境型选项会稀释成长曲线 —— 实测会让整局强度明显下滑。
   const level = runState.level ?? 0;

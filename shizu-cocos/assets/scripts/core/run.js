@@ -419,16 +419,29 @@ export class Run {
 
   // ===== 三选一 =====
 
-  openChoice(reason) {
+  openChoice(reason, opts = {}) {
     const options = rollUpgradeOptions(
       this.dungeon,
       this.save,
       { learnedSkills: this.learnedSkills, takenAttrs: this.takenAttrs, level: this.geneStep, banished: this.banished },
       this.rng,
+      opts,
     );
     if (options.length === 0) return;
     this.pendingOptions = { reason, options };
     this.state = RunState.CHOOSING;
+  }
+
+  /**
+   * 宝箱事件（backlog #4）：击破宝箱守卫后开启一次高稀有度三选一。
+   * 复用 CHOOSING 状态——不新增 RunState（两套 UI 漂移前科，见 3.1）。
+   * @returns {boolean} 是否成功开启（非战斗态时拒绝）
+   */
+  openChest() {
+    if (this.state !== RunState.FIGHTING) return false;
+    this.openChoice('🧰 宝箱开启', { rare: 4, legend: 8, base: 0.25, feature: 0.5 });
+    this.emit('🧰 宝箱开启！稀有选项出现率大幅提升', 'win');
+    return true;
   }
 
   /**
