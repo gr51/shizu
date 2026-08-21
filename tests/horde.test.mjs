@@ -27,6 +27,8 @@ function autoRun(planeId, seed, patch = {}) {
   while (run.state !== RunState.WON && run.state !== RunState.LOST && guard < 60 * 60 * 20) {
     if (run.state === RunState.CHOOSING) { run.choose(0); continue; }
     if (run.state === RunState.SLOT_CONFLICT) { run.resolveSlotConflict(run.pendingSkill.options[0]); continue; }
+    // 黑市不消费：本文件量的是刷怪压力基线，购买会引入额外变量
+    if (run.state === RunState.SHOPPING) { run.closeShop(); continue; }
     const a = guard * 0.02 + seed;
     run.update(DT, { mx: Math.cos(a), my: Math.sin(a) });
     run.drainEffects();

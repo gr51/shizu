@@ -199,6 +199,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       lastState = run.state;
       if (run.state === RunState.CHOOSING) { paused = true; audio.sfx('levelup'); renderer.pulse(); showChoice(); }
       else if (run.state === RunState.SLOT_CONFLICT) { paused = true; audio.sfx('levelup'); showSlotConflict(); }
+      else if (run.state === RunState.SHOPPING) { paused = true; audio.sfx('gene'); showShop(); }
       else if (run.state === RunState.WON || run.state === RunState.LOST) {
         audio.sfx(run.state === RunState.WON ? 'won' : 'lost');
         showSettle();
@@ -330,6 +331,31 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
             else resume();
           },
         })) : []),
+      ],
+    });
+  }
+
+  /** 裂缝黑市：阶段间用基因换即时战力（攒着升级 vs 现在买） */
+  function showShop() {
+    const items = run.shopItems ?? [];
+    const rows = items.map((it, i) => {
+      const bought = run.shopBought?.has(it.id);
+      const afford = run.genes >= it.price;
+      return `<div class="pick${bought ? '' : ' attr'}"><b>${bought ? '✔ ' : ''}${it.name}</b>`
+        + `<span>${it.desc}</span>`
+        + `<span class="${afford && !bought ? 'gold' : 'small'}">${it.price} 基因${bought ? '（已购）' : afford ? '' : '（不足）'}</span></div>`;
+    }).join('');
+    view.showModal({
+      title: `裂缝黑市 · 阶段 ${run.stageNo}`,
+      body: `<p class="small">当前基因 <b class="gold">${run.genes}</b>　—— 花掉的基因不再计入升级进度，权衡再买。</p>${rows}`,
+      buttons: [
+        ...items.map((it, i) => ({
+          text: `购入 ${it.name}（${it.price}）`,
+          style: run.genes >= it.price && !run.shopBought?.has(it.id) ? 'primary' : '',
+          disabled: run.genes < it.price || run.shopBought?.has(it.id),
+          onClick: () => { view.closeModal(); run.buyShopItem(i); showShop(); },
+        })),
+        { text: '离开黑市', onClick: () => { view.closeModal(); run.closeShop(); resume(); } },
       ],
     });
   }

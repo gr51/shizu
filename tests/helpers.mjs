@@ -90,6 +90,9 @@ export function autoPlay(plane, save, seed, repo = null) {
       continue;
     }
     if (run.state === RunState.SLOT_CONFLICT) { run.resolveSlotConflict(run.pendingSkill.options[0]); continue; }
+    // 黑市：盲走机器人**不消费**，把基因全留给升级阈值 ——
+    // 这样它仍是平衡下限（真人会买东西变强），既有红线的口径也保持可比。
+    if (run.state === RunState.SHOPPING) { run.closeShop(); continue; }
     // 机器人以「舒适速度 220」移动：速度属性不用于绕圈乱窜。
     // 真实玩家会把高速拿来走位/风筝，机器人的绕圈无法正确利用高速，
     // 反而会横扫敌群吃到更多接触伤害 —— 那会把速度错判成负收益。

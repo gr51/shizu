@@ -22,6 +22,7 @@ import { newlyFiredSynergies } from '../data/synergies.js';
 import { aggregateNestEff } from '../data/nestUpgrades.js';
 import { aggregateRelicEff } from '../data/relics.js';
 import { claimAchievements } from '../data/achievements.js';
+import { rollShop } from '../data/shopItems.js';
 import { activatedRoutes, geneLockLevel } from './geneLock.js';
 import { rngFactory } from './rng.js';
 
@@ -68,6 +69,7 @@ export const RunState = {
   FIGHTING: 'fighting',
   CHOOSING: 'choosing',
   SLOT_CONFLICT: 'slotConflict',
+  SHOPPING: 'shopping',
   WON: 'won',
   LOST: 'lost',
   SETTLED: 'settled',
@@ -149,6 +151,9 @@ export class Run {
     this.banishUsed = 0;         // 已放逐次数（一局有限）
     this.ownedPicks = new Set(); // 本局已获得的选项 id（供构筑共鸣判定）
     this.firedSynergies = new Set(); // 已触发的共鸣 id（每条一局一次）
+    this.pendingShop = false;    // 阶段推进后待开的黑市
+    this.shopItems = null;       // 当前黑市商品（开门期间有效）
+    this.shopBought = null;      // 本次开门已购 id
 
     // 指南 13.1 onRunStart：隐藏刻印开局自动装载，永不入三选一池
     this.engraved = engravedSkills(save);
@@ -300,7 +305,45 @@ export class Run {
     this.closerSpawned = false;
     this.spawnCarry = 0;
     this.emit(`—— 阶段 ${this.stageNo} / 5 ——`, 'wave');
+    this.pendingShop = true;   // 阶段间开黑市（在三选一结束后弹）
     this.openChoice(`阶段 ${this.stageNo - 1} 完成`);
+  }
+
+  /**
+   * 开黑市：阶段间用基因换即时战力。
+   * 与三选一互斥（先选进化再逛市），保证同一时刻只有一个面板。
+   */
+  openShop() {
+    this.pendingShop = false;
+    const items = rollShop(this.rng, this.stageNo);
+    if (!items.length) return false;
+    this.shopItems = items;
+    this.shopBought = new Set();
+    this.state = RunState.SHOPPING;
+    return true;
+  }
+
+  /** 购买一件商品：扣基因并立即应用（同一次开门内不可重复买同件） */
+  buyShopItem(index) {
+    if (this.state !== RunState.SHOPPING || !this.shopItems) return false;
+    const item = this.shopItems[index];
+    if (!item) return false;
+    if (this.shopBought.has(item.id)) return false;
+    if (this.genes < item.price) return false;
+    this.genes -= item.price;
+    this.shopBought.add(item.id);
+    try { item.apply(this); } catch { /* 单件失败不影响整局 */ }
+    this.emit(`🛒 购入 <b>${item.name}</b>（-${item.price} 基因）`, 'learn');
+    return true;
+  }
+
+  /** 离开黑市，回到战斗 */
+  closeShop() {
+    if (this.state !== RunState.SHOPPING) return false;
+    this.shopItems = null;
+    this.shopBought = null;
+    this.state = RunState.FIGHTING;
+    return true;
   }
 
   addGear(item) {
@@ -356,7 +399,10 @@ export class Run {
     ) {
       this.geneStep += 1;
       this.openChoice('吞噬充能已满');
+      return;
     }
+    // 三选一都处理完了，若本阶段挂着黑市则接着开门
+    if (this.state === RunState.FIGHTING && this.pendingShop) this.openShop();
   }
 
   // ===== 三选一 =====

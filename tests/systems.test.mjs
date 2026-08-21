@@ -19,6 +19,7 @@ import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../shizu-coc
 import { RIFT_MODS } from '../shizu-cocos/assets/scripts/data/riftMods.js';
 import { RELICS, aggregateRelicEff } from '../shizu-cocos/assets/scripts/data/relics.js';
 import { claimAchievements, isRewardClaimed, ACHIEVEMENTS } from '../shizu-cocos/assets/scripts/data/achievements.js';
+import { shopItemById, stagePriceMul } from '../shizu-cocos/assets/scripts/data/shopItems.js';
 import { autoPlay, freshSave, repo, rng } from './helpers.mjs';
 
 const plane = (id) => planes.find((p) => p.id === id);
@@ -610,6 +611,68 @@ test('精华锻造价格递增：越高稀有度越贵，且贵于分解回收�
   for (const r of order) {
     assert.ok(forgeCost(r) > SALVAGE_ESSENCE[r], `${r} 锻造价必须高于分解回收价，否则可无限套利`);
   }
+});
+
+// ===== 裂缝黑市：局内基因消费 =====
+
+test('黑市：阶段推进后开门，购买扣基因并立即生效', () => {
+  const save = freshSave({ totalRuns: 5 });
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+
+  assert.ok(run.openShop(), '应能开门');
+  assert.equal(run.state, RunState.SHOPPING, '状态应为 SHOPPING');
+  assert.equal(run.shopItems.length, 3, '一次开门 3 件商品');
+
+  // 基因不足 → 拒绝
+  run.genes = 0;
+  assert.equal(run.buyShopItem(0), false, '基因不足必须拒绝');
+
+  // 找一件确定能验证效果的商品：直接构造
+  run.genes = 100000;
+  const before = { ...run.stats };
+  const ok = run.buyShopItem(0);
+  assert.ok(ok, '基因足够应购买成功');
+  assert.ok(run.genes < 100000, '应扣除基因');
+  assert.ok(run.shopBought.has(run.shopItems[0].id), '应记录已购');
+
+  // 同一次开门不可重复购买同件
+  assert.equal(run.buyShopItem(0), false, '同件不得重复购买');
+
+  assert.ok(run.closeShop(), '应能离开黑市');
+  assert.equal(run.state, RunState.FIGHTING, '离开后回到战斗');
+});
+
+test('黑市：价格随阶段递增，商品效果真实作用于 stats', () => {
+  assert.ok(stagePriceMul(5) > stagePriceMul(1), '后期价格应更高');
+
+  const save = freshSave({ totalRuns: 5 });
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  run.genes = 100000;
+
+  // 逐一验证每种商品的效果口径（直接调 apply，绕开随机商品池）
+  const atkBefore = run.stats.atk;
+  shopItemById('shop_atk').apply(run);
+  assert.ok(run.stats.atk > atkBefore, '狂噬血清应提升攻击');
+
+  const critBefore = run.stats.crit;
+  shopItemById('shop_crit').apply(run);
+  assert.ok(run.stats.crit > critBefore, '裂瞳药剂应提升暴击');
+
+  const banishBefore = run.banishLeft;
+  shopItemById('shop_banish').apply(run);
+  assert.equal(run.banishLeft, banishBefore + 1, '断绝符应 +1 放逐次数');
+
+  const reviveBefore = run.reviveLeft;
+  shopItemById('shop_revive').apply(run);
+  assert.equal(run.reviveLeft, reviveBefore + 1, '残命囊应 +1 致死拦截');
+
+  const rerollBefore = run.freeRerollLeft;
+  shopItemById('shop_reroll').apply(run);
+  assert.equal(run.freeRerollLeft, rerollBefore + 2, '抉择符应 +2 免费重掷');
+
+  const hpCapBefore = run.stats.maxHp;
+  shopItemById('shop_maxhp').apply(run);
+  assert.ok(run.stats.maxHp > hpCapBefore, '厚壳培养液应提升生命上限');
 });
 
 // ===== 存档迁移 =====
