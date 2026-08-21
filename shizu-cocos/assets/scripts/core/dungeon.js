@@ -169,6 +169,7 @@ export function generateDungeon(plane, save, seed, riftMods = [], opts = {}) {
     riftMods: [...(riftMods ?? [])],
     mods,
     endless: Boolean(opts.endless),
+    legendLoadout: opts.legendLoadout ?? null,
   };
 }
 

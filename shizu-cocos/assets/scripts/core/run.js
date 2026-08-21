@@ -17,6 +17,7 @@ import { rollBossDrop, rollKillDrop } from './drop.js';
 import { buildEndlessStage, ENDLESS_GENE_PER_LAYER } from './dungeon.js';
 import { ZHUTIAN_ID } from '../data/planes.js';
 import { skillsByRoute } from '../data/skills.js';
+import { findSkill } from '../data/skills.js';
 import { newlyFiredSynergies } from '../data/synergies.js';
 import { aggregateNestEff } from '../data/nestUpgrades.js';
 import { aggregateRelicEff } from '../data/relics.js';
@@ -158,6 +159,9 @@ export class Run {
     // ★ 基因锁：已解锁段位开局自动生效 —— 这是本作的核心特色，不是抽卡池深度
     this.geneLockSkills = this.equipGeneLockSkills();
 
+    // 传说技能（Lv6 终极技收藏）：开局选一个带进本局，收藏才有战斗价值
+    this.equipLegendLoadout();
+
     this.emit(`裂缝开启 —— 【${dungeon.plane.name}】${dungeon.plane.theme}`, 'stage');
     this.emit(
       dungeon.channel === 'skill'
@@ -208,8 +212,28 @@ export class Run {
     return loaded;
   }
 
-  emit(text, cls = '') {
-    this.log.push({ text, cls });
+  /**
+   * 传说技能出征装载：从已收藏的 Lv6 终极技里带一个进本局。
+   * 由 dungeon.legendLoadout 指定（大厅出征前选择）；未选或非法则不装载。
+   * 与基因锁不同：这是**玩家主动的赛前决策**，让收藏池变成 loadout 选择。
+   */
+  equipLegendLoadout() {
+    const id = this.dungeon.legendLoadout;
+    if (!id) return null;
+    if (!(this.save.inventory?.comboSkills ?? []).includes(id)) return null;
+    if (this.learnedSkills.has(id)) return null;   // 已由基因锁/刻印覆盖
+    const skill = findSkill(id);
+    if (!skill) return null;
+    this.learnedSkills.add(skill.id);
+    this.legendLoaded = skill;
+    // 主动技进循环靠槽位；这里直接塞进主动槽的「出征位」，不占用局内三选一槽
+    this.legendActive = skill.kind === 'active' ? skill : null;
+    if (skill.kind !== 'active') this.applySkillEff(skill);
+    this.emit(`【出征传说】${skill.name} —— ${skill.desc}`, 'hidden');
+    return skill;
+  }
+
+  emit(text, cls = '') {    this.log.push({ text, cls });
     if (this.log.length > 200) this.log.shift();
   }
 

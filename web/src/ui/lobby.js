@@ -12,6 +12,7 @@ import { RELICS, relicById } from '../../../shizu-cocos/assets/scripts/data/reli
 import { ACHIEVEMENTS, unlockedAchievements } from '../../../shizu-cocos/assets/scripts/data/achievements.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../../../shizu-cocos/assets/scripts/data/nestUpgrades.js';
 import { RIFT_MODS, aggregateRiftMods } from '../../../shizu-cocos/assets/scripts/data/riftMods.js';
+import { findSkill } from '../../../shizu-cocos/assets/scripts/data/skills.js';
 import { gearCard, gearItemHtml, geneCard, metaLine, playerCard, slotsCard } from './cards.js';
 import * as view from './view.js';
 
@@ -112,7 +113,7 @@ export function openNest(ctx) {
 
 // ===== 开裂缝 =====
 
-function openRift(ctx, picked = []) {
+function openRift(ctx, picked = [], legend = null) {
   const { save, rng } = ctx;
   const plane = ctx._riftPlane ?? rollPlane(save, rng);
   ctx._riftPlane = plane;
@@ -120,6 +121,8 @@ function openRift(ctx, picked = []) {
   const power = computePower(save.player);
   const D = dungeonDifficulty(power, save.player.difficultyLevel) * save.player.dynFactor;
   const mods = aggregateRiftMods(picked);
+  const legendPool = save.inventory.comboSkills ?? [];
+  const legendSkill = legend ? findSkill(legend) : null;
 
   const routeLine = pre.routes.length
     ? pre.routes.map((r) => `${ROUTES[r].name}${geneLockLevel(save, r) ? `（已激活 Lv${geneLockLevel(save, r)}）` : '（未激活）'}`).join(' / ')
@@ -145,20 +148,32 @@ function openRift(ctx, picked = []) {
       <h4 class="gold" style="margin-top:12px">裂缝变异 · 风险 ${mods.risk} · 基因 ×${mods.geneMul.toFixed(2)}</h4>
       <p class="small">自选变异：敌人更强，但基因产出更高（倍率封顶 ×2.5）。</p>
       ${modRows}
+      <h4 class="gold" style="margin-top:12px">出征传说技能</h4>
+      <p class="small">${legendPool.length
+        ? `从收藏的终极技里带一个进本局：<b class="gold">${legendSkill ? legendSkill.name : '未选择'}</b>`
+        : '尚无传说技能 —— 噬灭匹配位面之主有机会掉落。'}</p>
       ${pre.firstVisit ? '<p class="small gold">⚠ 首次进入 —— 通关后将永久激活该路线基因锁，并永久封印其互斥路线。此操作不可撤销。</p>' : ''}
     `,
     buttons: [
-      { text: '撕开裂缝，进入', style: 'primary', onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked); } },
+      { text: '撕开裂缝，进入', style: 'primary', onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { legendLoadout: legend }); } },
       ...(save.stats.endlessUnlocked ? [{
         text: '★ 无尽模式（通关后续接深渊层）',
-        onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { endless: true }); },
+        onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { endless: true, legendLoadout: legend }); },
       }] : []),
+      ...legendPool.map((id) => {
+        const s = findSkill(id);
+        const on = legend === id;
+        return {
+          text: `${on ? '✔ ' : '☆ '}${s ? s.name : id}`,
+          onClick: () => { view.closeModal(); openRift(ctx, picked, on ? null : id); },
+        };
+      }),
       ...RIFT_MODS.map((m) => ({
         text: `${picked.includes(m.id) ? '取消' : '叠加'}「${m.name}」`,
         onClick: () => {
           view.closeModal();
           const next = picked.includes(m.id) ? picked.filter((x) => x !== m.id) : [...picked, m.id];
-          openRift(ctx, next);
+          openRift(ctx, next, legend);
         },
       })),
       { text: '换一道裂缝', onClick: () => { view.closeModal(); ctx._riftPlane = null; openRift(ctx); } },

@@ -979,7 +979,7 @@ export class RealtimeRun extends Run {
   /** 主动槽只读状态：UI 展示技能名/剩余冷却，不复制战斗逻辑 */
   get activeSkillStatus() {
     const slots = this.save.player.skillSlots;
-    return ['activeA', 'activeB'].map((key) => {
+    const rows = ['activeA', 'activeB'].map((key) => {
       const slot = slots[key];
       if (!slot || slot.kind !== 'active') return null;
       const skill = findSkill(slot.skillId) ?? findHiddenSkill(slot.skillId);
@@ -988,6 +988,12 @@ export class RealtimeRun extends Run {
       const left = Math.max(0, this.skillCd.get(slot.skillId) ?? 0);
       return { key, name: skill.name, left, cd, ready: left <= 0 };
     }).filter(Boolean);
+    if (this.legendActive) {
+      const cd = (this.legendActive.cd ?? 30) * (this.stats.cooldown ?? 1);
+      const left = Math.max(0, this.skillCd.get(this.legendActive.id) ?? 0);
+      rows.push({ key: 'legend', name: `★${this.legendActive.name}`, left, cd, ready: left <= 0 });
+    }
+    return rows;
   }
 
   /**
@@ -997,16 +1003,19 @@ export class RealtimeRun extends Run {
    */
   updateActiveSkills(dt) {
     const slots = this.save.player.skillSlots;
-    for (const key of ['activeA', 'activeB']) {
-      const slot = slots[key];
-      if (!slot || slot.kind !== 'active') continue;
-      const skill = findSkill(slot.skillId) ?? findHiddenSkill(slot.skillId);
+    const actives = ['activeA', 'activeB']
+      .map((key) => slots[key])
+      .filter((slot) => slot && slot.kind === 'active')
+      .map((slot) => ({ id: slot.skillId, skill: findSkill(slot.skillId) ?? findHiddenSkill(slot.skillId) }));
+    // 出征传说（主动型）不占槽位，与槽内主动技一起进自动施放循环
+    if (this.legendActive) actives.push({ id: this.legendActive.id, skill: this.legendActive });
+    for (const { id, skill } of actives) {
       if (!skill) continue;
       // 冷却缩减（装备词条 + 传承被动）统一走 stats.cooldown 乘区
       const cd = (skill.cd ?? 30) * (this.stats.cooldown ?? 1);
-      const left = (this.skillCd.get(slot.skillId) ?? 0) - dt;
-      if (left > 0) { this.skillCd.set(slot.skillId, left); continue; }
-      this.skillCd.set(slot.skillId, cd);
+      const left = (this.skillCd.get(id) ?? 0) - dt;
+      if (left > 0) { this.skillCd.set(id, left); continue; }
+      this.skillCd.set(id, cd);
       this.castSkill(skill);
     }
   }

@@ -488,6 +488,33 @@ test('传承·百机密钥：冷却缩减真的缩短主动技CD', () => {
   assert.ok(run.stats.cooldown < 1, '冷却乘区应小于 1');
 });
 
+// ===== 传说技能出征：收藏变 loadout =====
+
+test('出征传说：主动型进自动循环、被动型直接生效、未收藏则拒绝', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.inventory.comboSkills = ['xiake_6'];   // 万剑归宗（主动 CD60）
+
+  const loaded = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3, [], { legendLoadout: 'xiake_6' }), 11);
+  assert.ok(loaded.legendLoaded, '已收藏的传说应装载');
+  assert.ok(loaded.legendActive, '主动型应进自动施放循环');
+  assert.ok(loaded.activeSkillStatus.some((s) => s.key === 'legend'), 'HUD 状态应包含出征传说');
+
+  // 未收藏 → 拒绝
+  const cheat = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3, [], { legendLoadout: 'mofa_6' }), 11);
+  assert.equal(cheat.legendLoaded ?? null, null, '未收藏的传说不得装载');
+
+  // 未选择 → 不装载
+  const none = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  assert.equal(none.legendLoaded ?? null, null, '未选择时不应装载');
+
+  // 被动型传说：直接进属性
+  const passiveSave = freshSave({ totalRuns: 5 });
+  passiveSave.inventory.comboSkills = ['gongsheng_6'];   // 共生体：伤害 +50%
+  const plainRun = new RealtimeRun(passiveSave, generateDungeon(plane('aofa'), passiveSave, 3), 11);
+  const buffRun = new RealtimeRun(passiveSave, generateDungeon(plane('aofa'), passiveSave, 3, [], { legendLoadout: 'gongsheng_6' }), 11);
+  assert.ok(buffRun.stats.atk > plainRun.stats.atk, '被动型传说应直接提升属性');
+});
+
 // ===== 存档迁移 =====
 
 test('迁移：残缺旧档补齐全部默认字段而不丢玩家数据', () => {
