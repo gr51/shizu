@@ -96,6 +96,14 @@ export class Run {
     this.reviveLeft = this.nest.revive > 0 ? 1 : 0;   // 残命：每局一次
     this.freeRerollLeft = this.nest.freeReroll ?? 0;
 
+    // 裂缝变异：薄命降低生命上限，基因倍率提高产出（高风险高回报）
+    const mods = dungeon.mods ?? {};
+    if (mods.playerHpMul && mods.playerHpMul !== 1) {
+      this.stats.maxHp *= mods.playerHpMul;
+      this.hp = this.stats.maxHp;
+    }
+    this.geneMul = mods.geneMul ?? 1;
+
     this.stageIndex = 0;
     this.elapsed = 0;           // 全局已过秒数
     this.enemies = [];          // 同屏敌人（由子类维护）
@@ -250,7 +258,8 @@ export class Run {
   }
 
   addGenes(amount, allowUpgrade) {
-    this.genes += amount;
+    // 裂缝变异的基因倍率在入账口生效，升级节奏与结算入库自动同步
+    this.genes += Math.round(amount * (this.geneMul ?? 1));
     if (!allowUpgrade) return;
     // 一次只触发一级，避免「一次拿大量基因跳级丢选择」；多余阈值在 choose() 后再补触发
     if (

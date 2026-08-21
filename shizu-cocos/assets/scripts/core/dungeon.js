@@ -18,6 +18,7 @@
 import { buildEnemy, dungeonDifficulty, computePower, stageCoef, UNIT_BASE } from './balance.js';
 import { planeChannel, channelRoutes } from './planePool.js';
 import { rngFactory } from './rng.js';
+import { aggregateRiftMods } from '../data/riftMods.js';
 
 /** 阶段时长（秒），取自整体策划 3.2 的时间列；合计 900 秒 = 15 分钟 */
 export const STAGE_SECONDS = [120, 180, 180, 180, 240];
@@ -90,17 +91,20 @@ export function spawnStyleRateMul(spawnStyle) {
  * @param {object} save  存档
  * @param {number} seed  随机种子（每日挑战传 dailySeed()）
  */
-export function generateDungeon(plane, save, seed) {
+export function generateDungeon(plane, save, seed, riftMods = []) {
   const rng = rngFactory(seed);
   const p = save.player;
+
+  // 裂缝变异：本局生效的高风险高回报修正（不写永久存档）
+  const mods = aggregateRiftMods(riftMods);
 
   // 红线 2：此刻快照 D，整局不再变
   const power = computePower(p);
   const D = dungeonDifficulty(power, p.difficultyLevel);
   const dyn = p.dynFactor;
 
-  const hpMul = spawnStyleHpMul(plane.spawnStyle);
-  const rateMul = spawnStyleRateMul(plane.spawnStyle);
+  const hpMul = spawnStyleHpMul(plane.spawnStyle) * mods.minionHpMul;
+  const rateMul = spawnStyleRateMul(plane.spawnStyle) * mods.spawnMul;
   const stages = [];
 
   for (let stage = 1; stage <= 5; stage++) {
@@ -162,6 +166,8 @@ export function generateDungeon(plane, save, seed) {
     channelRoutes: channelRoutes(plane, save),
     totalSeconds: STAGE_SECONDS.reduce((a, b) => a + b, 0),
     stages,
+    riftMods: [...(riftMods ?? [])],
+    mods,
   };
 }
 

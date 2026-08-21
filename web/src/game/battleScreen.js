@@ -16,9 +16,9 @@ import { audio } from './audio.js';
 import { gearItemHtml } from '../ui/cards.js';
 import * as view from '../ui/view.js';
 
-export async function startBattle(ctx, plane) {
+export async function startBattle(ctx, plane, riftMods = []) {
   const seed = Math.floor(ctx.rng() * 0xffffffff) >>> 0;
-  const dungeon = generateDungeon(plane, ctx.save, seed);
+  const dungeon = generateDungeon(plane, ctx.save, seed, riftMods);
   const run = new RealtimeRun(ctx.save, dungeon, seed ^ 0x9e3779b9);
   ctx.run = run;
 

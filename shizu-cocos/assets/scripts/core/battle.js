@@ -409,7 +409,9 @@ export class RealtimeRun extends Run {
     // 难度随时间坡：每 4 分钟敌人血量/攻击 +1 倍（吸血鬼幸存者式难度曲线）
     const timeScale = 1 + this.time / this.timeScaleDenom;
     // 精英词缀：同一只精英换词缀就换打法（不改精英基准数值，只改行为与乘区）
-    const affix = tpl.kind === 'elite' ? rollEliteAffix(this.rng) : null;
+    const affix = tpl.kind === 'elite'
+      ? rollEliteAffix(this.rng, this.dungeon.mods?.affixChance ?? undefined)
+      : null;
     const affixHp = affix?.eff.hpMul ?? 1;
     const affixSpeed = affix?.eff.speedMul ?? 1;
 
@@ -427,7 +429,7 @@ export class RealtimeRun extends Run {
       x, y,
       r: isBig ? (tpl.kind === 'boss' ? 40 : 24) : 12,
       speed: (isBig ? (tpl.kind === 'boss' ? 135 : 150) : 95 + this.rng() * 25)
-        * (v?.speedMul ?? 1) * stageSpeed * affixSpeed,
+        * (v?.speedMul ?? 1) * stageSpeed * affixSpeed * (this.dungeon.mods?.enemySpeedMul ?? 1),
       spitCd: v?.ranged ? this.rng() * SPIT_CD : 0,
       hitFlash: 0,
       attackT: 0,

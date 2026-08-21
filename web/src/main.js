@@ -22,9 +22,9 @@ function boot() {
     save: repo.load(),
     run: null,
 
-    startRun(plane) {
+    startRun(plane, riftMods = []) {
       stopLobbyFx();
-      startBattle(ctx, plane);
+      startBattle(ctx, plane, riftMods);
     },
 
     toLobby() {

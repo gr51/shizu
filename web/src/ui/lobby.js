@@ -11,6 +11,7 @@ import { nestLine } from '../../../shizu-cocos/assets/scripts/data/lines.js';
 import { RELICS, relicById } from '../../../shizu-cocos/assets/scripts/data/relics.js';
 import { ACHIEVEMENTS, unlockedAchievements } from '../../../shizu-cocos/assets/scripts/data/achievements.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../../../shizu-cocos/assets/scripts/data/nestUpgrades.js';
+import { RIFT_MODS, aggregateRiftMods } from '../../../shizu-cocos/assets/scripts/data/riftMods.js';
 import { gearCard, gearItemHtml, geneCard, metaLine, playerCard, slotsCard } from './cards.js';
 import * as view from './view.js';
 
@@ -104,16 +105,24 @@ export function openNest(ctx) {
 
 // ===== 开裂缝 =====
 
-function openRift(ctx) {
+function openRift(ctx, picked = []) {
   const { save, rng } = ctx;
-  const plane = rollPlane(save, rng);
+  const plane = ctx._riftPlane ?? rollPlane(save, rng);
+  ctx._riftPlane = plane;
   const pre = previewPlane(plane, save);
   const power = computePower(save.player);
   const D = dungeonDifficulty(power, save.player.difficultyLevel) * save.player.dynFactor;
+  const mods = aggregateRiftMods(picked);
 
   const routeLine = pre.routes.length
     ? pre.routes.map((r) => `${ROUTES[r].name}${geneLockLevel(save, r) ? `（已激活 Lv${geneLockLevel(save, r)}）` : '（未激活）'}`).join(' / ')
     : '全路线融合';
+
+  const modRows = RIFT_MODS.map((m) => {
+    const on = picked.includes(m.id);
+    return `<div class="diff-row${on ? ' gold' : ''}">${on ? '✔ ' : '· '}<b>${m.name}</b>`
+      + `<div class="small">${m.desc}</div></div>`;
+  }).join('');
 
   view.showModal({
     title: `裂缝 · ${pre.name}`,
@@ -126,12 +135,23 @@ function openRift(ctx) {
       }</b></div>
       <div class="diff-row">可获奖励：${pre.rewards.join(' / ')}</div>
       <div class="diff-row">难度：${DIFFICULTY_LABEL[save.player.difficultyLevel]} · 副本难度值 D ≈ <b>${D.toFixed(1)}</b></div>
+      <h4 class="gold" style="margin-top:12px">裂缝变异 · 风险 ${mods.risk} · 基因 ×${mods.geneMul.toFixed(2)}</h4>
+      <p class="small">自选变异：敌人更强，但基因产出更高（倍率封顶 ×2.5）。</p>
+      ${modRows}
       ${pre.firstVisit ? '<p class="small gold">⚠ 首次进入 —— 通关后将永久激活该路线基因锁，并永久封印其互斥路线。此操作不可撤销。</p>' : ''}
     `,
     buttons: [
-      { text: '撕开裂缝，进入', style: 'primary', onClick: () => { view.closeModal(); ctx.startRun(plane); } },
-      { text: '换一道裂缝', onClick: () => { view.closeModal(); openRift(ctx); } },
-      { text: '再想想', onClick: () => view.closeModal() },
+      { text: '撕开裂缝，进入', style: 'primary', onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked); } },
+      ...RIFT_MODS.map((m) => ({
+        text: `${picked.includes(m.id) ? '取消' : '叠加'}「${m.name}」`,
+        onClick: () => {
+          view.closeModal();
+          const next = picked.includes(m.id) ? picked.filter((x) => x !== m.id) : [...picked, m.id];
+          openRift(ctx, next);
+        },
+      })),
+      { text: '换一道裂缝', onClick: () => { view.closeModal(); ctx._riftPlane = null; openRift(ctx); } },
+      { text: '再想想', onClick: () => { view.closeModal(); ctx._riftPlane = null; } },
     ],
   });
 }

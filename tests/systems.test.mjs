@@ -15,6 +15,7 @@ import { CHARGE_THRESHOLDS, skills, skillsByRoute } from '../shizu-cocos/assets/
 import { ALL_ROUTES } from '../shizu-cocos/assets/scripts/data/routes.js';
 import { ALL_HIDDEN_SKILLS } from '../shizu-cocos/assets/scripts/data/hiddenSkills.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../shizu-cocos/assets/scripts/data/nestUpgrades.js';
+import { RIFT_MODS } from '../shizu-cocos/assets/scripts/data/riftMods.js';
 import { autoPlay, freshSave, repo, rng } from './helpers.mjs';
 
 const plane = (id) => planes.find((p) => p.id === id);
@@ -385,6 +386,34 @@ test('局外货币：结算时本局基因入库', () => {
   const earned = run.genes;
   run.finalize(r);
   assert.equal(save.inventory.genes, 100 + earned, '本局基因应入库供虫巢消费');
+});
+
+// ===== 裂缝变异：高风险高回报 =====
+
+test('裂缝变异：刷怪/血量/移速修正生效，基因倍率封顶 2.5', () => {
+  const save = freshSave({ totalRuns: 5 });
+  const base = generateDungeon(plane('aofa'), save, 3);
+  const horde = generateDungeon(plane('aofa'), save, 3, ['mod_horde']);
+  assert.ok(horde.stages[0].spawnRate > base.stages[0].spawnRate, '虫潮应提高刷怪率');
+  assert.ok(horde.mods.geneMul > 1, '变异应提高基因倍率');
+
+  const iron = generateDungeon(plane('aofa'), save, 3, ['mod_ironhide']);
+  assert.ok(iron.stages[0].minion.hp > base.stages[0].minion.hp, '铁皮化应提高杂兵血量');
+  assert.equal(iron.stages[0].closer.hp, base.stages[0].closer.hp, '红线1：不得改精英/BOSS 基准');
+
+  const all = generateDungeon(plane('aofa'), save, 3, RIFT_MODS.map((m) => m.id));
+  assert.ok(all.mods.geneMul <= 2.5 + 1e-9, '基因倍率必须封顶 2.5');
+  assert.ok(all.mods.risk >= 5, '风险应累加');
+
+  // 薄命：玩家生命上限下降
+  const glassRun = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3, ['mod_glass']), 11);
+  const plainRun = new RealtimeRun(save, base, 11);
+  assert.ok(glassRun.stats.maxHp < plainRun.stats.maxHp, '薄命应降低生命上限');
+
+  // 基因倍率作用于入账口
+  const before = glassRun.genes;
+  glassRun.addGenes(100, false);
+  assert.ok(glassRun.genes - before > 100, '基因倍率应在入账时生效');
 });
 
 // ===== 存档迁移 =====
