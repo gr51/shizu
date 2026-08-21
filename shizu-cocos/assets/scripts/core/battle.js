@@ -1057,6 +1057,20 @@ export class RealtimeRun extends Run {
         sprite: this.weapon.projectile,
       });
     }
+    // 侠客_5「剑气」（backlog #1 还债）：每次攻击追加一道攻×rangedMul 的剑气伤害，
+    // 配视觉弹体（effects/sword_qi）。此前 rangedMul 是聚合了却没有消费者的死字段。
+    if ((this.stats.rangedMul ?? 0) > 0 && best.hp > 0 && this.state === RunState.FIGHTING) {
+      const qi = dmg * this.stats.rangedMul;
+      best.hp -= qi;
+      best.hitFlash = Math.max(best.hitFlash, 0.1);
+      healed += qi;
+      this.playerShots.push({
+        x: p.x + Math.cos(baseAng) * 14, y: p.y + Math.sin(baseAng) * 14,
+        vx: Math.cos(baseAng) * 420, vy: Math.sin(baseAng) * 420,
+        life: 0.3, sprite: 'sword_qi',
+      });
+      if (best.hp <= 0) this.killEnemy(best);
+    }
     this.emitFx(isCrit ? 'crit' : 'sword_hit', best.x, best.y);
     if (this.stats.lifesteal > 0) this.heal(healed * this.stats.lifesteal, '吸血', true);
   }

@@ -133,6 +133,21 @@ test('奇法傀儡（魔法+奇巧）：机关随从继承元素附加（攻击�
   assert.ok(r.elementalSlows.has(foe.id), '随从攻击应给目标挂冰霜减速');
 });
 
+test('rangedMul（侠客_5 剑气）：攻击追加一道 0.8× 剑气伤害', () => {
+  const strike = (geneLocks) => {
+    const r = buildRun(geneLocks);
+    r.stats.crit = 0;
+    r.player.attackCd = 0;
+    const dummy = mkDummy(r, 40, 5000);
+    r.updateAttack(1 / 60);
+    return { delta: 5000 - dummy.hp, shots: r.playerShots.length };
+  };
+  const plain = strike({});
+  const withQi = strike({ xiake: 5 });
+  assert.ok(withQi.delta > plain.delta * 1.3, `剑气应追加伤害（${withQi.delta} vs ${plain.delta}）`);
+  assert.ok(withQi.shots > plain.shots, '剑气应有额外视觉弹体');
+});
+
 test('COMBO_SKILLS 复活：双激活路线组合技生效', () => {
   const r = buildRun({ dujie: 3, gongde: 3 });
   assert.ok(r.hasCombo('dujie_jinshen'), '渡劫+功德 → 渡劫金身');
