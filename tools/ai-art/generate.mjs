@@ -36,7 +36,7 @@ export const PLANES = [
     minionB: 'small clockwork steam turret, brass barrel, steam puff vents, red sensor eye, tripod gear legs',
     elite: 'clockwork gear guard, brass armor plates, large shoulder gear, red glowing eye, gear halberd weapon',
     boss: 'giant brass puppet colossus golem, huge humanoid of gears and plates, glowing amber core in chest, red menacing eyes, steam vents on shoulders, massive imposing',
-    floor: 'seamless brass metal plate floor with gear patterns, rivets, top-down view, muted warm tones',
+    floor: 'worn dark iron and brass floor plating of a clockwork factory, dense small rivets, hairline scratches and oil stains, many tiny gear teeth etched into the metal, uniform allover industrial texture with no repeating focal shape, muted warm brown-gray',
     bg: 'giant clockwork fortress interior, huge gears and steam pipes, dark brass and teal tones, atmospheric, no characters',
   },
   {
@@ -274,9 +274,12 @@ export async function genPlane(plane, { withPlayer = false } = {}) {
     ['atk2', 'attack follow-through, recoil, steam puff'],
     ['death', 'destroyed, broken parts scattering, defeated'],
   ]) {
+    // 空 suffix = 待机图（minion_spitter_jiguan.png），有 suffix 才接 `_`；
+    // 少了这个三元会生成 minion_spitter_jiguanwalk0.png 这种渲染层永远加载不到的名字。
+    const file = `units/minion_spitter_${id}${suffix ? `_${suffix}` : ''}.png`;
     await genAndWrite(`${PX}, ${plane.minionB}, ${desc}, enemy minion, ${plane.accent} colors`,
-      `units/minion_spitter_${id}${suffix}.png`, { targetH: T.minion, maxColors: 10 });
-    done(`units/minion_spitter_${id}${suffix}.png`);
+      file, { targetH: T.minion, maxColors: 10 });
+    done(file);
   }
 
   // —— 精英 ——
@@ -388,4 +391,8 @@ async function main() {
   console.log(`资产数: ${allImgs.length}`);
 }
 
-main().catch((e) => { console.error('FATAL:', e); process.exit(1); });
+// 只有被直接执行时才跑全量生成。别的脚本 import PLANES 时不该顺带
+// 把整个位面的资产重新出一遍（会覆盖已调好的美术，且烧掉大量 API 调用）。
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((e) => { console.error('FATAL:', e); process.exit(1); });
+}

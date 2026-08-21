@@ -109,13 +109,23 @@ export class Renderer {
       } else { ctx.fillStyle = '#0d1013'; ctx.fillRect(camX, camY, ARENA.w, ARENA.h); }
     }
 
-    // —— 地面压暗罩：压低背景对比，让角色更突出 ——
-    ctx.fillStyle = 'rgba(8, 11, 16, 0.30)';
+    // —— 地面压暗罩 ——
+    // 用径向渐晕代替均匀压暗：中心（玩家所在）留亮，四周压深。
+    // 均匀压暗压不住无缝地砖的重复感，整片地面读起来像壁纸；
+    // 渐晕既打散了规律网格，又把视线收回玩家身上。
+    const cx = camX + ARENA.w / 2;
+    const cy = camY + ARENA.h / 2;
+    const vig = ctx.createRadialGradient(cx, cy, ARENA.h * 0.16, cx, cy, ARENA.w * 0.62);
+    vig.addColorStop(0, 'rgba(8, 11, 16, 0.10)');
+    vig.addColorStop(0.55, 'rgba(8, 11, 16, 0.34)');
+    vig.addColorStop(1, 'rgba(5, 7, 10, 0.72)');
+    ctx.fillStyle = vig;
     ctx.fillRect(camX, camY, ARENA.w, ARENA.h);
 
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {
       this.blitClip('gene_orb_pulse', o.x, o.y + Math.sin(o.bob) * 2, o.bob * 4, 0.5)
+        || this.blitSprite('items/gene_orb.png', o.x, o.y + Math.sin(o.bob) * 2, 11)
         || this.dot(o.x, o.y, 5, '#5fb8a6');
     }
 
@@ -278,7 +288,12 @@ export class Renderer {
       const pool = pools[variant] ?? pools.walker;
       return pool[Math.abs(id ?? 0) % pool.length];
     }
-    return `minion_${variant ?? 'walker'}_${this.planeId}`;
+    // MINION_VARIANTS 有 5 种，但 generate.mjs 只产 walker/charger/spitter 三套贴图。
+    // tank / bomber（合计约 14% 刷新权重）复用体型最接近的那套 ——
+    // 它们本来就靠脚下光环区分（RING: bomber 红 / tank 灰蓝），不映射就会画成色块。
+    const ART_VARIANT = { tank: 'walker', bomber: 'charger' };
+    const v = ART_VARIANT[variant] ?? variant ?? 'walker';
+    return `minion_${v}_${this.planeId}`;
   }
 
   /** 死亡帧淡出（尸体按宽度缩放，避免躺倒姿势被拉成横向巨物） */
@@ -446,10 +461,16 @@ export class Renderer {
     return true;
   }
 
+  /** 贴图缺失时的兜底。画圆不画方 —— 方块在像素场景里像「没加载出来的占位图」，
+      圆点至少读得出是个单位。 */
   dot(x, y, r, color) {
     const ctx = this.ctx;
+    ctx.save();
     ctx.fillStyle = color;
-    ctx.fillRect(Math.round(x - r), Math.round(y - r), Math.round(r * 2), Math.round(r * 2));
+    ctx.beginPath();
+    ctx.arc(Math.round(x), Math.round(y), Math.max(2, Math.round(r)), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   bar(x, y, w, h, ratio, color) {

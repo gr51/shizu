@@ -7,6 +7,11 @@ const ART = '../shizu-cocos/assets/art';
 
 import { MINION_SPRITE_BY_STAGE, BOSS_BY_PLANE } from '../../../shizu-cocos/assets/scripts/core/battle.js';
 
+/** 画了专属刀光贴图的敌人（目前只有武侠那批）。其余敌人回退到 effects/slash.png。 */
+const SLASH_FX_UNITS = new Set([
+  'maozei', 'shanzei', 'biaoshi', 'jiutu', 'quanshi', 'gunseng', 'jiansheng',
+]);
+
 function loadImage(src) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -51,19 +56,38 @@ export class Assets {
       want(`effects/${p}.png`);
     }
     // 敌人：本位面的小怪（按阶段表）+ Boss（数据驱动）
+    // 阶段表里的怪是全套四向走路帧
+    const FULL_FRAMES = ['walk0', 'walk1', 'walk2', 'walk3', 'atk0', 'atk1', 'atk2', 'death'];
     const stagePairs = MINION_SPRITE_BY_STAGE[planeId] ?? [];
     const units = new Set();
     for (const pair of stagePairs) for (const m of pair) units.add(m);
     const bossName = BOSS_BY_PLANE[planeId];
     if (bossName) units.add(bossName);
     for (const m of units) {
-      for (const n of ['walk0', 'walk1', 'walk2', 'walk3', 'atk0', 'atk1', 'atk2', 'death']) {
-        want(`units/${m}_${n}.png`);
+      for (const n of FULL_FRAMES) want(`units/${m}_${n}.png`);
+      // 专属刀光是可选资产，只有武侠那批有；其余一律走 effects/slash.png 通用回退，
+      // 无脑请求会让每个非武侠位面每局白跑十几个 404。
+      if (SLASH_FX_UNITS.has(m)) want(`effects/${m}_slash.png`);
+    }
+    // 通用命名兜底：renderer.spriteBase() 在没有专属 sprite 时会回落到
+    // minion_{variant}_{plane}，也正是 tools/ai-art/generate.mjs 产出的名字。
+    // 不预载它们的话，缺席阶段表的位面（如首个教学位面 jiguan）会一张贴图都没有，
+    // 满屏敌人全部退化成 dot() 色块。这一族只有单帧走路 + 待机图。
+    //
+    // 只在「阶段表里没有这个位面」时才要：drawEnemy 用的是 `e.sprite || spriteBase(...)`，
+    // 有阶段表的位面 e.sprite 一定有值，兜底族根本用不到，请求了就是白跑 404。
+    if (!stagePairs.length) {
+      for (const v of ['walker', 'charger', 'spitter']) {
+        const m = `minion_${v}_${planeId}`;
+        want(`units/${m}.png`);
+        for (const n of ['walk0', 'atk0', 'atk1', 'atk2', 'death']) want(`units/${m}_${n}.png`);
       }
-      want(`effects/${m}_slash.png`);
     }
     want(`units/elite_${planeId}.png`);
-    want(`units/boss_${planeId}.png`);
+    // Boss 在 spawnEnemy 里就拿到了 e.sprite = BOSS_BY_PLANE[plane]（如 dujie_boss），
+    // 走的是上面那圈帧图。只有没进 BOSS_BY_PLANE 的位面（目前是 jiguan）
+    // 才真的回落到 boss_{plane}.png —— 无条件请求会让另外 11 个位面每局白跑一个 404。
+    if (!bossName) want(`units/boss_${planeId}.png`);
     want('items/gene_orb.png');
     want(`backgrounds/floor_${planeId}.png`);   // 无缝地砖
 
