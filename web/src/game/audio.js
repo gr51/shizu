@@ -90,20 +90,32 @@ export class Audio {
       case 'won':          [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.4, 'triangle', 0.12, null, i * 0.1)); break;
       case 'lost':         this.tone(440, 0.5, 'sine', 0.16, 110); break;
       case 'click':        this.tone(1000, 0.03, 'square', 0.05); break;
+      // 命中确认：玩家每次普攻都要有声（打击感的最低要求），故做得短而轻，不盖住其他音
+      case 'sword_hit':    this.noise(0.045, 0.075, 3200, 'highpass'); this.tone(520, 0.05, 'triangle', 0.05, 380); break;
+      case 'lightning':    this.noise(0.12, 0.14, 2200, 'highpass'); this.tone(140, 0.16, 'sawtooth', 0.12, 70); break;
+      case 'laser':        this.tone(1200, 0.16, 'sawtooth', 0.09, 600); break;
+      case 'stomp':        this.tone(90, 0.24, 'sine', 0.2, 45); this.noise(0.18, 0.12, 320, 'lowpass'); break;
       default: break;
     }
   }
 
-  /** 消费一批战斗特效，映射成音效 */
+  /**
+   * 消费一批战斗特效，映射成音效。
+   * 同类特效一帧内可能爆出几十个（割草溅射/尸爆连锁），全播会互相叠成噪音墙并压掉重要提示，
+   * 所以按类型在同一帧内去重，只播一次。
+   */
   onEffects(fxList) {
+    const played = new Set();
+    const once = (name) => { if (played.has(name)) return; played.add(name); this.sfx(name); };
     for (const fx of fxList) {
       switch (fx.type) {
         case 'slash': case 'burst': case 'gene': case 'spit':
         case 'dodge': case 'devour': case 'skill': case 'crit':
-          this.sfx(fx.type); break;
-        case 'hit': this.sfx('hit'); break;
-        case 'surge': case 'elite': this.sfx('elite'); break;
-        case 'boss': this.sfx('boss'); break;
+        case 'sword_hit': case 'lightning': case 'laser': case 'stomp':
+          once(fx.type); break;
+        case 'hit': once('hit'); break;
+        case 'surge': case 'elite': once('elite'); break;
+        case 'boss': once('boss'); break;
         default: break;
       }
     }
