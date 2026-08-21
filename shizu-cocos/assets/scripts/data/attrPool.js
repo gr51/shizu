@@ -44,6 +44,11 @@ export const GENERIC_ATTR_POOL = [
   { id: 'attr_thorn',     kind: 'attr', rarity: 'feature', weight: 10, minLevel: 8, name: '倒刺外壳', desc: '受击反震周身敌人',    eff: { thorn: 0.5 } },
   { id: 'attr_suck',      kind: 'attr', rarity: 'base',    weight: 10, minLevel: 5, name: '饥饿触须', desc: '基因吸取半径 +40%',   eff: { suckRadius: 0.40 } },
   { id: 'attr_execute',   kind: 'attr', rarity: 'feature', weight: 12, minLevel: 8, name: '斩杀本能', desc: '对残血敌人伤害 +30%', eff: { execute: 0.30 } },
+  // —— backlog #9：属性通道的真「动词」（此前只有 thorn/execute 勉强算行为）——
+  // 红线 3 边界自查：两者都是通用效果，不是任何路线技能的复制品
+  //（尸爆是丧尸路线机制、范围大伤害高；蚀爆体是小范围攻×0.6 清场润滑）。
+  { id: 'attr_killburst', kind: 'attr', rarity: 'feature', weight: 10, minLevel: 5, name: '蚀爆体', desc: '击杀时小范围爆炸（攻×0.6）', eff: { killBurst: 0.6 } },
+  { id: 'attr_chill',     kind: 'attr', rarity: 'feature', weight: 10, minLevel: 3, name: '寒噬之息', desc: '攻击命中附带冰霜减速', eff: { chill: 1 } },
 ];
 
 // ===== 装备（平衡表 7.5）=====

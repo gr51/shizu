@@ -104,6 +104,30 @@ test('击破守卫 → 排队开箱 → 高稀有度三选一打开', () => {
   r.choose(0);
 });
 
+test('蚀爆体（属性动词）：击杀时小范围爆炸波及邻体', () => {
+  const r = buildRun({});
+  r.stats.crit = 0;
+  r.stats.killBurst = 0.6;   // 模拟已选取该属性
+  r.player.attackCd = 0;
+  mkDummy(r, 20, 8);         // 主目标（低血：一击必杀触发爆炸）
+  const near = mkDummy(r, 50, 5000);    // 爆炸半径内（距爆心 30 < 40）
+  const far = mkDummy(r, 300, 5000);    // 半径外
+  r.updateAttack(1 / 60);
+  assert.ok(near.hp < 5000, `邻体应被爆波及（扣 ${5000 - near.hp}）`);
+  assert.equal(far.hp, 5000, '半径外不受影响');
+});
+
+test('寒噬之息（属性动词）：攻击命中挂冰霜减速', () => {
+  const r = buildRun({});
+  r.stats.crit = 0;
+  r.stats.chill = 1;
+  r.player.attackCd = 0;
+  const dummy = mkDummy(r, 40);
+  r.updateAttack(1 / 60);
+  assert.ok(r.elementalSlows.has(dummy.id), '命中应附带减速');
+  assert.equal(r.elementalSlows.get(dummy.id), 0.6, 'chill=1 → 减速 0.6s（时长克制，实测守怪潮压力）');
+});
+
 test('rarityBias 生效：宝箱权重显著抬高稀有档', () => {
   // 技能通道 + 锁 4 段：池内出现 rare(lv5)/legend(lv6)（属性通道全是 base/feature）
   const save = freshSave({ totalRuns: 5, geneLocks: { dujie: 4 } });

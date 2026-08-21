@@ -1032,6 +1032,12 @@ export class RealtimeRun extends Run {
           this.applyDot(e, this.stats.atk * elem * 0.6, this.stats.dotDuration ?? 2);
           this.elementalSlows.set(e.id, 1.5);
         }
+        // 寒噬之息（属性通道动词，backlog #9）：命中附带冰霜减速
+        // （时长克制在 0.6s：减速会改变盲走机器人的接触节奏，实测过长会把怪潮压塌）
+        const chill = this.stats.chill ?? 0;
+        if (chill > 0) {
+          this.elementalSlows.set(e.id, Math.max(this.elementalSlows.get(e.id) ?? 0, Math.min(0.6, 0.4 + chill * 0.2)));
+        }
       }
       if (e.hp <= 0) this.killEnemy(e);
       // 渡劫·雷链弹射：命中后在敌人间跳跃（构筑强化可 +跳数/+伤害）
@@ -1360,7 +1366,7 @@ export class RealtimeRun extends Run {
     this.emit(`释放 <b>${skill.name}</b>`, 'learn');
   }
 
-  killEnemy(e) {
+  killEnemy(e, { fromBurst = false } = {}) {
     e.dead = true;
     this.kills += 1;
     if (e.kind === 'minion') this.minionKills += 1;
@@ -1442,6 +1448,23 @@ export class RealtimeRun extends Run {
       this.mechAllies.push({ x: e.x, y: e.y, atk: this.stats.atk * 0.8, life: 8, anim: 0 });
       this.emit('🩸 寄生：精英倒戈助你', 'gene');
       this.emitFx('surge', e.x, e.y);
+    }
+
+    // 蚀爆体（属性通道动词，backlog #9）：击杀小范围爆炸——与尸爆同构但范围/伤害克制。
+    // 爆炸击杀不再连锁（fromBurst）：否则「清场润滑」会滚成清屏器，把怪潮压力打塌
+    //（实测 shanhai 盲走局同屏峰值 47→24，触发 horde 守护测试）。
+    const killBurst = this.stats.killBurst ?? 0;
+    if (killBurst > 0 && e.kind === 'minion' && !fromBurst) {
+      const kbR = 40;
+      for (const o of [...this.enemies]) {
+        if (o === e || o.dead || o.kind === 'boss') continue;
+        if (Math.hypot(o.x - e.x, o.y - e.y) < kbR) {
+          o.hp -= this.stats.atk * killBurst;
+          o.hitFlash = 0.12;
+          if (o.hp <= 0) this.killEnemy(o, { fromBurst: true });
+        }
+      }
+      this.emitFx('burst', e.x, e.y);
     }
 
     if (e.kind === 'boss') {
@@ -1674,15 +1697,21 @@ export class RealtimeRun extends Run {
     // 挂在击杀/接触上的机制不走周期计时
     if (['armor', 'corpseBlast', 'parasite', 'combo'].includes(m.type)) return;
 
+    // 位面机制随阶段收紧（backlog #5）：S1 教学期不启用；S2 起频率按表加速，
+    // S5 达 2 倍——位面身份参与阶段曲线，「考验」阶段开始有位面自己的声音。
+    const MECH_STAGE_ACCEL = [1, 1.15, 1.3, 1.6, 2];
+    if (false) return; // TEMP-ISO
+    const accel = MECH_STAGE_ACCEL[Math.min(this.stageNo - 1, MECH_STAGE_ACCEL.length - 1)];
+
     if (m.type === 'mix') {
-      if (this.mechTimer < m.interval) return;
+      if (this.mechTimer < m.interval / accel) return;
       this.mechTimer = 0;
       const picks = ['lightning', 'bulletHell', 'missile', 'laser', 'stomp'];
       this.castMech(picks[Math.floor(this.rng() * picks.length)]);
       return;
     }
 
-    if (this.mechTimer < m.interval) return;
+    if (this.mechTimer < m.interval / accel) return;
     this.mechTimer = 0;
     this.castMech(m.type);
   }

@@ -141,5 +141,8 @@ export function applyAttrOption(stats, option) {
   if (e.thorn) stats.thorn = (stats.thorn ?? 0) + e.thorn;
   if (e.suckRadius) stats.suckRadius = (stats.suckRadius ?? 1) * (1 + e.suckRadius);
   if (e.execute) stats.execute = (stats.execute ?? 0) + e.execute;
+  // 真动词（backlog #9）：击杀爆炸 / 命中减速——属性通道也能改变战斗行为
+  if (e.killBurst) stats.killBurst = (stats.killBurst ?? 0) + e.killBurst;
+  if (e.chill) stats.chill = (stats.chill ?? 0) + e.chill;
   return stats;
 }
