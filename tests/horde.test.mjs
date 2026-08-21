@@ -211,6 +211,47 @@ test('伏击精英：不触发阶段推进；跨阶段未击杀则消失', () =>
   assert.ok(!run.enemies.some((e) => e.ambush), '伏击精英应在跨阶段时消失');
 });
 
+test('精英词缀：铁壁减伤 / 汲血自愈 / 爆裂死亡弹幕 / 守望加速杂兵', () => {
+  const save = freshSave({ totalRuns: 5 });
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  const mkElite = (affix) => ({ id: 50, kind: 'elite', name: 'E', hp: 1000, maxHp: 1000, atk: 10,
+    x: run.player.x + 40, y: run.player.y, r: 24, speed: 100, hitFlash: 0, anim: 0, phase: 1, affix });
+
+  // 铁壁：受到的伤害按 dmgTaken 打折
+  const plain = mkElite(null);
+  const tanky = mkElite({ id: 'shielded', name: '铁壁', color: '#7fa8c9', eff: { dmgTaken: 0.6 } });
+  run.enemies = [plain];
+  run.player.attackCd = 0; run.updateAttack(1 / 60);
+  const plainLoss = 1000 - plain.hp;
+  run.enemies = [tanky];
+  run.player.attackCd = 0; run.updateAttack(1 / 60);
+  const tankyLoss = 1000 - tanky.hp;
+  assert.ok(plainLoss > 0 && tankyLoss > 0, '两只都应吃到伤害');
+  assert.ok(tankyLoss < plainLoss, '铁壁词缀必须实际减伤');
+
+  // 爆裂：死亡时炸出弹幕
+  const volatileE = mkElite({ id: 'volatile', name: '爆裂', color: '#e0653c', eff: { deathBurst: 10 } });
+  run.enemies = [volatileE]; run.shots = [];
+  run.killEnemy(volatileE);
+  assert.ok(run.shots.length >= 10, '爆裂精英死亡应生成弹幕');
+
+  // 汲血：命中玩家后自我治疗
+  const leechE = mkElite({ id: 'leech', name: '汲血', color: '#c9556a', eff: { leech: 0.06 } });
+  leechE.hp = 500; leechE.attackT = 0.0001;
+  leechE.x = run.player.x; leechE.y = run.player.y;
+  run.enemies = [leechE]; run.player.invuln = 0;
+  run.updateEnemies(1 / 60);
+  assert.ok(leechE.hp > 500, '汲血精英命中玩家后应回血');
+
+  // 守望：光环内杂兵提速
+  const warden = mkElite({ id: 'warden', name: '守望', color: '#d8a3d8', eff: { auraSpeed: 1.25, auraRadius: 220 } });
+  const minion = { id: 60, kind: 'minion', name: 'm', hp: 10, maxHp: 10, atk: 1,
+    x: warden.x + 20, y: warden.y, r: 12, speed: 100, hitFlash: 0, anim: 0 };
+  run.enemies = [warden, minion]; run.player.invuln = 99;
+  run.updateEnemies(1 / 60);
+  assert.ok(minion.speed > 100, '守望光环应给杂兵加速');
+});
+
 test('实时战斗：一局是连续时间流，不是离散回合', () => {
   const save = freshSave({ totalRuns: 5 });
   const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);

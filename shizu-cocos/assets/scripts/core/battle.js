@@ -19,6 +19,7 @@ import { rollKillDrop } from './drop.js';
 import { findSkill } from '../data/skills.js';
 import { findHiddenSkill } from '../data/hiddenSkills.js';
 import { currentWeapon, currentSkin, currentRouteMech } from '../data/weaponAttack.js';
+import { rollEliteAffix } from '../data/eliteAffixes.js';
 
 /** 相机视野尺寸（逻辑坐标）：不是边界，而是「屏幕上能看见多大」。世界无限，玩家自由移动。 */
 export const ARENA = { w: 960, h: 560 };
@@ -407,6 +408,10 @@ export class RealtimeRun extends Run {
     const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
     // 难度随时间坡：每 4 分钟敌人血量/攻击 +1 倍（吸血鬼幸存者式难度曲线）
     const timeScale = 1 + this.time / this.timeScaleDenom;
+    // 精英词缀：同一只精英换词缀就换打法（不改精英基准数值，只改行为与乘区）
+    const affix = tpl.kind === 'elite' ? rollEliteAffix(this.rng) : null;
+    const affixHp = affix?.eff.hpMul ?? 1;
+    const affixSpeed = affix?.eff.speedMul ?? 1;
 
     this.enemies.push({
       id: this.nextId++,
@@ -414,14 +419,15 @@ export class RealtimeRun extends Run {
       variant,
       sprite,
       ambush: tpl.ambush ?? false,
-      name: tpl.name,
-      hp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1) * timeScale)),
-      maxHp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1) * timeScale)),
+      affix,
+      name: affix ? `${affix.name}·${tpl.name}` : tpl.name,
+      hp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1) * timeScale * affixHp)),
+      maxHp: Math.max(1, Math.round(tpl.hp * (v?.hpMul ?? 1) * timeScale * affixHp)),
       atk: Math.round(tpl.atk * timeScale),
       x, y,
       r: isBig ? (tpl.kind === 'boss' ? 40 : 24) : 12,
       speed: (isBig ? (tpl.kind === 'boss' ? 135 : 150) : 95 + this.rng() * 25)
-        * (v?.speedMul ?? 1) * stageSpeed,
+        * (v?.speedMul ?? 1) * stageSpeed * affixSpeed,
       spitCd: v?.ranged ? this.rng() * SPIT_CD : 0,
       hitFlash: 0,
       attackT: 0,
@@ -541,7 +547,8 @@ export class RealtimeRun extends Run {
         } else {
           e.bossSkillCd -= dt;
           if (e.bossSkillCd <= 0) {
-            e.bossSkillCd = (e.kind === 'boss' ? 4.0 : 6.0) / rage;
+            // 迅捷词缀：出手更频繁
+            e.bossSkillCd = (e.kind === 'boss' ? 4.0 : 6.0) / rage * (e.affix?.eff.skillCdMul ?? 1);
             e.telegraphT = 0.6;               // 抬手 0.6s，期间可躲
             this.emitFx('boss', e.x, e.y);
             this.emit(e.kind === 'boss' ? '⚠ 位面之主蓄势待发！' : '⚠ 精英即将出手！', 'death');
@@ -558,6 +565,11 @@ export class RealtimeRun extends Run {
         p.invuln = INVULN_ON_HIT;
         p.hitFlash = 0.18;
         this.emitFx('hit', p.x, p.y);
+        // 汲血词缀：命中玩家即自我治疗（逼玩家优先处理它，而不是拖着打）
+        const leech = e.affix?.eff.leech ?? 0;
+        if (leech > 0) {
+          e.hp = Math.min(e.maxHp, e.hp + e.maxHp * leech);
+        }
         if (this.hp <= 0) {
           this.hp = 0;
           this.state = RunState.LOST;
@@ -571,6 +583,19 @@ export class RealtimeRun extends Run {
       }
     }
     if (this.enemies.some((e) => e.dead)) this.enemies = this.enemies.filter((e) => !e.dead);
+    // 守望词缀：光环内杂兵加速（一只精英能改变整片战场的压迫感）
+    const wardens = this.enemies.filter((e) => e.affix?.eff.auraSpeed && !e.dead);
+    if (wardens.length) {
+      for (const m of this.enemies) {
+        if (m.kind !== 'minion' || m.dead) continue;
+        const buffed = wardens.some((w) => Math.hypot(m.x - w.x, m.y - w.y) <= (w.affix.eff.auraRadius ?? 200));
+        const want = buffed ? (wardens[0].affix.eff.auraSpeed ?? 1.25) : 1;
+        if (m.auraMul !== want) {
+          m.speed = (m.speed / (m.auraMul ?? 1)) * want;
+          m.auraMul = want;
+        }
+      }
+    }
     // 简单互斥：同类之间轻推开，避免全部叠在一个点上
     separate(this.enemies);
   }
@@ -729,7 +754,9 @@ export class RealtimeRun extends Run {
     const execBonus = this.stats.execute ?? 0;
     const hitFn = (e) => {
       // 斩杀本能：残血（<30%）目标吃额外伤害，奖励「补刀收割」的打法
-      const eDmg = execBonus > 0 && e.hp / Math.max(1, e.maxHp) < 0.3 ? dmg * (1 + execBonus) : dmg;
+      let eDmg = execBonus > 0 && e.hp / Math.max(1, e.maxHp) < 0.3 ? dmg * (1 + execBonus) : dmg;
+      // 铁壁词缀：减伤（换来更慢的移动，用走位可以拉扯）
+      eDmg *= e.affix?.eff.dmgTaken ?? 1;
       e.hp -= eDmg;
       e.hitFlash = 0.12;
       healed += eDmg;
@@ -1026,6 +1053,19 @@ export class RealtimeRun extends Run {
       if (Math.hypot(p.x - e.x, p.y - e.y) < 55 && p.invuln <= 0) {
         this.hurtPlayer(Math.max(1, e.atk * 1.5), 0.4);
       }
+      this.emitFx('burst', e.x, e.y);
+    }
+    // 爆裂词缀：精英死亡炸开一圈弹幕（击杀瞬间不能松懈）
+    const deathBurst = e.affix?.eff.deathBurst ?? 0;
+    if (deathBurst > 0) {
+      for (let i = 0; i < deathBurst; i++) {
+        const a = (i / deathBurst) * Math.PI * 2;
+        this.shots.push({
+          x: e.x, y: e.y, vx: Math.cos(a) * 190, vy: Math.sin(a) * 190,
+          atk: e.atk * 1.2, life: 2.4, sprite: 'projectile',
+        });
+      }
+      this.emit('💥 爆裂精英炸开一圈弹幕！', 'death');
       this.emitFx('burst', e.x, e.y);
     }
     // 急袭挑战：最后一只标记怪死亡时结算基因雨奖励（标记先清，避免尸爆递归重复发奖）

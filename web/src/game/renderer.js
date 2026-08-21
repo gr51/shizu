@@ -207,10 +207,11 @@ export class Renderer {
     const base = e.sprite || this.spriteBase(kind, e.variant, e.id);
     // 特殊敌人可读性：脚下光环区分（自爆红 / 坦克灰蓝 / 伏击金 / 精英橙 / Boss 紫）
     const RING = { bomber: '#e0653c', tank: '#7fa8c9' };
-    const ringColor = e.ambush ? '#d8bd6a'
+    const ringColor = e.affix?.color
+      ?? (e.ambush ? '#d8bd6a'
       : kind === 'boss' ? '#a678d4'
       : kind === 'elite' ? '#e08a4c'
-      : RING[e.variant] ?? null;
+      : RING[e.variant] ?? null);
     if (ringColor) {
       const ctx = this.ctx;
       ctx.save();
@@ -243,17 +244,20 @@ export class Renderer {
     }
     if (!ok) this.dot(e.x, e.y, e.r, e.kind === 'boss' ? '#a678d4' : '#c9556a');
 
-    // 精英 / BOSS 血条；伏击精英额外标注，提示高价值目标
+    // 精英 / BOSS 血条；伏击与词缀额外标注，提示「这只不一样」
     if (e.kind !== 'minion') {
       const w = e.kind === 'boss' ? 64 : 40;
       this.bar(e.x - w / 2, e.y - e.r - 10, w, 4, e.hp / e.maxHp, e.ambush ? '#d8bd6a' : '#c9556a');
-      if (e.ambush) {
+      const tags = [];
+      if (e.ambush) tags.push('伏击');
+      if (e.affix) tags.push(e.affix.name);
+      if (tags.length) {
         const ctx = this.ctx;
         ctx.save();
-        ctx.fillStyle = '#d8bd6a';
+        ctx.fillStyle = e.affix?.color ?? '#d8bd6a';
         ctx.font = 'bold 11px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('伏击', e.x, e.y - e.r - 16);
+        ctx.fillText(tags.join('·'), e.x, e.y - e.r - 16);
         ctx.restore();
       }
     }
