@@ -1,7 +1,7 @@
 // ===== game/renderer.js · Canvas 像素渲染 =====
 // 规则：整数倍缩放 + 关闭平滑 + 坐标取整。任何一条破了，像素风立刻变糊。
 
-import { ARENA, DASH_WINDUP, FUSE_TIME } from '../../../shizu-cocos/assets/scripts/core/battle.js';
+import { ARENA, DASH_WINDUP, FUSE_TIME, SLAM_WINDUP, SLAM_RADIUS } from '../../../shizu-cocos/assets/scripts/core/battle.js';
 
 // 特效类型 → effects/ 目录下的静态图文件名
 const FX_SPRITE = {
@@ -50,6 +50,10 @@ export class Renderer {
       if (e.type === 'burst') {
         this.fx.push({ sprite: `burst_${this.planeId}`, x: e.x, y: e.y, t: 0 });
         this.shake = Math.max(this.shake, 1.5);
+      } else if (e.type === 'slam') {
+        // tank 践踏落地：同位面爆裂贴图，但震动更重 —— 重击要有重量感
+        this.fx.push({ sprite: `burst_${this.planeId}`, x: e.x, y: e.y, t: 0 });
+        this.shake = Math.max(this.shake, 4);
       } else if (e.type === 'surge') {
         this.shake = Math.max(this.shake, 5);
       } else {
@@ -256,6 +260,20 @@ export class Renderer {
         ctx.lineTo(e.x + Math.cos(a) * (26 + t * 26), e.y + Math.sin(a) * (26 + t * 26));
         ctx.stroke();
       }
+      ctx.restore();
+    }
+    // 重装践踏蓄力：脚下金色收缩圈（无方向线 —— AOE 是圆形的，读「圈」就够）。
+    // 圈从践踏判定半径收到脚底，收到头就是落地震地的一刻。
+    if (e.slamWindup > 0) {
+      const t = 1 - e.slamWindup / SLAM_WINDUP;   // 0→1 蓄满
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalAlpha = 0.4 + t * 0.5;
+      ctx.strokeStyle = '#c9a227';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y + e.r * 0.4, Math.max(e.r * 1.15, SLAM_RADIUS * (1 - t * 0.85)), 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     }
     // 自爆引信：越烧越快的红闪 + 爆炸半径预告圈，告诉玩家「现在退开还来得及」

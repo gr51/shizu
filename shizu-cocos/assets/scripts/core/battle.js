@@ -67,7 +67,7 @@ export const MINION_VARIANTS = {
   walker: { speedMul: 1.0, weight: 54, hpMul: 1 },
   charger: { speedMul: 1.9, weight: 22, hpMul: 0.75 },
   spitter: { speedMul: 0.55, weight: 10, hpMul: 0.85, ranged: true },
-  tank: { speedMul: 0.55, weight: 8, hpMul: 1.6 },          // 肉盾：慢而略硬
+  tank: { speedMul: 0.55, weight: 8, hpMul: 1.6, slam: true },  // 重装：慢而硬，贴近就践踏（AOE+踉跄）
   bomber: { speedMul: 1.6, weight: 6, hpMul: 0.5, bomber: true }, // 自爆：快而脆，死了炸你
 };
 
@@ -100,6 +100,20 @@ const RANGED_SPRITES = new Set(['anqi', 'gongshou', 'yuan_jingling', 'huo_bing',
 export const SPIT_RANGE = 300;
 export const SPIT_CD = 2.6;
 export const SPIT_SPEED = 190;
+
+/** 重装怪（tank）践踏参数：慢而硬的「区域拒绝」——贴脸不走位就要吃践踏+踉跄。
+ *  践踏从第 2 阶段起才启用：第 1 阶段的下限基准在生死线上（实测 shanhai 盲走
+ *  机器人低谷期 minHp=29），教学期必须温和 —— 这也是「数量→速度→复杂度」的
+ *  难度曲线本义：新行为属于复杂度，按阶段引入。 */
+export const SLAM_RANGE = 85;        // 进入该距离才起脚（远处它只是个肉沙包）
+export const SLAM_WINDUP = 0.6;      // 蓄力 0.6s（36 帧）：收缩圈预警，走开即可躲
+export const SLAM_RADIUS = 115;      // 践踏判定半径（圆心=坦克，含玩家 r）
+export const SLAM_ATK_MUL = 1.0;     // 践踏伤害 = atk ×1.0：疼点在踉跄和区域拒绝，不在数值秒人
+export const SLAM_CD_MIN = 5.0;
+export const SLAM_CD_MAX = 7.0;
+export const SLAM_STAGE_FROM = 2;    // 第 2 阶段起才会践踏
+export const SLAM_PLAYER_SLOW = 0.8; // 被震到后的踉跄时长（秒）；禅心的 ccResist 在此生效
+export const PLAYER_SLOW_MUL = 0.6;  // 踉跄期间移速 ×0.6
 
 /**
  * 冲撞怪（charger）的蓄力冲刺参数。
@@ -228,6 +242,7 @@ export class RealtimeRun extends Run {
     this.shield = 0;             // 护盾剩余吸收量（机甲·护盾）
     this.shieldTimer = 0;        // 护盾刷新倒计时
     this.dodgeAspdT = 0;         // 闪避后攻速加成剩余秒（侠客·身法）
+    this.playerSlowT = 0;        // 玩家踉跄剩余秒（tank 践踏；禅心 ccResist 缩短它）
     this.elementalSlows = new Map(); // 元素减速：enemyId → 剩余减速秒
   }
 
@@ -351,7 +366,9 @@ export class RealtimeRun extends Run {
 
   updatePlayer(dt, input) {
     const p = this.player;
-    const speed = this.stats.speed;
+    // 踉跄（tank 践踏被震到）：移速打折，直到 playerSlowT 走完（statusTick 计时）
+    const slow = this.playerSlowT > 0 ? PLAYER_SLOW_MUL : 1;
+    const speed = this.stats.speed * slow;
     const len = Math.hypot(input.mx, input.my);
     const nx = len > 1 ? input.mx / len : input.mx;
     const ny = len > 1 ? input.my / len : input.my;
@@ -488,6 +505,11 @@ export class RealtimeRun extends Run {
       dashVy: 0,
       // 自爆怪：靠近玩家就点燃引信，给出可见倒计时而不是死了才炸
       fuseT: 0,
+      // 重装怪（tank）：贴近就原地蓄力践踏 —— AOE + 玩家踉跄，预警收缩圈给足 0.6s。
+      // 首次践踏 CD 用固定值：不在 spawn 时消耗 rng —— 否则每只 tank 都会移位整条
+      // 随机流，把「与本次改动无关」的平衡基线（单局时长/基因产出）全部抽重签。
+      slamCd: variant === 'tank' ? 2.0 : 0,
+      slamWindup: 0,   // > 0 = 正在蓄力（原地不动，收缩圈可读）
       hitFlash: 0,
       attackT: 0,
       bossSkillCd: isBig ? 2.5 : 0,   // 精英/Boss 技能首秀CD
@@ -586,6 +608,8 @@ export class RealtimeRun extends Run {
         }
       } else if (e.variant === 'charger') {
         this.updateCharger(e, dx, dy, d, dt, slowMul);
+      } else if (e.variant === 'tank') {
+        this.updateTank(e, dx, dy, d, dt, slowMul);
       } else {
         e.x += (dx / d) * e.speed * slowMul * dt;
         e.y += (dy / d) * e.speed * slowMul * dt;
@@ -700,6 +724,46 @@ export class RealtimeRun extends Run {
     // 不在冲刺窗口内：正常追击（吃元素减速）
     e.x += (dx / d) * e.speed * slowMul * dt;
     e.y += (dy / d) * e.speed * slowMul * dt;
+  }
+
+  /**
+   * 重装怪（tank）：慢而硬的肉盾 + 贴脸践踏。
+   * 践踏是「区域拒绝」：进入 SLAM_RANGE 就原地蓄力 0.6s（收缩圈预警），
+   * 然后以自身为圆心 AOE 震地 —— 被震到的玩家掉血并踉跄减速。
+   * 与 charger 同一套语言：抬手期站定 = 给玩家的可读窗口；提交后不再追踪。
+   * 第 1 阶段不践踏（SLAM_STAGE_FROM）：教学期温和，复杂度按阶段引入。
+   */
+  updateTank(e, dx, dy, d, dt, slowMul = 1) {
+    if (e.slamWindup > 0) {
+      e.slamWindup -= dt;   // 蓄力期：站定不动，收缩圈收缩到脚底就是落点
+      if (e.slamWindup <= 0) this.doTankSlam(e);
+      return;
+    }
+    e.slamCd -= dt;
+    if (this.stageNo >= SLAM_STAGE_FROM && e.slamCd <= 0 && d <= SLAM_RANGE) {
+      e.slamWindup = SLAM_WINDUP;
+      this.emitFx('elite', e.x, e.y);   // 抬手闪一下，与 charger 同一「有怪要出招」信号
+      return;
+    }
+    // 不在践踏窗口内：正常慢速追击
+    e.x += (dx / d) * e.speed * slowMul * dt;
+    e.y += (dy / d) * e.speed * slowMul * dt;
+  }
+
+  /** 践踏落地：AOE 判定 + 屏幕震动级特效；被震到 → 掉血 + 踉跄（ccResist 缩短踉跄） */
+  doTankSlam(e) {
+    e.slamWindup = 0;   // 落地即清零，别给渲染层/探针留负残值
+    e.slamCd = SLAM_CD_MIN + this.rng() * (SLAM_CD_MAX - SLAM_CD_MIN);
+    // 专用事件类型：web 渲染层给位面爆裂贴图 + 镜头震动；audit:enemy 按类型计数
+    this.emitFx('slam', e.x, e.y);
+    const p = this.player;
+    const dist = Math.hypot(p.x - e.x, p.y - e.y);
+    if (dist <= SLAM_RADIUS + p.r && p.invuln <= 0) {
+      this.hurtPlayer(Math.max(1, e.atk * SLAM_ATK_MUL), 0.4);
+      // 踉跄：禅心（ccResist）是玩家自身的控制抗性 —— 它真正的消费者在这里
+      this.playerSlowT = Math.max(this.playerSlowT, SLAM_PLAYER_SLOW * (1 - (this.stats.ccResist ?? 0)));
+      this.emit('💥 重装怪震地践踏！', 'death');
+    }
   }
 
   /**
@@ -1398,6 +1462,7 @@ export class RealtimeRun extends Run {
 
     // 计时型 buff/状态必定随时间走（与 DoT 有无无关，避免「没毒就不减速」）
     this.dodgeAspdT = Math.max(0, this.dodgeAspdT - dt);
+    this.playerSlowT = Math.max(0, this.playerSlowT - dt);
     if (this.elementalSlows.size) {
       for (const [id, t] of this.elementalSlows) {
         const nt = t - dt;

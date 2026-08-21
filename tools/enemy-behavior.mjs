@@ -25,10 +25,12 @@ const run = new RealtimeRun(save, dungeon, 4242);
 
 const stat = {
   spawned: {}, dashWindup: 0, dashDone: 0, fuseLit: 0, fuseBlast: 0, spit: 0,
+  slamWindup: 0, slamDone: 0, slamHit: 0,
 };
 const wasWindup = new Map();
 const wasDash = new Map();
 const wasFuse = new Map();
+const wasSlam = new Map();
 
 const DT = 1 / 60;
 const frames = SECS * 60;
@@ -53,8 +55,13 @@ for (let f = 0; f < frames; f++) {
     wasDash.set(e.id, e.dashT > 0);
     if (e.fuseT > 0 && !wasFuse.get(e.id)) stat.fuseLit += 1;
     wasFuse.set(e.id, e.fuseT > 0);
+    if (e.slamWindup > 0 && !wasSlam.get(e.id)) stat.slamWindup += 1;
+    wasSlam.set(e.id, e.slamWindup > 0);
   }
-  run.drainEffects();
+  // 践踏落地/命中：核心层发专用 'slam' 特效；踉跄直接读 playerSlowT
+  const fx = run.drainEffects();
+  stat.slamDone += fx.filter((x) => x.type === 'slam').length;
+  if (run.playerSlowT > 0) stat.slamHit += 1;
 }
 
 const mins = (run.time / 60).toFixed(1);
@@ -68,4 +75,5 @@ console.log('\n独有行为触发：');
 console.log(`  charger 蓄力抬手   ${stat.dashWindup} 次`);
 console.log(`  charger 实际冲刺   ${stat.dashDone} 次`);
 console.log(`  bomber  点燃引信   ${stat.fuseLit} 次`);
-console.log(`\n判读：冲刺次数为 0 = 距离带/CD 配错，玩家永远遇不到这个行为。`);
+console.log(`  tank    蓄力践踏   ${stat.slamWindup} 次（落地 ${stat.slamDone}，踉跄帧 ${stat.slamHit}）`);
+console.log(`\n判读：冲刺/践踏次数为 0 = 距离带/CD 配错，玩家永远遇不到这个行为。`);
