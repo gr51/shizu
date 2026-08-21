@@ -130,6 +130,53 @@ if (await p.evaluate(() => globalThis.__shizu.run?.state) === 'choosing') {
   console.log('  ⚠ 没抓到技能通道的三选一');
 }
 
+// —— 蹲拍冲撞抬手 / 自爆引信的预警表现 ——
+// 行为写了但玩家读不到，等于没写。抬手只有 0.45s，所以放慢时间再轮询。
+// 用机关城：它的变体按权重表抽，tank/bomber 都刷得出来；
+// 武侠位面的变体是按 sprite 硬派的，自爆怪几乎只从涌潮里出。
+await p.evaluate(() => {
+  const s = JSON.parse(globalThis.localStorage.getItem('shizu_save'));
+  s.player.totalRuns = 5;
+  globalThis.localStorage.setItem('shizu_save', JSON.stringify(s));
+});
+await p.reload({ waitUntil: 'networkidle' });
+await p.waitForFunction(() => !!globalThis.__shizu, null, { timeout: 8000 });
+await p.evaluate(() => globalThis.__shizu.startPlane('jiguan'));
+await p.waitForFunction(() => (globalThis.__shizu.run?.time ?? 0) > 0.2, null, { timeout: 20000 });
+if (await p.isVisible('#modalRoot.show').catch(() => false)) {
+  await p.click('#modalRoot .modal-btns button').catch(() => {});
+}
+await p.evaluate(() => globalThis.__shizu.setTimeScale(0.35));   // 放慢，好抓抬手帧
+
+for (const [what, field, name] of [
+  ['冲撞抬手', 'dashWindup', 'telegraph-dash'],
+  ['自爆引信', 'fuseT', 'telegraph-fuse'],
+]) {
+  let got = false;
+  for (let i = 0; i < 150; i++) {
+    const st = await p.evaluate(() => globalThis.__shizu.run?.state ?? null);
+    if (st === null || ['won', 'lost', 'settled'].includes(st)) break;
+    if (st === 'choosing' || st === 'slotConflict' || st === 'shopping') { await advanceModal(); continue; }
+    got = await p.evaluate(
+      (f) => (globalThis.__shizu.run?.enemies ?? []).some((e) => (e[f] ?? 0) > 0),
+      field,
+    ).catch(() => false);
+    if (got) break;
+    await p.waitForTimeout(90);
+  }
+  if (got) { console.log(`  （抓到${what}）`); await shot(name, 0); }
+  else {
+    const diag = await p.evaluate(() => {
+      const r = globalThis.__shizu.run;
+      if (!r) return '无 run';
+      const n = {};
+      for (const e of r.enemies) n[e.variant ?? e.kind] = (n[e.variant ?? e.kind] ?? 0) + 1;
+      return `state=${r.state} 同屏=${r.enemies.length} ${JSON.stringify(n)}`;
+    }).catch(() => '取不到');
+    console.log(`  ⚠ 没抓到${what} —— ${diag}`);
+  }
+}
+
 console.log('\n' + (errs.length
   ? '✗ ' + errs.length + ' 项报错:\n  ' + [...new Set(errs)].slice(0, 10).join('\n  ')
   : '✓ 控制台零报错、零资源加载失败'));

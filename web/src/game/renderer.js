@@ -1,7 +1,7 @@
 // ===== game/renderer.js · Canvas 像素渲染 =====
 // 规则：整数倍缩放 + 关闭平滑 + 坐标取整。任何一条破了，像素风立刻变糊。
 
-import { ARENA } from '../../../shizu-cocos/assets/scripts/core/battle.js';
+import { ARENA, DASH_WINDUP, FUSE_TIME } from '../../../shizu-cocos/assets/scripts/core/battle.js';
 
 // 特效类型 → effects/ 目录下的静态图文件名
 const FX_SPRITE = {
@@ -234,6 +234,44 @@ export class Renderer {
       ctx.restore();
     }
     let ok = false;
+    // 冲撞抬手：脚下画一道指向玩家的蓄力条 + 收缩圈。
+    // 核心层锁的方向就是这一刻的朝向，玩家读到它才有机会侧身让开 ——
+    // 没有这个提示，冲刺在体感上和「突然被瞬移撞一下」没区别。
+    if (e.dashWindup > 0) {
+      const t = 1 - e.dashWindup / DASH_WINDUP;   // 0→1 蓄满
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = '#e0653c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y + e.r * 0.4, e.r * (2.2 - t * 1.1), 0, Math.PI * 2);
+      ctx.stroke();
+      if (player) {
+        const a = Math.atan2(player.y - e.y, player.x - e.x);
+        ctx.globalAlpha = 0.5 + t * 0.5;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(e.x, e.y);
+        ctx.lineTo(e.x + Math.cos(a) * (26 + t * 26), e.y + Math.sin(a) * (26 + t * 26));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    // 自爆引信：越烧越快的红闪 + 爆炸半径预告圈，告诉玩家「现在退开还来得及」
+    if (e.fuseT > 0) {
+      const t = Math.min(1, e.fuseT / FUSE_TIME);
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.45 * Math.abs(Math.sin(e.fuseT * (8 + t * 26)));
+      ctx.strokeStyle = '#ff6b4a';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(e.x, e.y + e.r * 0.4, 62, 0, Math.PI * 2);   // = FUSE_BLAST_RADIUS
+      ctx.stroke();
+      ctx.restore();
+    }
     if (e.attackT > 0) {
       // 攻击动画：attackT 0.3→0，按进度切 起手→劈砍→收招（小怪/精英/Boss 通用）
       const prog = 1 - e.attackT / 0.3;

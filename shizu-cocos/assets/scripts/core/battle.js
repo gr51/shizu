@@ -101,6 +101,33 @@ export const SPIT_RANGE = 300;
 export const SPIT_CD = 2.6;
 export const SPIT_SPEED = 190;
 
+/**
+ * 冲撞怪（charger）的蓄力冲刺参数。
+ *
+ * 在这套状态机之前，walker / charger / tank / bomber 四种变体跑的是
+ * 完全相同的两行直线追踪 —— 差别只在 MINION_VARIANTS 的 speedMul / hpMul。
+ * 也就是说「冲撞形态」只是走得快 1.9 倍，玩家读不出任何行为差异。
+ *
+ * 现在给它一段可读、可躲的节奏：进入距离带 → 原地抬手（方向此刻锁定）
+ * → 沿锁定方向直线冲刺 → 收招长 CD。锁方向是关键：会追踪的冲刺躲不掉，
+ * 只有「提交后不再修正」才让走位有意义。
+ */
+export const DASH_RANGE_MIN = 70;    // 太近就不冲了，直接贴身打
+export const DASH_RANGE_MAX = 260;   // 太远冲不到，先走近
+export const DASH_WINDUP = 0.45;     // 抬手：原地不动，给玩家反应窗口
+export const DASH_TIME = 0.34;       // 冲刺持续
+export const DASH_SPEED_MUL = 3.2;   // 冲刺期速度倍率
+export const DASH_CD_MIN = 2.2;
+export const DASH_CD_MAX = 3.6;
+
+/** 自爆怪引信：靠近玩家点燃，烧完就地引爆（不必等被打死） */
+export const FUSE_RANGE = 64;
+export const FUSE_TIME = 0.85;
+export const FUSE_BLAST_RADIUS = 62;
+
+/** 敌人时间坡的强度上限（防止「打不动 → 阶段不推进 → 敌人更厚」的死局） */
+export const TIME_SCALE_MAX = 6;
+
 // ===== 位面主题机制（关卡策划二章 / planes.js 的 theme 列）=====
 // 每个位面一种独特机制，数据驱动，都挂在 battle 主循环 / 击杀回调上。
 export const PLANE_MECHANICS = {
@@ -197,6 +224,17 @@ export class RealtimeRun extends Run {
 
   /** 难度对应的时间坡分母（困难更快变强，简单更慢） */
   get timeScaleDenom() { return this.diffKey === 'hard' ? 150 : this.diffKey === 'easy' ? 360 : 240; }
+  /**
+   * 敌人随时间的强度倍率，**有上限**。
+   *
+   * 阶段推进的唯一条件是击杀精英守关者（见 killEnemy → advanceStage），
+   * 而这条坡原来是 1 + time/denom 无限增长。两者相乘出一个死局：
+   * 玩家一旦打不动精英，阶段就永不推进，敌人却继续变厚 ——
+   * 吸血把血量锁满、既杀不掉也死不了，一局可以无限拖下去，没有胜负。
+   * 封顶后强度停在一个玩家仍可能追上的水平，局面重新有解。
+   * （上限 6 ≈ 普通难度 20 分钟；参照同类割草游戏的坡度也是有封顶的。）
+   */
+  get timeScale() { return Math.min(TIME_SCALE_MAX, 1 + this.time / this.timeScaleDenom); }
   /** 难度对应的刷怪速率系数（困难更多怪，简单更少） */
   get diffSpawnMul() { return this.diffKey === 'hard' ? 1.25 : this.diffKey === 'easy' ? 0.85 : 1; }
   /** 当前武器弹体数（进化可视化） */
@@ -407,7 +445,7 @@ export class RealtimeRun extends Run {
     // 阶段越后敌人越快（整体策划 3.2「数量 → **速度** → 复杂度 → 精度」的第二项）
     const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
     // 难度随时间坡：每 4 分钟敌人血量/攻击 +1 倍（吸血鬼幸存者式难度曲线）
-    const timeScale = 1 + this.time / this.timeScaleDenom;
+    const timeScale = this.timeScale;
     // 精英词缀：同一只精英换词缀就换打法（不改精英基准数值，只改行为与乘区）
     const affix = tpl.kind === 'elite'
       ? rollEliteAffix(this.rng, this.dungeon.mods?.affixChance ?? undefined)
@@ -431,6 +469,15 @@ export class RealtimeRun extends Run {
       speed: (isBig ? (tpl.kind === 'boss' ? 135 : 150) : 95 + this.rng() * 25)
         * (v?.speedMul ?? 1) * stageSpeed * affixSpeed * (this.dungeon.mods?.enemySpeedMul ?? 1),
       spitCd: v?.ranged ? this.rng() * SPIT_CD : 0,
+      // 冲撞怪：蓄力 → 锁定方向直线冲刺 → 收招。没有这套状态机的话，
+      // charger 与 walker 的差别只有 speedMul，「冲撞形态」名不副实。
+      dashCd: variant === 'charger' ? 1 + this.rng() * 1.5 : 0,
+      dashWindup: 0,   // > 0 = 正在抬手（原地不动，玩家可读）
+      dashT: 0,        // > 0 = 正在冲刺（沿锁定方向，不再追踪）
+      dashVx: 0,
+      dashVy: 0,
+      // 自爆怪：靠近玩家就点燃引信，给出可见倒计时而不是死了才炸
+      fuseT: 0,
       hitFlash: 0,
       attackT: 0,
       bossSkillCd: isBig ? 2.5 : 0,   // 精英/Boss 技能首秀CD
@@ -474,7 +521,7 @@ export class RealtimeRun extends Run {
       const variant = this.rollVariant();
       const v = MINION_VARIANTS[variant];
       const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
-      const timeScale = 1 + this.time / this.timeScaleDenom;
+      const timeScale = this.timeScale;
       this.enemies.push({
         id: this.nextId++, kind: 'minion', variant, name: tpl.name,
         hp: Math.max(1, Math.round(tpl.hp * (v.hpMul ?? 1) * timeScale)),
@@ -524,9 +571,14 @@ export class RealtimeRun extends Run {
           });
           this.emitFx('spit', e.x, e.y);
         }
+      } else if (e.variant === 'charger') {
+        this.updateCharger(e, dx, dy, d, dt);
       } else {
         e.x += (dx / d) * e.speed * dt;
         e.y += (dy / d) * e.speed * dt;
+        // 自爆怪：贴近就点引信，烧完原地炸。给的是「看见了就该走开」的压力，
+        // 而不是原来那种「死了才炸、事前零信号」的暗算。
+        if (e.variant === 'bomber') this.updateBomberFuse(e, d, dt);
       }
 
       // 精英/Boss 技能：预警抬手 → 释放（弹幕/剑域等，不是只会追着撞）
@@ -600,6 +652,61 @@ export class RealtimeRun extends Run {
     }
     // 简单互斥：同类之间轻推开，避免全部叠在一个点上
     separate(this.enemies);
+  }
+
+  /**
+   * 冲撞怪：走近 → 抬手（原地、锁方向）→ 直线冲刺 → 长 CD 收招。
+   * 冲刺期不再追踪玩家，所以走位真的能躲开 —— 会拐弯的冲刺等于必中，没有博弈。
+   */
+  updateCharger(e, dx, dy, d, dt) {
+    if (e.dashT > 0) {
+      e.dashT -= dt;
+      e.x += e.dashVx * dt;
+      e.y += e.dashVy * dt;
+      if (e.dashT <= 0) e.dashCd = DASH_CD_MIN + this.rng() * (DASH_CD_MAX - DASH_CD_MIN);
+      return;
+    }
+    if (e.dashWindup > 0) {
+      e.dashWindup -= dt;   // 抬手期：站定不动，这就是给玩家的信号
+      if (e.dashWindup <= 0) {
+        // 方向在**离手这一刻**锁定，之后不再修正
+        const s = e.speed * DASH_SPEED_MUL;
+        e.dashVx = (dx / d) * s;
+        e.dashVy = (dy / d) * s;
+        e.dashT = DASH_TIME;
+      }
+      return;
+    }
+    e.dashCd -= dt;
+    if (e.dashCd <= 0 && d >= DASH_RANGE_MIN && d <= DASH_RANGE_MAX) {
+      e.dashWindup = DASH_WINDUP;
+      this.emitFx('elite', e.x, e.y);   // 抬手闪一下，远处也读得到
+      return;
+    }
+    // 不在冲刺窗口内：正常追击
+    e.x += (dx / d) * e.speed * dt;
+    e.y += (dy / d) * e.speed * dt;
+  }
+
+  /**
+   * 自爆怪引信：进入 FUSE_RANGE 就点燃，烧完原地引爆并自毁。
+   * 离开范围会熄火，所以「后退」是有效应对 —— 原来它只在被打死时炸，
+   * 事前零信号，玩家既读不到也躲不开，等于随机掉血。
+   */
+  updateBomberFuse(e, d, dt) {
+    if (d > FUSE_RANGE * 1.6) { e.fuseT = 0; return; }
+    if (d > FUSE_RANGE) return;              // 在缓冲带里维持现状，不点也不灭
+    if (e.fuseT === 0) this.emit('💣 自爆怪贴近了！', 'death');
+    e.fuseT += dt;
+    if (e.fuseT < FUSE_TIME) return;
+
+    const p = this.player;
+    if (Math.hypot(p.x - e.x, p.y - e.y) < FUSE_BLAST_RADIUS && p.invuln <= 0) {
+      this.hurtPlayer(Math.max(1, e.atk * 1.5), 0.4);
+    }
+    this.emitFx('burst', e.x, e.y);
+    e.hp = 0;
+    e.dead = true;   // 自毁不计入击杀，不给基因 —— 躲开它才是「赢」
   }
 
   /** 死亡特效计时：0.5 秒后淡出 */
