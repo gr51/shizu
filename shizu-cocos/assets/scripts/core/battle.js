@@ -1001,6 +1001,19 @@ export class RealtimeRun extends Run {
     const isCrit = this.rng() < this.stats.crit;
     const berserk = p.berserk > 0 ? BERSERK_MUL : 1;
     let dmg = calcDamage(this.stats.atk * berserk * comboMul * lvlMul, 1, isCrit, 0, this.stats.critDmg ?? 0);
+    // 连招·剑气迸发（backlog #6）：爆发瞬间迸发周身剑气——爆发从「增伤」变「增伤+扫一圈」。
+    // 放在 dmg 计算之后：迸发伤害吃同一套暴击/成长乘区
+    if ((this.mechLvl.wave ?? 0) > 0 && this.combo.dmgPct && this.combo.hits % this.combo.every === 0) {
+      for (const o of [...this.enemies]) {
+        if (o.dead) continue;
+        if (Math.hypot(o.x - p.x, o.y - p.y) <= splash + o.r) {
+          o.hp -= dmg * 0.6;
+          o.hitFlash = 0.12;
+          if (o.hp <= 0) this.killEnemy(o);
+        }
+      }
+      this.emitFx('sword_hit', p.x, p.y);
+    }
     if (this.mech?.type === 'armor') dmg *= (1 - this.mech.factor);   // 功德：金身减伤
     let healed = 0;
     const execBonus = this.stats.execute ?? 0;
@@ -1045,8 +1058,9 @@ export class RealtimeRun extends Run {
         const jumps = 3 + (this.mechLvl.jumps ?? 0) + (this.stats.chainJumps ?? 0);
         const chainDmg = 0.5 * (1 + (this.mechLvl.dmg ?? 0));
         // 渡劫_3「雷链」提供 chainDecay：每跳伤害按保留比例递减（默认 1 = 不衰减，
-        // 与接线前的平坦行为完全一致——不削弱任何既有 Build）
-        const decay = this.stats.chainDecay || 1;
+        // 与接线前的平坦行为完全一致——不削弱任何既有 Build）。
+        // 「过载」强化：弹射不衰减——与「雷链」的逐跳衰减互为构筑取舍（backlog #6）。
+        const decay = this.mechLvl.noDecay ? 1 : (this.stats.chainDecay || 1);
         let last = e;
         for (let j = 0; j < jumps; j++) {
           let nb = null; let nd = Infinity;
@@ -1093,6 +1107,14 @@ export class RealtimeRun extends Run {
     this.damageNums.push({ x: best.x, y: best.y - 24, v: Math.round(dmg), crit: isCrit, life: 0.9 });
     // 武器进化：等级越高弹体越多（Lv0-5 单发 → Lv6 三连 → Lv12 五连，扇形散射）；魔法路线弹幕再 +1
     const projCount = 1 + Math.floor(this.geneStep / 6) + (this.routeMech === 'multishot' ? 1 + (this.mechLvl.count ?? 0) : 0);
+    // 弹幕·贯穿（backlog #6）：多发弹幕的伤害叠加到主目标——「多一发」从视觉变成真 DPS
+    if (this.routeMech === 'multishot' && (this.mechLvl.pierce ?? 0) > 0 && projCount > 1 && best.hp > 0) {
+      const pierceDmg = dmg * 0.25 * (projCount - 1);
+      best.hp -= pierceDmg;
+      healed += pierceDmg;
+      this.damageNums.push({ x: best.x, y: best.y - 34, v: Math.round(pierceDmg), crit: false, life: 0.7 });
+      if (best.hp <= 0) this.killEnemy(best);
+    }
     // 进化瞬间：弹体档位提升 = 成长仪式（全屏反馈）
     if (projCount > this.lastProjCount) {
       this.lastProjCount = projCount;
@@ -1172,6 +1194,17 @@ export class RealtimeRun extends Run {
         e.hp -= this.stats.atk * mDmg;
         e.hitFlash = 0.12;
         this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * mDmg), crit: false, life: 0.9 });
+        // 导弹·爆破弹头（backlog #6）：命中溅射周围敌人（半伤）
+        if (this.mechLvl.blast) {
+          for (const o of [...this.enemies]) {
+            if (o === e || o.dead || o.kind === 'boss') continue;
+            if (Math.hypot(o.x - e.x, o.y - e.y) < 60) {
+              o.hp -= this.stats.atk * mDmg * 0.5;
+              o.hitFlash = 0.1;
+              if (o.hp <= 0) this.killEnemy(o);
+            }
+          }
+        }
         if (e.hp <= 0) this.killEnemy(e);
       }
       this.emitFx('surge', p.x, p.y);
@@ -1184,27 +1217,39 @@ export class RealtimeRun extends Run {
           e.hp -= this.stats.atk * sDmg;
           e.hitFlash = 0.12;
           this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * sDmg), crit: false, life: 0.9 });
+          // 践踏·震慑（backlog #6）：被震荡的敌人减速 1.2s——跑不掉才是真震慑
+          if (this.mechLvl.stagger && e.hp > 0) {
+            this.elementalSlows.set(e.id, Math.max(this.elementalSlows.get(e.id) ?? 0, 1.2));
+          }
           if (e.hp <= 0) this.killEnemy(e);
         }
       }
       this.emitFx('burst', p.x, p.y);
       this.emitFx('surge', p.x, p.y);
     } else if (this.routeMech === 'laser') {
-      // 奇技·机关激光：直线贯穿（构筑可 +宽/+伤害）
+      // 奇技·机关激光：直线贯穿（构筑可 +宽/+伤害/+折射）
       const lW = 40 * (1 + (this.mechLvl.width ?? 0));
       const lDmg = 1.5 * (1 + (this.mechLvl.dmg ?? 0));
-      const ang = p.facing > 0 ? 0 : Math.PI;
-      const ux = Math.cos(ang), uy = Math.sin(ang);
-      for (const e of this.enemies) {
-        const px = e.x - p.x, py = e.y - p.y;
-        const proj = px * ux + py * uy;
-        if (proj < 0 || proj > 500 + e.r) continue;
-        if (Math.abs(px * uy - py * ux) <= lW + e.r) {
-          e.hp -= this.stats.atk * lDmg;
-          e.hitFlash = 0.12;
-          this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * lDmg), crit: false, life: 0.9 });
-          if (e.hp <= 0) this.killEnemy(e);
+      const baseAng = p.facing > 0 ? 0 : Math.PI;
+      const fireBeam = (ang) => {
+        const ux = Math.cos(ang), uy = Math.sin(ang);
+        for (const e of this.enemies) {
+          const px = e.x - p.x, py = e.y - p.y;
+          const proj = px * ux + py * uy;
+          if (proj < 0 || proj > 500 + e.r) continue;
+          if (Math.abs(px * uy - py * ux) <= lW + e.r) {
+            e.hp -= this.stats.atk * lDmg;
+            e.hitFlash = 0.12;
+            this.damageNums.push({ x: e.x, y: e.y - 24, v: Math.round(this.stats.atk * lDmg), crit: false, life: 0.9 });
+            if (e.hp <= 0) this.killEnemy(e);
+          }
         }
+      };
+      fireBeam(baseAng);
+      // 激光·折射（backlog #6）：向后折射成双束——被包围时收益翻倍
+      if (this.mechLvl.refract) {
+        fireBeam(baseAng + Math.PI);
+        this.emitFx('laser', p.x, p.y);
       }
       this.emitFx('surge', p.x, p.y);
     }
@@ -1414,6 +1459,8 @@ export class RealtimeRun extends Run {
         if (Math.hypot(o.x - e.x, o.y - e.y) < mech.radius * blastMul) {
           o.hp -= e.atk * mech.mul;
           o.hitFlash = 0.15;
+          // 尸爆·毒云（backlog #6）：波及的幸存者沾染尸毒
+          if (this.mechLvl.cloud && o.hp > 0) this.applyDot(o, this.stats.atk * 0.4, 3);
           if (o.hp <= 0) this.killEnemy(o);   // 连锁
         }
       }
@@ -1433,6 +1480,8 @@ export class RealtimeRun extends Run {
         if (Math.hypot(o.x - e.x, o.y - e.y) < cR) {
           o.hp -= this.stats.atk * cDmg;
           o.hitFlash = 0.15;
+          // 尸爆·毒云（backlog #6）：波及的幸存者沾染尸毒
+          if (this.mechLvl.cloud && o.hp > 0) this.applyDot(o, this.stats.atk * 0.4, 3);
           if (o.hp <= 0) this.killEnemy(o);   // 尸爆连锁
         }
       }
@@ -1834,6 +1883,8 @@ export class RealtimeRun extends Run {
       if (nb && bd <= 160) {
         nb.hp -= d * reflect;
         nb.hitFlash = 0.12;
+        // 金身·震慑（backlog #6）：反震命中的敌人被震得减速
+        if (this.mechLvl.stagger) this.elementalSlows.set(nb.id, Math.max(this.elementalSlows.get(nb.id) ?? 0, 1.2));
         if (nb.hp <= 0) this.killEnemy(nb);
         this.emitFx('burst', nb.x, nb.y);
       }
@@ -1879,7 +1930,15 @@ export class RealtimeRun extends Run {
         best.hitFlash = Math.max(best.hitFlash, 0.1);
         // 奇法傀儡：继承元素附加的机关单位，啃咬附带冰霜减速
         if (a.el) this.elementalSlows.set(best.id, 1.5);
-        if (best.hp <= 0) this.killEnemy(best);
+        if (best.hp <= 0) {
+          this.killEnemy(best);
+          // 寄生·再寄生（backlog #6）：被友军啃死的怪原地再寄生，滚雪球上限 8 只。
+          // rng 只在装备了 rebind 的局才会消耗——不影响任何既有平衡基线
+          if ((this.mechLvl.rebind ?? 0) > 0 && this.mechAllies.length < 8 && this.rng() < 0.35) {
+            this.mechAllies.push({ x: best.x, y: best.y, atk: a.atk, life: a.life, anim: 0 });
+            this.emitFx('surge', best.x, best.y);
+          }
+        }
       }
     }
     if (this.mechAllies.some((a) => a.life <= 0)) this.mechAllies = this.mechAllies.filter((a) => a.life > 0);
