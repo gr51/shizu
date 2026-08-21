@@ -79,6 +79,8 @@ export async function startBattle(ctx, plane) {
       <div class="hud-right">
         <b class="gene" data-genes></b> · 噬灭 <b data-kills></b> · 同屏 <span data-screen></span>
         <span class="hud-cd" data-devour></span><span class="hud-cd" data-dodge></span>
+        <button class="hud-btn" data-pause type="button">⏸ 暂停</button>
+        <button class="hud-btn" data-mute type="button">🔊</button>
       </div>
       <div class="hud-mech" data-mech></div>
       <div class="hud-active" data-active></div>`;
@@ -93,6 +95,8 @@ export async function startBattle(ctx, plane) {
       dodge: hud.querySelector('[data-dodge]'),
       mech: hud.querySelector('[data-mech]'),
       active: hud.querySelector('[data-active]'),
+      pause: hud.querySelector('[data-pause]'),
+      mute: hud.querySelector('[data-mute]'),
     };
   }
 
@@ -105,6 +109,33 @@ export async function startBattle(ctx, plane) {
   let lastState = null;
   let timeScale = 1;          // 调试用倍速，见 __shizu.setTimeScale
   ctx.setTimeScale = (n) => { timeScale = Math.max(0.1, Math.min(60, n)); };
+
+  // 可访问性：暂停与静音。切后台自动暂停，避免回来时已被围死。
+  let userPaused = false;
+  const setPaused = (v) => {
+    userPaused = v;
+    paused = v;
+    if (v) audio.stopBgm(); else { audio.startBgm(plane.id); last = performance.now(); }
+    if (H?.pause) H.pause.textContent = v ? '▶ 继续' : '⏸ 暂停';
+    if (pauseVeil) pauseVeil.classList.toggle('on', v);
+  };
+  const onKey = (e) => {
+    if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); setPaused(!userPaused); }
+    else if (e.code === 'KeyM') { e.preventDefault(); toggleMute(); }
+  };
+  const toggleMute = () => {
+    const on = !audio.enabled;
+    audio.setEnabled(on);
+    if (on && !userPaused) audio.startBgm(plane.id);
+    if (H?.mute) H.mute.textContent = on ? '🔊' : '🔇';
+  };
+  const onVisibility = () => { if (document.hidden && !userPaused) setPaused(true); };
+  window.addEventListener('keydown', onKey);
+  document.addEventListener('visibilitychange', onVisibility);
+  const cleanup = () => {
+    window.removeEventListener('keydown', onKey);
+    document.removeEventListener('visibilitychange', onVisibility);
+  };
 
   // 新手引导：首局显示一次
   if (ctx.save.player.totalRuns === 0) {
@@ -169,6 +200,9 @@ export async function startBattle(ctx, plane) {
   raf = requestAnimationFrame(frame);
 
   const H = buildHud();
+  const pauseVeil = root.querySelector('#pauseVeil');
+  H.pause?.addEventListener('click', () => setPaused(!userPaused));
+  H.mute?.addEventListener('click', toggleMute);
   let hudTick = 0;
   function drawHud(dt) {
     hudTick += dt;
@@ -253,6 +287,7 @@ export async function startBattle(ctx, plane) {
 
   function showSettle() {
     cancelAnimationFrame(raf);
+    cleanup();
     audio.stopBgm();
     const r = run.finalize(ctx.repo);
     const mm = Math.floor(r.survivedSec / 60);
