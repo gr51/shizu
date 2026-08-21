@@ -406,7 +406,9 @@ export class Run {
     const dyn = adjustDynamicFactor(save, victory, this.rng);
 
     // 元进度锚点：记录历史最佳阶段（跨局成长的可感知反馈）
-    save.stats.bestStage = Math.max(save.stats.bestStage ?? 0, this.stageNo);
+    const prevBestStage = save.stats.bestStage ?? 0;
+    const newBest = this.stageNo > prevBestStage;
+    save.stats.bestStage = Math.max(prevBestStage, this.stageNo);
 
     let firstClear = false;
     if (plane.id === ZHUTIAN_ID && victory && !save.stats.firstClear) {
@@ -422,6 +424,8 @@ export class Run {
       victory,
       plane,
       stageReached: this.stageNo,
+      prevBestStage,
+      newBest,
       kills: this.kills,
       minionKills: this.minionKills,
       survivedSec: this.elapsed,

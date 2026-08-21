@@ -246,6 +246,11 @@ export async function startBattle(ctx, plane) {
         + r.gear.slice(0, 5).map((g) => `<div class="bag-item">${gearItemHtml(g)}</div>`).join(''));
     }
     lines.push(`<div class="diff-row small">难度进化：${r.dyn.before.toFixed(2)} → <b>${r.dyn.after.toFixed(2)}</b></div>`);
+    // 结算激励：与历史最佳对比，明确「这局离突破还差多少」
+    lines.push(r.newBest
+      ? `<div class="diff-row gold">★ 新纪录：阶段 ${r.stageReached}/5（旧纪录 ${r.prevBestStage}）</div>`
+      : `<div class="diff-row small">历史最佳 阶段 ${r.prevBestStage}/5 —— 本局 ${r.stageReached}/5，${r.prevBestStage - r.stageReached <= 0 ? '再稳一点就能刷新' : `还差 ${r.prevBestStage - r.stageReached} 阶段`}</div>`);
+    lines.push(`<div class="diff-row small">下一局建议：${r.victory ? '难度已上调，可尝试更深阶段或换位面收集传承' : '带回的永久成长已入账，回巢强化后再开裂缝'}</div>`);
 
     // 结局演出：首通诸天之心 → 巢灵成新噬祖
     if (r.victory && r.plane.id === 'zhutian' && r.firstClear) {
