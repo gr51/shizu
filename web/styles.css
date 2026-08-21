@@ -436,8 +436,24 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
 #canvasWrap {
   flex: 1; display: flex; align-items: center; justify-content: center;
-  min-height: 0; background: #06080a; overflow: hidden;
+  min-height: 0; background: #06080a; overflow: hidden; position: relative;
 }
+#battleToast {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 4px; align-items: center;
+  pointer-events: none; max-width: min(86vw, 620px); z-index: 3;
+}
+.toast-line {
+  padding: 3px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+  background: rgba(13, 16, 19, .82); color: var(--text);
+  border: 1px solid rgba(255, 255, 255, .08);
+  animation: toastIn .18s ease-out both;
+}
+.toast-line.death { color: #f0a0ac; border-color: rgba(201, 85, 106, .5); }
+.toast-line.wave { color: #ffd76a; border-color: rgba(216, 189, 106, .45); }
+.toast-line.win, .toast-line.gene { color: #8fe0cb; border-color: rgba(95, 184, 166, .45); }
+.toast-line.drop, .toast-line.learn, .toast-line.hidden { color: #d5b8f0; border-color: rgba(166, 120, 212, .45); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 #gameCanvas { image-rendering: pixelated; display: block; touch-action: none; }
 #battleHint { padding: 8px 16px; font-size: 12px; color: var(--text-dim); border-top: 1px solid var(--line); background: var(--bg-raise); }
 .hud-cd { margin-left: 10px; padding: 1px 6px; border-radius: 4px; background: #232c34; color: var(--text-dim); font-size: 12px; }

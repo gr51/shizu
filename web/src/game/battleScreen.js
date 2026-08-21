@@ -27,6 +27,26 @@ export async function startBattle(ctx, plane) {
   const root = view.showBattleStage();
   const canvas = root.querySelector('#gameCanvas');
   const hud = root.querySelector('#hud');
+  const toast = root.querySelector('#battleToast');
+  // 战斗中事件提示：core 的日志只在结算面板可见，战斗时玩家看不到预警/事件，
+  // 这里把关键事件（预警/事件/进化/掉落）实时浮到画面上，保证可读性。
+  let logSeen = 0;
+  const TOAST_CLS = new Set(['death', 'wave', 'win', 'gene', 'drop', 'learn', 'stage', 'hidden']);
+  function pumpToast() {
+    if (!toast) return;
+    const log = run.log ?? [];
+    if (logSeen > log.length) logSeen = 0;
+    for (; logSeen < log.length; logSeen++) {
+      const entry = log[logSeen];
+      if (!TOAST_CLS.has(entry.cls)) continue;
+      const el = document.createElement('div');
+      el.className = `toast-line ${entry.cls}`;
+      el.innerHTML = entry.text;
+      toast.appendChild(el);
+      setTimeout(() => el.remove(), 2600);
+    }
+    while (toast.childElementCount > 5) toast.firstElementChild.remove();
+  }
 
   // 输入**先于**资产加载接上：否则加载那一两秒内玩家的按键会被整段吞掉
   const input = new Input(canvas);
@@ -108,6 +128,7 @@ export async function startBattle(ctx, plane) {
     const dt = real;
     renderer.draw(run, dt);
     drawHud(dt);
+    pumpToast();
 
     // 只在**状态发生变化**时弹一次窗。
     // 早期版本每帧都调 showChoice()，模态框每秒重建 60 次 ——
