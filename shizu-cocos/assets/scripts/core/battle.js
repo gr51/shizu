@@ -73,6 +73,7 @@ export const MINION_VARIANTS = {
 
 /** 每阶段刷的小怪 sprite（每阶段一对，5 阶段各不同） */
 export const MINION_SPRITE_BY_STAGE = {
+  jiguan: [['jixie_xie', 'lu_kuilei'], ['jixie_xie', 'paotai_ji'], ['lu_kuilei', 'paotai_ji'], ['jixie_xie', 'lu_kuilei'], ['paotai_ji', 'jixie_xie']],
   wuxia: [['maozei', 'jiutu'], ['shanzei', 'biaoshi'], ['quanshi', 'gunseng'], ['anqi', 'gongshou'], ['hanfei', 'shashou']],
   aofa: [['yuan_jingling', 'huo_bing'], ['huo_bing', 'bing_yuansu'], ['bing_yuansu', 'aoshu_shicong'], ['aoshu_shicong', 'huo_yao'], ['huo_yao', 'yuan_jingling']],
   qiqiao: [['jiguan_shou', 'fashu_jiguan'], ['fashu_jiguan', 'jing_ling'], ['jing_ling', 'chilun_shou'], ['chilun_shou', 'jiguan_qishi'], ['jiguan_qishi', 'jiguan_shou']],
@@ -88,13 +89,14 @@ export const MINION_SPRITE_BY_STAGE = {
 
 /** Boss sprite 映射（位面 → boss 名） */
 export const BOSS_BY_PLANE = {
+  jiguan: 'boss_jiguan',
   wuxia: 'jiansheng', aofa: 'aofa_boss', qiqiao: 'qiqiao_boss', dujie: 'dujie_boss',
   gongde: 'gongde_boss', shihai: 'shihai_boss', gongshengchao: 'gongshengchao_boss',
   shanhai: 'shanhai_boss', jijia: 'jijia_boss', jushen: 'jushen_boss', zhutian: 'zhutian_boss',
 };
 
 /** 远程小怪散集：这些 sprite 用远程弹体，其余一律近战 */
-const RANGED_SPRITES = new Set(['anqi', 'gongshou', 'yuan_jingling', 'huo_bing', 'bing_yuansu', 'aoshu_shicong', 'fashu_jiguan', 'jing_ling', 'lei_jing', 'tianlei_zi', 'shi_wu', 'wuren_ji', 'guidao_paotai', 'shaojie', 'zizou_pao', 'benghuai_suipian', 'weimian_canying', 'xukong_jiti']);
+const RANGED_SPRITES = new Set(['anqi', 'gongshou', 'yuan_jingling', 'huo_bing', 'bing_yuansu', 'aoshu_shicong', 'fashu_jiguan', 'jing_ling', 'lei_jing', 'tianlei_zi', 'shi_wu', 'wuren_ji', 'guidao_paotai', 'shaojie', 'zizou_pao', 'benghuai_suipian', 'weimian_canying', 'xukong_jiti', 'paotai_ji']);
 
 /** 远程小怪的射击参数 */
 export const SPIT_RANGE = 300;
@@ -462,10 +464,11 @@ export class RealtimeRun extends Run {
     const sprite = isBig
       ? (tpl.kind === 'boss' ? (BOSS_BY_PLANE[this.dungeon.plane.id] ?? null) : null)
       : this.stageMinionSprite();
-    // 武侠位面（已配齐 10 小怪、近战/远程分明）：远程造型→spitter，近战→walker/charger，不串味；
-    // 其余位面（每面才 2 小怪、未配齐近战/远程比例）：维持旧的权重随机（守平衡测试，串味待补图后修）
+    // 已配齐小怪表 + 近战/远程分明的位面（武侠、机关城）：远程造型→spitter，近战→walker/charger，
+    // 不串味；其余位面（每面才 2 小怪）：维持旧的权重随机（守平衡测试，串味待补图后修）
+    const HARD_ASSIGN = this.dungeon.plane.id === 'wuxia' || this.dungeon.plane.id === 'jiguan';
     const variant = isBig ? null
-      : (this.dungeon.plane.id === 'wuxia'
+      : (HARD_ASSIGN
         ? (RANGED_SPRITES.has(sprite) ? 'spitter' : (this.rng() < 0.7 ? 'walker' : 'charger'))
         : this.rollVariant());
     const v = variant ? MINION_VARIANTS[variant] : null;
