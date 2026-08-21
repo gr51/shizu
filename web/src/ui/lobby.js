@@ -1,10 +1,10 @@
 // ===== ui/lobby.js · 虫巢主界面 / 裂缝选择 / 装备背包 / 进化图鉴 =====
 
 import { DIFFICULTY_COEF, DIFFICULTY_LABEL, computePower, dungeonDifficulty } from '../../../shizu-cocos/assets/scripts/core/balance.js';
-import { craftGear, enhanceGear, salvageGear } from '../../../shizu-cocos/assets/scripts/core/gear.js';
+import { craftGear, enhanceGear, salvageGear, forgeGear, forgeCost, FORGE_COST } from '../../../shizu-cocos/assets/scripts/core/gear.js';
 import { previewPlane, rollPlane } from '../../../shizu-cocos/assets/scripts/core/planePool.js';
 import { activatableRoutes, activatedRoutes, geneLockLevel, isSealed } from '../../../shizu-cocos/assets/scripts/core/geneLock.js';
-import { GEAR_RARITY, RARITY_ORDER } from '../../../shizu-cocos/assets/scripts/data/attrPool.js';
+import { GEAR_RARITY, RARITY_ORDER, GEAR_SLOTS, GEAR_SLOT_IDS } from '../../../shizu-cocos/assets/scripts/data/attrPool.js';
 import { ALL_ROUTES, ROUTES, mutexOf } from '../../../shizu-cocos/assets/scripts/data/routes.js';
 import { planes } from '../../../shizu-cocos/assets/scripts/data/planes.js';
 import { nestLine } from '../../../shizu-cocos/assets/scripts/data/lines.js';
@@ -229,6 +229,7 @@ export function openBag(ctx) {
     title: '装备背包',
     body,
     buttons: [
+      { text: '精华锻造（指定槽位，确定性获取）', style: 'primary', onClick: () => openForge(ctx) },
       { text: '合成（3 件同稀有度 → 升 1 档）', onClick: () => openCraft(ctx) },
       { text: '强化（同槽同稀有度 3 件 → +1 星）', onClick: () => openEnhance(ctx) },
       { text: '关闭', onClick: () => { view.closeModal(); renderLobby(ctx); } },
@@ -256,8 +257,53 @@ export function openBag(ctx) {
   });
 }
 
-function openCraft(ctx) {
+/** 精华锻造：抽不到核心槽位就自己造（确定性兑换路径） */
+function openForge(ctx, slot = 'claw') {
   const { save, rng } = ctx;
+  const p = save.player;
+  const slotRows = GEAR_SLOT_IDS.map((id) => {
+    const on = id === slot;
+    const worn = p.gear[id];
+    return `<div class="diff-row${on ? ' gold' : ''}">${on ? '▶ ' : '· '}${GEAR_SLOTS[id].name}`
+      + `<span class="small">　当前：${worn ? `<span class="r-${worn.rarity}">${worn.name}</span>${'★'.repeat(worn.star)}` : '空'}</span></div>`;
+  }).join('');
+  const priceRows = Object.keys(FORGE_COST).map((r) => {
+    const cost = forgeCost(r);
+    const ok = (p.gearEssence ?? 0) >= cost;
+    return `<div class="diff-row"><span class="r-${r}">${GEAR_RARITY[r].name}</span>`
+      + `<span class="small${ok ? ' gold' : ''}">${cost} 精华${ok ? '' : '（不足）'}</span></div>`;
+  }).join('');
+
+  view.showModal({
+    title: `精华锻造 · ${GEAR_SLOTS[slot].name}`,
+    body: `<p class="small">装备精华：<b class="gold">${p.gearEssence ?? 0}</b>　`
+      + '分解垫子换取<b>指定槽位</b>的装备，抽不到核心部位也能自己造。</p>'
+      + `<h4 class="gold" style="margin-top:10px">选择槽位</h4>${slotRows}`
+      + `<h4 class="gold" style="margin-top:10px">价目</h4>${priceRows}`,
+    buttons: [
+      ...Object.keys(FORGE_COST).map((r) => ({
+        text: `锻造 ${GEAR_RARITY[r].name}（${forgeCost(r)}）`,
+        style: (p.gearEssence ?? 0) >= forgeCost(r) ? 'primary' : '',
+        disabled: (p.gearEssence ?? 0) < forgeCost(r),
+        onClick: () => {
+          const res = forgeGear(save, slot, r, rng);
+          if (res.ok) {
+            ctx.repo.persist(save);
+            view.closeModal();
+            openForge(ctx, slot);
+          }
+        },
+      })),
+      ...GEAR_SLOT_IDS.filter((id) => id !== slot).map((id) => ({
+        text: `换到 ${GEAR_SLOTS[id].name}`,
+        onClick: () => { view.closeModal(); openForge(ctx, id); },
+      })),
+      { text: '返回背包', onClick: () => { view.closeModal(); openBag(ctx); } },
+    ],
+  });
+}
+
+function openCraft(ctx) {  const { save, rng } = ctx;
   const bag = save.player.gearBag;
   const body = RARITY_ORDER.slice(0, -1).map((r) => {
     const n = bag.filter((x) => x.rarity === r).length;

@@ -110,3 +110,34 @@ export function enhanceGear(target, fodder) {
 export function salvageGear(item) {
   return SALVAGE_ESSENCE[item.rarity] ?? 0;
 }
+
+// ===== 精华锻造（确定性兑换：抽不到就自己造）=====
+
+/**
+ * 精华锻造价目表。
+ * 定位：装备掉落是随机的，精华锻造给出**确定性路径** ——
+ * 分解垫子换指定槽位的装备，避免「刷不到核心槽」的挫败（保底思路）。
+ * 价格参考 SALVAGE_ESSENCE 的回收价，按「造一件 ≈ 分解 4-6 件同档」定。
+ */
+export const FORGE_COST = { green: 12, blue: 40, purple: 110, gold: 300 };
+
+/** 指定稀有度的锻造价格；不可锻造（白装）返回 null */
+export function forgeCost(rarity) {
+  return FORGE_COST[rarity] ?? null;
+}
+
+/**
+ * 用精华锻造一件**指定槽位、指定稀有度**的装备。
+ * @returns {{ok:boolean, reason?:string, item?:object, cost?:number}}
+ */
+export function forgeGear(save, slotId, rarity, rng) {
+  const cost = forgeCost(rarity);
+  if (cost === null) return { ok: false, reason: '该稀有度不可锻造' };
+  if (!GEAR_SLOT_IDS.includes(slotId)) return { ok: false, reason: '未知槽位' };
+  const have = save.player.gearEssence ?? 0;
+  if (have < cost) return { ok: false, reason: '精华不足' };
+  save.player.gearEssence = have - cost;
+  const item = generateGear(rng, rarity, slotId);
+  save.player.gearBag.push(item);
+  return { ok: true, item, cost };
+}

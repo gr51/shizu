@@ -9,7 +9,8 @@ import { applyHiddenSkill, learnSkill, SLOT_KEYS, allSlotsEngraved, rollHiddenSk
 import { Run, RunState } from '../shizu-cocos/assets/scripts/core/run.js';
 import { RealtimeRun } from '../shizu-cocos/assets/scripts/core/battle.js';
 import { migrate, createDefaultSave, DYN_FACTOR_MAX } from '../shizu-cocos/assets/scripts/core/save.js';
-import { generateGear } from '../shizu-cocos/assets/scripts/core/gear.js';
+import { generateGear, forgeGear, forgeCost } from '../shizu-cocos/assets/scripts/core/gear.js';
+import { GEAR_RARITY, SALVAGE_ESSENCE } from '../shizu-cocos/assets/scripts/data/attrPool.js';
 import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
 import { CHARGE_THRESHOLDS, skills, skillsByRoute } from '../shizu-cocos/assets/scripts/data/skills.js';
 import { ALL_ROUTES } from '../shizu-cocos/assets/scripts/data/routes.js';
@@ -563,6 +564,52 @@ test('成就奖励：结算时自动结算并写入 result', () => {
   assert.ok(Array.isArray(res.achievements), 'result 应带 achievements');
   assert.ok(res.achievements.some((a) => a.id === 'stage5'), '应在结算时发放深入裂缝');
   assert.ok(isRewardClaimed(save, 'stage5'), '存档应标记已领取');
+});
+
+// ===== 精华锻造：确定性获取路径 =====
+
+test('精华锻造：扣精华、给指定槽位与稀有度、精华不足拒绝', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.player.gearEssence = 500;
+  const r = rng(7);
+
+  const before = save.player.gearEssence;
+  const res = forgeGear(save, 'core', 'blue', r);
+  assert.ok(res.ok, '精华足够应锻造成功');
+  assert.equal(save.player.gearEssence, before - forgeCost('blue'), '应扣除精华');
+  assert.equal(res.item.slot, 'core', '必须是指定槽位');
+  assert.equal(res.item.rarity, 'blue', '必须是指定稀有度');
+  assert.equal(save.player.gearBag.at(-1).uid, res.item.uid, '成品应进背包');
+
+  // 稀有度决定词条数（沿用既有配表口径）
+  assert.equal(res.item.affixes.length, GEAR_RARITY.blue.affixCount, '词条数应符合稀有度');
+
+  // 精华不足 → 拒绝且不扣费
+  save.player.gearEssence = 5;
+  const bagLen = save.player.gearBag.length;
+  const poor = forgeGear(save, 'core', 'gold', r);
+  assert.equal(poor.ok, false, '精华不足必须拒绝');
+  assert.equal(save.player.gearEssence, 5, '拒绝时不得扣费');
+  assert.equal(save.player.gearBag.length, bagLen, '拒绝时不得产出');
+
+  // 白装不可锻造（保留为纯掉落档）
+  assert.equal(forgeCost('white'), null, '白装不应可锻造');
+  save.player.gearEssence = 9999;
+  assert.equal(forgeGear(save, 'core', 'white', r).ok, false, '白装锻造必须拒绝');
+
+  // 未知槽位拒绝
+  assert.equal(forgeGear(save, 'not_a_slot', 'blue', r).ok, false, '未知槽位必须拒绝');
+});
+
+test('精华锻造价格递增：越高稀有度越贵，且贵于分解回收价', () => {
+  const order = ['green', 'blue', 'purple', 'gold'];
+  for (let i = 1; i < order.length; i++) {
+    assert.ok(forgeCost(order[i]) > forgeCost(order[i - 1]), `${order[i]} 应比 ${order[i - 1]} 贵`);
+  }
+  // 造一件必须显著贵于分解同档一件，否则会出现「造了再拆」的无限精华
+  for (const r of order) {
+    assert.ok(forgeCost(r) > SALVAGE_ESSENCE[r], `${r} 锻造价必须高于分解回收价，否则可无限套利`);
+  }
 });
 
 // ===== 存档迁移 =====
