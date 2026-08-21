@@ -483,6 +483,12 @@ export class Run {
       if (e.regen) this.stats.regen += e.regen;
       if (e.aoe) this.stats.aoe = (this.stats.aoe ?? 0) + e.aoe;
       if (e.aspdPct) this.stats.aspd *= 1 + e.aspdPct;
+      // 新增 build 轴：共鸣也能强化 持续伤害 / 元素 / 护盾 / 攻坚 —— 让「凑套」真的换玩法
+      if (e.dotMul) this.stats.dotMul = (this.stats.dotMul ?? 0) + e.dotMul;
+      if (e.elemental) this.stats.elemental = (this.stats.elemental ?? 0) + e.elemental;
+      if (e.shieldMul) this.stats.shieldMul = (this.stats.shieldMul ?? 0) + e.shieldMul;
+      if (e.vsEliteDmgPct) this.stats.vsEliteDmgPct = (this.stats.vsEliteDmgPct ?? 0) + e.vsEliteDmgPct;
+      if (e.killCdRefund) this.stats.killCdRefund = (this.stats.killCdRefund ?? 0) + e.killCdRefund;
       this.emit(`✨ ${syn.name} —— ${syn.desc}`, 'win');
     }
   }
@@ -600,6 +606,33 @@ export class Run {
     if (e.burstMul) this.stats.aoe += e.burstMul * 0.5;   // 禁咒
     if (e.devourHealPct) this.stats.lifesteal += e.devourHealPct;  // 饕餮巨口
     if (e.killHealPct) this.stats.regen += e.killHealPct * 0.5;    // 度化
+
+    // —— 已声明但此前未接入战斗的真实 build 轴（此前这些技能是「死效果」）——
+    // 持续伤害（尸毒 / 元素灼烧）：攻击给敌人叠 DoT
+    if (e.dotMul) this.stats.dotMul = (this.stats.dotMul ?? 0) + e.dotMul;
+    if (e.dotDuration) this.stats.dotDuration = Math.max(this.stats.dotDuration ?? 0, e.dotDuration);
+    // 元素附加（魔法）：攻击附带火（灼烧 DoT）/ 冰（减速）
+    if (e.elemental) this.stats.elemental = (this.stats.elemental ?? 0) + e.elemental;
+    // 受击反击（渡劫·雷枢护体）：被打概率落雷打回
+    if (e.counterChance) this.stats.counterChance = (this.stats.counterChance ?? 0) + e.counterChance;
+    if (e.counterMul) this.stats.counterMul = Math.max(this.stats.counterMul ?? 0, e.counterMul);
+    // 受击反弹（金身业力 / 渡劫天雷护体）：把所受伤害按比例弹回攻击者
+    if (e.reflect) this.stats.reflect = (this.stats.reflect ?? 0) + e.reflect;
+    // 护盾（机甲）：每若干秒生成一个吸收伤害的盾
+    if (e.shieldMul) this.stats.shieldMul = (this.stats.shieldMul ?? 0) + e.shieldMul;
+    if (e.shieldEvery) this.stats.shieldEvery = Math.min(this.stats.shieldEvery ?? Infinity, e.shieldEvery);
+    // 控制抗性（功德·禅心）：受控时间缩短
+    if (e.ccResist) this.stats.ccResist = Math.min(0.9, (this.stats.ccResist ?? 0) + e.ccResist);
+    // 体型（山海·巨躯 / 兽魂 / 顶天）：更大 = 更容易吃接触伤害，但配践踏/清场更广
+    if (e.size) this.stats.size = (this.stats.size ?? 1) + e.size;
+    // 闪避后攻速（侠客·身法）
+    if (e.dodgeAspd) this.stats.dodgeAspd = (this.stats.dodgeAspd ?? 0) + e.dodgeAspd;
+    // 击杀减技能 CD（魔法·法力共鸣）
+    if (e.killCdRefund) this.stats.killCdRefund = (this.stats.killCdRefund ?? 0) + e.killCdRefund;
+    // 对精英增伤（巨化·踏碎）
+    if (e.vsEliteDmgPct) this.stats.vsEliteDmgPct = (this.stats.vsEliteDmgPct ?? 0) + e.vsEliteDmgPct;
+    // 击杀额外基因（丧尸·腐肉）
+    if (e.geneBonus) this.stats.geneBonus = (this.stats.geneBonus ?? 0) + e.geneBonus;
   }
 
   // ===== 结算（指南 13.3）=====

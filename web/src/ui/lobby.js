@@ -113,7 +113,7 @@ export function openNest(ctx) {
 
 // ===== 开裂缝 =====
 
-function openRift(ctx, picked = [], legend = null) {
+function openRift(ctx, picked = [], legend = null, weapon = null) {
   const { save, rng } = ctx;
   const plane = ctx._riftPlane ?? rollPlane(save, rng);
   ctx._riftPlane = plane;
@@ -127,6 +127,9 @@ function openRift(ctx, picked = [], legend = null) {
   const routeLine = pre.routes.length
     ? pre.routes.map((r) => `${ROUTES[r].name}${geneLockLevel(save, r) ? `（已激活 Lv${geneLockLevel(save, r)}）` : '（未激活）'}`).join(' / ')
     : '全路线融合';
+
+  // 出征路线：玩家选定的武器来源（未选 = 自动按基因锁最高路线）
+  const weaponPool = (ROUTES ? Object.values(ROUTES) : []).filter((r) => r.id && geneLockLevel(save, r.id) > 0);
 
   const modRows = RIFT_MODS.map((m) => {
     const on = picked.includes(m.id);
@@ -145,6 +148,12 @@ function openRift(ctx, picked = [], legend = null) {
       }</b></div>
       <div class="diff-row">可获奖励：${pre.rewards.join(' / ')}</div>
       <div class="diff-row">难度：${DIFFICULTY_LABEL[save.player.difficultyLevel]} · 副本难度值 D ≈ <b>${D.toFixed(1)}</b></div>
+      <h4 class="gold" style="margin-top:12px">出征武器 · 本局流派</h4>
+      <p class="small">选择用哪条路线的武器与机制战斗（决定攻击方式与专属强化池）。</p>
+      <div class="diff-row">当前：<b class="gold">${weapon
+        ? (ROUTES[weapon]?.name ?? weapon)
+        : '自动（按基因锁最高路线）'}</b></div>
+      ${weaponPool.length ? '' : '<p class="small">尚未激活任何路线 —— 使用默认巢灵之爪（自动索敌 + 近战冲击）。</p>'}
       <h4 class="gold" style="margin-top:12px">裂缝变异 · 风险 ${mods.risk} · 基因 ×${mods.geneMul.toFixed(2)}</h4>
       <p class="small">自选变异：敌人更强，但基因产出更高（倍率封顶 ×2.5）。</p>
       ${modRows}
@@ -155,17 +164,24 @@ function openRift(ctx, picked = [], legend = null) {
       ${pre.firstVisit ? '<p class="small gold">⚠ 首次进入 —— 通关后将永久激活该路线基因锁，并永久封印其互斥路线。此操作不可撤销。</p>' : ''}
     `,
     buttons: [
-      { text: '撕开裂缝，进入', style: 'primary', onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { legendLoadout: legend }); } },
+      { text: '撕开裂缝，进入', style: 'primary', onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { legendLoadout: legend, weaponLoadout: weapon }); } },
       ...(save.stats.endlessUnlocked ? [{
         text: '★ 无尽模式（通关后续接深渊层）',
-        onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { endless: true, legendLoadout: legend }); },
+        onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { endless: true, legendLoadout: legend, weaponLoadout: weapon }); },
       }] : []),
+      ...weaponPool.map((r) => {
+        const on = weapon === r.id;
+        return {
+          text: `${on ? '✔ ' : '☆ '}${r.name}${geneLockLevel(save, r.id) ? `（Lv${geneLockLevel(save, r.id)}）` : ''}`,
+          onClick: () => { view.closeModal(); openRift(ctx, picked, legend, on ? null : r.id); },
+        };
+      }),
       ...legendPool.map((id) => {
         const s = findSkill(id);
         const on = legend === id;
         return {
           text: `${on ? '✔ ' : '☆ '}${s ? s.name : id}`,
-          onClick: () => { view.closeModal(); openRift(ctx, picked, on ? null : id); },
+          onClick: () => { view.closeModal(); openRift(ctx, picked, on ? null : id, weapon); },
         };
       }),
       ...RIFT_MODS.map((m) => ({
@@ -173,7 +189,7 @@ function openRift(ctx, picked = [], legend = null) {
         onClick: () => {
           view.closeModal();
           const next = picked.includes(m.id) ? picked.filter((x) => x !== m.id) : [...picked, m.id];
-          openRift(ctx, next, legend);
+          openRift(ctx, next, legend, weapon);
         },
       })),
       { text: '换一道裂缝', onClick: () => { view.closeModal(); ctx._riftPlane = null; openRift(ctx); } },

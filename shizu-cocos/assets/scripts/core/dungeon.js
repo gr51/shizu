@@ -170,6 +170,9 @@ export function generateDungeon(plane, save, seed, riftMods = [], opts = {}) {
     mods,
     endless: Boolean(opts.endless),
     legendLoadout: opts.legendLoadout ?? null,
+    // 出征路线：玩家在开裂缝前选定的武器/路线机制来源（未选则按基因锁最高路线）。
+    // 与 legendLoadout 同源同用法：由大厅 opts 传入，非法（未激活路线）时降级为默认。
+    weaponLoadout: opts.weaponLoadout ?? null,
   };
 }
 

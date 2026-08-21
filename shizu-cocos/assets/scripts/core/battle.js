@@ -155,7 +155,7 @@ export class RealtimeRun extends Run {
       y: ARENA.h / 2,
       vx: 0,
       vy: 0,
-      r: 14,
+      r: Math.round(14 * (this.stats.size ?? 1)),
       facing: 1,
       invuln: 0,
       hitFlash: 0,
@@ -207,12 +207,14 @@ export class RealtimeRun extends Run {
       hits: 0,
     };
 
-    // 玩家武器：由基因锁等级最高的路线决定（剑=剑气、枪=子弹、雷=雷电……）
-    this.weapon = currentWeapon(this.save.player.geneLocks);
-    // 玩家进化形态皮肤：由基因锁等级最高的路线决定（无则基础形态）
-    this.skin = currentSkin(this.save.player.geneLocks);
+    // 玩家武器：优先「出征路线」（剑=剑气、枪=子弹、雷=雷电……），否则由基因锁等级最高的路线决定。
+    // 出征路线是本作给玩家的主动构建选择 —— 开裂缝前选定用哪条路线的武器/机制，不再被元进度锁定。
+    this.loadoutRoute = (this.dungeon.weaponLoadout ?? null);
+    this.weapon = currentWeapon(this.save.player.geneLocks, this.loadoutRoute);
+    // 玩家进化形态皮肤：优先出征路线（无激活路线则基础形态）
+    this.skin = currentSkin(this.save.player.geneLocks, this.loadoutRoute);
     // 玩家路线机制：每条路线一种独特玩法（雷链/尸爆/导弹/弹幕/寄生/反击/践踏/激光/连击）
-    this.routeMech = currentRouteMech(this.save.player.geneLocks);
+    this.routeMech = currentRouteMech(this.save.player.geneLocks, this.loadoutRoute);
     this.routeMechCd = 0;
     this.lastProjCount = 0;      // 武器进化档位（用于进化瞬间庆祝）
     this.bossWarnedStage = -1;   // 已预警 Boss 降临的阶段（张弛节奏）
@@ -220,6 +222,13 @@ export class RealtimeRun extends Run {
     this.miniRushCd = 45;        // 周期性小波急袭（完成挑战后才结算基因雨奖励）
     this.ambushTimer = 15;       // 精英伏击事件倒计时（阶段中段高价值风险点）
     this.ambushDoneStage = -1;   // 已触发伏击的阶段（每阶段一次）
+
+    // —— 已接线的 build 轴运行时状态 ——
+    this.dots = [];              // 敌人持续伤害（dot）：{eid,t,period,dmg,elapsed}
+    this.shield = 0;             // 护盾剩余吸收量（机甲·护盾）
+    this.shieldTimer = 0;        // 护盾刷新倒计时
+    this.dodgeAspdT = 0;         // 闪避后攻速加成剩余秒（侠客·身法）
+    this.elementalSlows = new Map(); // 元素减速：enemyId → 剩余减速秒
   }
 
   /** 难度对应的时间坡分母（困难更快变强，简单更慢） */
@@ -288,6 +297,7 @@ export class RealtimeRun extends Run {
     this.updateShots(dt);
     if (this.state !== RunState.FIGHTING) return;
     this.updateOrbs(dt);
+    this.statusTick(dt);
     this.mechanicsTick(dt);
     this.miniRushTick(dt);
     this.ambushTick(dt);
@@ -550,11 +560,14 @@ export class RealtimeRun extends Run {
       // 阈值给足余量（2.5 倍视野），正常战斗绝不回收，只有刻意跑路许久才触发。
       if (e.kind === 'minion' && d > ARENA.w * 2.5) { e.dead = true; continue; }
 
+      // 元素减速（魔法·冰霜）：被冻住的敌人移动变慢
+      const slowMul = this.elementalSlows.has(e.id) ? 0.55 : 1;
+
       if (e.variant === 'spitter') {
         // 远程：停在射程边缘，逼玩家主动上前，不能龟在安全圈里
         const want = d > SPIT_RANGE ? 1 : d < SPIT_RANGE * 0.7 ? -1 : 0;
-        e.x += (dx / d) * e.speed * want * dt;
-        e.y += (dy / d) * e.speed * want * dt;
+        e.x += (dx / d) * e.speed * slowMul * want * dt;
+        e.y += (dy / d) * e.speed * slowMul * want * dt;
         // 瞄准抬手 → 发射（与近战预警一致：有 0.4s 可躲）
         if (e.attackT <= 0) {
           e.spitCd -= dt;
@@ -572,10 +585,10 @@ export class RealtimeRun extends Run {
           this.emitFx('spit', e.x, e.y);
         }
       } else if (e.variant === 'charger') {
-        this.updateCharger(e, dx, dy, d, dt);
+        this.updateCharger(e, dx, dy, d, dt, slowMul);
       } else {
-        e.x += (dx / d) * e.speed * dt;
-        e.y += (dy / d) * e.speed * dt;
+        e.x += (dx / d) * e.speed * slowMul * dt;
+        e.y += (dy / d) * e.speed * slowMul * dt;
         // 自爆怪：贴近就点引信，烧完原地炸。给的是「看见了就该走开」的压力，
         // 而不是原来那种「死了才炸、事前零信号」的暗算。
         if (e.variant === 'bomber') this.updateBomberFuse(e, d, dt);
@@ -657,8 +670,9 @@ export class RealtimeRun extends Run {
   /**
    * 冲撞怪：走近 → 抬手（原地、锁方向）→ 直线冲刺 → 长 CD 收招。
    * 冲刺期不再追踪玩家，所以走位真的能躲开 —— 会拐弯的冲刺等于必中，没有博弈。
+   * 元素减速只作用于接近阶段；冲刺一旦离手就是「提交过的」，不吃减速。
    */
-  updateCharger(e, dx, dy, d, dt) {
+  updateCharger(e, dx, dy, d, dt, slowMul = 1) {
     if (e.dashT > 0) {
       e.dashT -= dt;
       e.x += e.dashVx * dt;
@@ -683,9 +697,9 @@ export class RealtimeRun extends Run {
       this.emitFx('elite', e.x, e.y);   // 抬手闪一下，远处也读得到
       return;
     }
-    // 不在冲刺窗口内：正常追击
-    e.x += (dx / d) * e.speed * dt;
-    e.y += (dy / d) * e.speed * dt;
+    // 不在冲刺窗口内：正常追击（吃元素减速）
+    e.x += (dx / d) * e.speed * slowMul * dt;
+    e.y += (dy / d) * e.speed * slowMul * dt;
   }
 
   /**
@@ -841,7 +855,9 @@ export class RealtimeRun extends Run {
     }
     if (!best) return;
 
-    p.attackCd = 1 / Math.max(0.2, this.stats.aspd * ATTACK_RATE * (p.berserk > 0 ? BERSERK_MUL : 1));
+    // 侠客·身法：闪避后的攻速窗口叠加
+    const dodgeAspdBonus = this.dodgeAspdT > 0 ? (1 + (this.stats.dodgeAspd ?? 0)) : 1;
+    p.attackCd = 1 / Math.max(0.2, this.stats.aspd * ATTACK_RATE * (p.berserk > 0 ? BERSERK_MUL : 1) * dodgeAspdBonus);
     p.facing = best.x >= p.x ? 1 : -1;
 
     // 连击/连招（侠客·剑气流）：每次命中累积
@@ -865,11 +881,27 @@ export class RealtimeRun extends Run {
       // 斩杀本能：残血目标吃额外伤害（阈值可由共鸣放宽），奖励「补刀收割」的打法
       const execThreshold = this.stats.executeThreshold ?? 0.3;
       let eDmg = execBonus > 0 && e.hp / Math.max(1, e.maxHp) < execThreshold ? dmg * (1 + execBonus) : dmg;
+      // 巨化·踏碎：对精英/位面之主增伤（攻坚 build 的一条轴）
+      const vsElite = this.stats.vsEliteDmgPct ?? 0;
+      if (vsElite > 0 && e.kind !== 'minion') eDmg *= 1 + vsElite;
       // 铁壁词缀：减伤（换来更慢的移动，用走位可以拉扯）
       eDmg *= e.affix?.eff.dmgTaken ?? 1;
       e.hp -= eDmg;
       e.hitFlash = 0.12;
       healed += eDmg;
+      // 击杀后目标已消失，不再叠状态
+      if (e.hp > 0) {
+        // 尸毒（持续伤害）：命中叠 DoT
+        const dotMul = this.stats.dotMul ?? 0;
+        if (dotMul > 0) this.applyDot(e, this.stats.atk * dotMul, this.stats.dotDuration ?? 3);
+        // 元素附加（魔法）：灼烧（DoT）+ 冰霜减速（固定时长；
+        // ccResist 是玩家自身的控制抗性，与敌人被减速的时长无关，别在这里用）
+        const elem = this.stats.elemental ?? 0;
+        if (elem > 0) {
+          this.applyDot(e, this.stats.atk * elem * 0.6, this.stats.dotDuration ?? 2);
+          this.elementalSlows.set(e.id, 1.5);
+        }
+      }
       if (e.hp <= 0) this.killEnemy(e);
       // 渡劫·雷链弹射：命中后在敌人间跳跃（构筑强化可 +跳数/+伤害）
       if (this.routeMech === 'chain') {
@@ -1041,6 +1073,8 @@ export class RealtimeRun extends Run {
     p.invuln = Math.max(p.invuln, DODGE_INVULN);
     p.dodgeCd = DODGE_CD;
     p.state = 'dodge';
+    // 侠客·身法：闪避后 1s 攻速提升
+    if (this.stats.dodgeAspd) this.dodgeAspdT = 1;
     this.emitFx('dodge', p.x, p.y);
     return true;
   }
@@ -1241,11 +1275,22 @@ export class RealtimeRun extends Run {
       return;
     }
 
+    // 魔法·法力共鸣：每次击杀按比例削减剩余主动冷却（高速率的割草直接喂给技能循环）
+    const refund = this.stats.killCdRefund ?? 0;
+    if (refund > 0 && this.skillCd.size) {
+      for (const [id, left] of this.skillCd) {
+        this.skillCd.set(id, left * (1 - Math.min(refund, 0.5)));
+      }
+    }
+
     const kindForDrop = e.kind === 'elite' ? 'stageBoss' : 'minion';
     const drop = rollKillDrop(this.dungeon, this.save, kindForDrop, this.rng);
     if (drop.gear) this.addGear(drop.gear);
+    // 丧尸·腐肉：击杀额外基因（掉尸体时按倍率放大）
+    const geneBonus = this.stats.geneBonus ?? 0;
+    const genes = geneBonus > 0 ? Math.max(1, Math.round(drop.genes * (1 + geneBonus))) : drop.genes;
     // 基因不直接入账，先掉成尸体，玩家靠近才吸（整体策划 4.2）
-    this.orbs.push({ x: e.x, y: e.y, genes: drop.genes, bob: this.rng() * 6 });
+    this.orbs.push({ x: e.x, y: e.y, genes, bob: this.rng() * 6 });
 
     this.enemies = this.enemies.filter((x) => !x.dead);
     if (e.kind === 'elite' && !e.ambush) {
@@ -1327,8 +1372,86 @@ export class RealtimeRun extends Run {
     if (this.orbs.some((o) => o.taken)) this.orbs = this.orbs.filter((o) => !o.taken);
   }
 
-  // ===== 位面主题机制 =====
+  // ===== 战斗状态轴（已接线的 build 效果：DoT / 护盾 / 元素减速 / 闪避攻速）=====
 
+  /**
+   * 每帧结算持续类效果：
+   *  · 护盾（机甲·护盾）每 shieldEvery 秒生成，先吸收伤害
+   *  · DoT（尸毒 / 元素灼烧）对敌人按秒止血
+   *  · 元素减速（冰）随时间解除
+   *  · 闪避后攻速（侠客·身法）随时间解除
+   */
+  statusTick(dt) {
+    const p = this.player;
+    // 护盾刷新
+    const shieldEvery = this.stats.shieldEvery;
+    if (this.stats.shieldMul && shieldEvery) {
+      this.shieldTimer -= dt;
+      if (this.shieldTimer <= 0) {
+        this.shieldTimer = shieldEvery;
+        this.shield = this.stats.atk * this.stats.shieldMul;
+        this.emitFxMax('shield', p.x, p.y);
+      }
+    }
+    // 护盾被持续消耗时也随时间微降（不无限累积到 BOSS 战）
+    if (this.shield > 0 && !this.stats.shieldEvery) this.shield = 0;
+
+    // 计时型 buff/状态必定随时间走（与 DoT 有无无关，避免「没毒就不减速」）
+    this.dodgeAspdT = Math.max(0, this.dodgeAspdT - dt);
+    if (this.elementalSlows.size) {
+      for (const [id, t] of this.elementalSlows) {
+        const nt = t - dt;
+        if (nt <= 0) this.elementalSlows.delete(id);
+        else this.elementalSlows.set(id, nt);
+      }
+    }
+
+    // DoT：对每个受毒/灼烧敌人每秒结算一次
+    if (this.dots.length === 0) return;
+    const alive = new Map(this.enemies.map((e) => [e.id, e]));
+    const keep = [];
+    for (const d of this.dots) {
+      d.elapsed += dt;
+      const e = alive.get(d.eid);
+      if (!e || e.dead) continue;
+      while (d.elapsed >= d.period) {
+        d.elapsed -= d.period;
+        const tick = d.dmg;
+        e.hp -= tick;
+        e.hitFlash = Math.max(e.hitFlash, 0.08);
+        this.damageNums.push({ x: e.x, y: e.y - 26, v: Math.round(tick), crit: false, dot: true, life: 0.7 });
+        this.emitFxMin('poison', e.x, e.y);
+        if (e.hp <= 0) this.killEnemy(e);
+      }
+      d.t -= dt;
+      if (d.t > 0) keep.push(d);
+    }
+    this.dots = keep;
+  }
+
+  /** 给敌人叠一段持续伤害（不同来源合并取最大） */
+  applyDot(e, dmg, duration) {
+    const id = e.id;
+    const old = this.dots.find((d) => d.eid === id);
+    // 同源刷新；不同源也合并（取最高 dps 的那段）
+    const period = 1;
+    if (old) {
+      old.dmg = Math.max(old.dmg, dmg);
+      old.t = Math.max(old.t, duration);
+    } else {
+      this.dots.push({ eid: id, dmg, t: duration, period, elapsed: 0 });
+    }
+  }
+
+  /** 效果特效减负：同帧重复不刷屏 */
+  emitFxMax(type, x, y) {
+    if (this.hits.length < 24) this.emitFx(type, x, y);
+  }
+  emitFxMin(type, x, y) {
+    if (this.hits.length < 30) this.emitFx(type, x, y);
+  }
+
+  // ===== 位面主题机制 =====
   /** 周期机制主循环：落雷 / 弹幕 / 导弹 / 激光 / 践踏 / 融合 */
   mechanicsTick(dt) {
     const m = this.mech;
@@ -1418,7 +1541,12 @@ export class RealtimeRun extends Run {
   hurtPlayer(dmg, invuln = 0.6) {
     const p = this.player;
     if (p.invuln > 0 || this.state !== RunState.FIGHTING) return;
-    const d = Math.max(1, dmg * (1 - this.stats.dmgReduct));
+    const raw = dmg * (1 - this.stats.dmgReduct);
+    // 护盾（机甲·护盾）：先吸收伤害，破盾后剩余才掉血
+    const bleed = raw - this.shield;
+    this.shield = Math.max(0, this.shield - raw);
+    if (this.shield === 0 && bleed > 0) this.emitFx('shield', p.x, p.y);
+    const d = bleed > 0 ? Math.max(1, bleed) : 0;
     this.hp -= d;
     p.invuln = invuln;
     p.hitFlash = 0.18;
@@ -1436,6 +1564,40 @@ export class RealtimeRun extends Run {
         }
       }
       this.emitFx('burst', p.x, p.y);
+    }
+    // 渡劫·雷枢护体：受击概率引雷反击最近敌人
+    const counterChance = this.stats.counterChance ?? 0;
+    if (counterChance > 0 && this.rng() < counterChance) {
+      let nb = null; let bd = Infinity;
+      for (const o of this.enemies) {
+        if (o.dead) continue;
+        const dd = Math.hypot(o.x - p.x, o.y - p.y);
+        if (dd < bd) { bd = dd; nb = o; }
+      }
+      const cMul = this.stats.counterMul ?? 0.5;
+      if (nb && bd <= 260) {
+        nb.hp -= this.stats.atk * cMul;
+        nb.hitFlash = 0.15;
+        this.damageNums.push({ x: nb.x, y: nb.y - 24, v: Math.round(this.stats.atk * cMul), crit: true, life: 0.9 });
+        if (nb.hp <= 0) this.killEnemy(nb);
+        this.emitFx('lightning', nb.x, nb.y);
+      }
+    }
+    // 金身业力 / 天雷护体：把所受伤害按比例弹给最近的敌人
+    const reflect = this.stats.reflect ?? 0;
+    if (reflect > 0 && d > 0) {
+      let nb = null; let bd = Infinity;
+      for (const o of this.enemies) {
+        if (o.dead) continue;
+        const dd = Math.hypot(o.x - p.x, o.y - p.y);
+        if (dd < bd) { bd = dd; nb = o; }
+      }
+      if (nb && bd <= 160) {
+        nb.hp -= d * reflect;
+        nb.hitFlash = 0.12;
+        if (nb.hp <= 0) this.killEnemy(nb);
+        this.emitFx('burst', nb.x, nb.y);
+      }
     }
     // 倒刺外壳（属性构筑）：受击反震周身敌人，与路线反击可叠加
     const thorn = this.stats.thorn ?? 0;

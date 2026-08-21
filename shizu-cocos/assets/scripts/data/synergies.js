@@ -52,6 +52,35 @@ export const SYNERGIES = [
     need: ['attr_atk', 'attr_speed'],
     eff: { aspdPct: 0.15 },
   },
+  // —— 新增 build 轴共鸣：把同屏清场与「持续伤害/护盾/攻坚」串起来，凑套就换玩法 ——
+  {
+    id: 'syn_cinders',
+    name: '共鸣·燃域',
+    desc: '范围与暴击同时在手：每次命中附带灼烧（新持续伤害轴）',
+    need: ['attr_aoe', 'attr_crit'],
+    eff: { elemental: 1, dotMul: 0.15 },
+  },
+  {
+    id: 'syn_bastion',
+    name: '共鸣·坚垒',
+    desc: '减伤与再生同时在手：周期性生成护盾吸收伤害',
+    need: ['attr_dmgreduct', 'attr_regen'],
+    eff: { shieldMul: 1.2, shieldEvery: 18 },
+  },
+  {
+    id: 'syn_huntsman',
+    name: '共鸣·诛主',
+    desc: '斩杀与暴击同时在手：对精英/位面之主增伤',
+    need: ['attr_execute', 'attr_crit'],
+    eff: { vsEliteDmgPct: 0.25 },
+  },
+  {
+    id: 'syn_sawtooth',
+    name: '共鸣·锯齿',
+    desc: '斩杀与攻速同时在手：击杀回充主动技能冷却',
+    need: ['attr_execute', 'attr_aspd'],
+    eff: { killCdRefund: 0.03 },
+  },
 ];
 
 /**

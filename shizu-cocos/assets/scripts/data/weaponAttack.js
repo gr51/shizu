@@ -22,29 +22,39 @@ export const WEAPON_ATTACK = {
 export const DEFAULT_WEAPON = { projectile: 'sword_qi', color: '#b8e6d0', pattern: 'aoe' };
 
 /**
- * 玩家当前武器：取「基因锁等级最高」的路线；等级相同取先出现者；全 0 用默认。
+ * 取基因锁等级最高的路线（等级相同取先出现者；全 0 返回 null）。
  * @param {{ [routeId: string]: number }} geneLocks
  */
-export function currentWeapon(geneLocks) {
+export function highestRoute(geneLocks) {
   let best = null;
   let bestLv = 0;
   for (const [route, lv] of Object.entries(geneLocks ?? {})) {
     if (lv > bestLv) { bestLv = lv; best = route; }
   }
-  return best ? WEAPON_ATTACK[best] ?? DEFAULT_WEAPON : DEFAULT_WEAPON;
+  return best;
 }
 
 /**
- * 玩家当前进化形态（皮肤）：取「基因锁等级最高」的路线 id；无激活路线返回 null（基础形态）。
- * 皮肤 sprite 对应 units/player_<route>.png。
+ * 玩家当前武器：优先 use 指定的出征路线（出征武器），否则取基因锁等级最高的路线。
+ * @param {{ [routeId: string]: number }} geneLocks
+ * @param {string|null} [preferredRoute] 玩家主动选定的出征路线
  */
-export function currentSkin(geneLocks) {
-  let best = null;
-  let bestLv = 0;
-  for (const [route, lv] of Object.entries(geneLocks ?? {})) {
-    if (lv > bestLv) { bestLv = lv; best = route; }
-  }
-  return best ?? null;
+export function currentWeapon(geneLocks, preferredRoute = null) {
+  const route = preferredRoute && (geneLocks?.[preferredRoute] ?? 0) > 0
+    ? preferredRoute
+    : highestRoute(geneLocks);
+  return route ? WEAPON_ATTACK[route] ?? DEFAULT_WEAPON : DEFAULT_WEAPON;
+}
+
+/**
+ * 玩家当前进化形态（皮肤）：优先出征路线，否则取「基因锁等级最高」的路线 id；
+ * 无激活路线返回 null（基础形态）。皮肤 sprite 对应 units/player_<route>.png。
+ */
+export function currentSkin(geneLocks, preferredRoute = null) {
+  const route = preferredRoute && (geneLocks?.[preferredRoute] ?? 0) > 0
+    ? preferredRoute
+    : highestRoute(geneLocks);
+  return route ?? null;
 }
 
 /**
@@ -65,12 +75,12 @@ export const ROUTE_MECHANIC = {
   gongsheng: 'parasite',
 };
 
-/** 玩家当前路线机制（取基因锁等级最高的路线），无则 null */
-export function currentRouteMech(geneLocks) {
-  let best = null;
-  let bestLv = 0;
-  for (const [route, lv] of Object.entries(geneLocks ?? {})) {
-    if (lv > bestLv) { bestLv = lv; best = route; }
-  }
-  return best ? ROUTE_MECHANIC[best] ?? null : null;
+/**
+ * 玩家当前路线机制（优先出征路线，否则取基因锁等级最高的路线），无则 null。
+ */
+export function currentRouteMech(geneLocks, preferredRoute = null) {
+  const route = preferredRoute && (geneLocks?.[preferredRoute] ?? 0) > 0
+    ? preferredRoute
+    : highestRoute(geneLocks);
+  return route ? ROUTE_MECHANIC[route] ?? null : null;
 }

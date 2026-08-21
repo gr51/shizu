@@ -91,8 +91,11 @@ export function rollUpgradeOptions(dungeon, save, runState, rng) {
   const banished = runState.banished ?? new Set();
   const keep = (x) => !banished.has(x.id);
   const attrs = attrPool().filter((a) => (a.minLevel ?? 0) <= level).filter(keep);
-  // 构筑感：已激活路线的机制强化选项，名字/描述直接引用你的 Build
-  const mechPool = mechUpgradePool(currentRouteMech(save.player.geneLocks)).filter(keep);
+  // 构筑感：已激活路线的机制强化选项，名字/描述直接引用你的 Build。
+  // 出征路线优先作为「本局构建主轴」—— 玩家所选武器的专属强化选项进三选一池，
+  // 而非元进度最高的路线，保证「我选的流派」在三选一里得到持续喂给。
+  const routeMech = currentRouteMech(save.player.geneLocks, dungeon.weaponLoadout ?? null);
+  const mechPool = mechUpgradePool(routeMech).filter(keep);
 
   if (dungeon.channel === 'attr') {
     // 硬规则：只有属性 + 机制强化，一个路线技能都不能出现
