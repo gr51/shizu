@@ -60,9 +60,16 @@ for (let i = 0; i < 6000; i++) {
 
   const modalOpen = await page.$('#modalRoot.show');
   if (modalOpen) {
-    const btns = await page.$$('#modalRoot .modal-btns button');
-    if (!btns.length) { fail('模态框没有可点按钮，卡死'); break; }
-    await btns[0].click();
+    // 三选一的选项是卡片（[data-pick]），不是 .modal-btns 里的按钮 ——
+    // .modal-btns 现在只剩「重掷」，点它会原地打转、推不动流程。
+    const pick = await page.$('#modalRoot [data-pick]');
+    if (pick) {
+      await pick.click();
+    } else {
+      const btns = await page.$$('#modalRoot .modal-btns button:not([disabled])');
+      if (!btns.length) { fail('模态框没有可点按钮，卡死'); break; }
+      await btns[0].click();
+    }
     choices += 1;
   } else {
     await page.click('#btnAdvance');

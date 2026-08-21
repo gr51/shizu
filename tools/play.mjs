@@ -60,8 +60,14 @@ for (let i = 0; i < 120; i++) {
   const st = await p.evaluate(() => globalThis.__shizu.run?.state ?? null);
   if (['won', 'lost', 'settled'].includes(st)) break;
   if (st === 'choosing' || st === 'slotConflict') {
-    try { await p.click('#modalRoot .modal-btns button:first-child', { timeout: 1500 }); modals += 1; }
-    catch { /* 模态正在切换 */ }
+    // 三选一的选项是卡片（[data-pick]），.modal-btns 里只剩「重掷」——
+    // 点后者会原地重掷，一局永远走不到终局。
+    try {
+      const pick = await p.$('#modalRoot [data-pick]');
+      if (pick) await pick.click();
+      else await p.click('#modalRoot .modal-btns button:not([disabled])', { timeout: 1500 });
+      modals += 1;
+    } catch { /* 模态正在切换 */ }
     continue;
   }
   const k = dirs[di++ % dirs.length];
