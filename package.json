@@ -16,7 +16,13 @@
     "art:preview": "node tools/preview-pixel.mjs",
     "play": "node tools/play.mjs",
     "probe": "node tools/probe-battle.mjs",
-    "playtest": "node tools/playtest.mjs"
+    "playtest": "node tools/playtest.mjs",
+    "shots": "node tools/shots.mjs",
+    "audit:art": "node tools/audit-art.mjs",
+    "audit:build": "node tools/build-depth.mjs",
+    "audit:enemy": "node tools/enemy-behavior.mjs",
+    "art:tile": "node tools/ai-art/tile-preview.mjs",
+    "art:floor": "node tools/ai-art/regen-floor.mjs"
   },
   "devDependencies": {
     "jpeg-js": "^0.4.4",

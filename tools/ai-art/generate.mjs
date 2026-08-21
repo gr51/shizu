@@ -22,7 +22,7 @@ import { encodePng } from '../pixel/png.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-// 16-bit 像素风统一前缀（美术提示词-像素世界资产图鉴.md 的精神：黑色描边/有限色阶/复古）
+// 16-bit 像素风统一前缀（口径见 开发说明.md 5.4：黑色描边/有限色阶/复古）
 const PX = '16-bit pixel art, retro game sprite, single sprite centered, black outline, limited color palette, crisp pixels, no dithering, side view facing right, solid dark gray background';
 
 /** 每件资产的生成目标（渲染层 blitSprite 会按 targetH 缩放，源图高清度由这里定） */
