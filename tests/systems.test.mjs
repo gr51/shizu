@@ -16,6 +16,7 @@ import { ALL_ROUTES } from '../shizu-cocos/assets/scripts/data/routes.js';
 import { ALL_HIDDEN_SKILLS } from '../shizu-cocos/assets/scripts/data/hiddenSkills.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../shizu-cocos/assets/scripts/data/nestUpgrades.js';
 import { RIFT_MODS } from '../shizu-cocos/assets/scripts/data/riftMods.js';
+import { RELICS, aggregateRelicEff } from '../shizu-cocos/assets/scripts/data/relics.js';
 import { autoPlay, freshSave, repo, rng } from './helpers.mjs';
 
 const plane = (id) => planes.find((p) => p.id === id);
@@ -452,6 +453,39 @@ test('无尽模式：未解锁时不启用；主动撤离以胜利结算', () =>
   const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3, [], { endless: true }), 11);
   assert.ok(run.retire(), '无尽模式可主动撤离');
   assert.equal(run.state, RunState.WON, '撤离应以胜利结算');
+});
+
+// ===== 传承残影：收集即永久被动 =====
+
+test('传承被动：收集后开局属性提升，稀有残响效果翻倍', () => {
+  const plain = freshSave({ totalRuns: 5 });
+  const withRelic = freshSave({ totalRuns: 5 });
+  withRelic.inventory.relics = ['relic_jijia'];   // 零式核心：攻击 +5%
+  const rareOne = freshSave({ totalRuns: 5 });
+  rareOne.inventory.relics = ['relic_rare_jijia'];
+
+  const d = generateDungeon(plane('aofa'), plain, 3);
+  const a = new RealtimeRun(plain, d, 11);
+  const b = new RealtimeRun(withRelic, d, 11);
+  const c = new RealtimeRun(rareOne, d, 11);
+
+  assert.ok(b.stats.atk > a.stats.atk, '传承应提升开局攻击');
+  assert.ok(c.stats.atk > b.stats.atk, '稀有残响效果应更强（×2）');
+
+  // 汇总函数本身：多件叠加
+  const many = aggregateRelicEff(['relic_jijia', 'relic_jushen', 'relic_benghuaixin']);
+  assert.ok(many.atkPct > 0 && many.hpPct > 0, '多件传承应叠加不同维度');
+
+  // 12 件全收齐幅度受控：不应把攻击翻倍
+  const all = aggregateRelicEff(Object.keys(RELICS));
+  assert.ok(all.atkPct < 0.5, `全收齐攻击加成 ${all.atkPct} 过高，会抢局内构筑的主角位`);
+});
+
+test('传承·百机密钥：冷却缩减真的缩短主动技CD', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.inventory.relics = ['relic_qiqiao'];   // 技能冷却 -6%
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  assert.ok(run.stats.cooldown < 1, '冷却乘区应小于 1');
 });
 
 // ===== 存档迁移 =====

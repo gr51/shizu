@@ -19,6 +19,7 @@ import { ZHUTIAN_ID } from '../data/planes.js';
 import { skillsByRoute } from '../data/skills.js';
 import { newlyFiredSynergies } from '../data/synergies.js';
 import { aggregateNestEff } from '../data/nestUpgrades.js';
+import { aggregateRelicEff } from '../data/relics.js';
 import { activatedRoutes, geneLockLevel } from './geneLock.js';
 import { rngFactory } from './rng.js';
 
@@ -96,6 +97,21 @@ export class Run {
     if (this.nest.suckRadius) this.stats.suckRadius = (this.stats.suckRadius ?? 1) * (1 + this.nest.suckRadius);
     this.reviveLeft = this.nest.revive > 0 ? 1 : 0;   // 残命：每局一次
     this.freeRerollLeft = this.nest.freeReroll ?? 0;
+
+    // 传承残影：收集到的强者基因作为永久被动，开局装载（收集才有回报）
+    this.relicEff = aggregateRelicEff(save.inventory?.relics);
+    const rel = this.relicEff;
+    if (rel.atkPct) this.stats.atk *= 1 + rel.atkPct;
+    if (rel.hpPct) { this.stats.maxHp *= 1 + rel.hpPct; this.hp = this.stats.maxHp; }
+    if (rel.aspdPct) this.stats.aspd *= 1 + rel.aspdPct;
+    if (rel.crit) this.stats.crit += rel.crit;
+    if (rel.critDmg) this.stats.critDmg = (this.stats.critDmg ?? 0) + rel.critDmg;
+    if (rel.aoe) this.stats.aoe = (this.stats.aoe ?? 0) + rel.aoe;
+    if (rel.lifesteal) this.stats.lifesteal += rel.lifesteal;
+    if (rel.regen) this.stats.regen += rel.regen;
+    if (rel.dmgReduct) this.stats.dmgReduct = Math.min(0.8, this.stats.dmgReduct + rel.dmgReduct);
+    if (rel.execute) this.stats.execute = (this.stats.execute ?? 0) + rel.execute;
+    if (rel.cooldownPct) this.stats.cooldown = Math.max(0.4, (this.stats.cooldown ?? 1) * (1 - rel.cooldownPct));
 
     // 裂缝变异：薄命降低生命上限，基因倍率提高产出（高风险高回报）
     const mods = dungeon.mods ?? {};

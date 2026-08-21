@@ -15,6 +15,13 @@ import { RIFT_MODS, aggregateRiftMods } from '../../../shizu-cocos/assets/script
 import { gearCard, gearItemHtml, geneCard, metaLine, playerCard, slotsCard } from './cards.js';
 import * as view from './view.js';
 
+/** 传承被动效果的中文标签（图鉴展示用） */
+const RELIC_EFF_LABEL = {
+  atkPct: '攻击', hpPct: '生命', aspdPct: '攻速', crit: '暴击', critDmg: '暴伤',
+  aoe: '清场范围', lifesteal: '吸血', regen: '回血', dmgReduct: '减伤',
+  execute: '斩杀', cooldownPct: '技能冷却缩减',
+};
+
 export function renderLobby(ctx) {
   const { save, rng } = ctx;
   view.setAdvance(false);
@@ -323,7 +330,8 @@ export function openCodex(ctx) {
   const relicRows = save.inventory.relics.length
     ? save.inventory.relics.map((id) => {
         const r = relicById(id);
-        return `<div class="codex-row"><span>${r.name}</span><span class="small">${r.rare ? '稀有' : ''}</span></div>
+        const effText = Object.entries(r.eff ?? {}).map(([k, v]) => `${RELIC_EFF_LABEL[k] ?? k} +${Math.round(v * 100)}%`).join('，');
+        return `<div class="codex-row"><span>${r.name}</span><span class="small gold">${effText || (r.rare ? '稀有' : '')}</span></div>
           <div class="small" style="padding:0 8px 8px;color:#8f98a3;line-height:1.5">${r.story}</div>`;
       }).join('')
     : '<p class="small">尚未获得传承 —— 噬灭位面之主可得。</p>';

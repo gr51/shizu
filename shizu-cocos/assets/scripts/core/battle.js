@@ -984,7 +984,7 @@ export class RealtimeRun extends Run {
       if (!slot || slot.kind !== 'active') return null;
       const skill = findSkill(slot.skillId) ?? findHiddenSkill(slot.skillId);
       if (!skill) return null;
-      const cd = skill.cd ?? 30;
+      const cd = (skill.cd ?? 30) * (this.stats.cooldown ?? 1);
       const left = Math.max(0, this.skillCd.get(slot.skillId) ?? 0);
       return { key, name: skill.name, left, cd, ready: left <= 0 };
     }).filter(Boolean);
@@ -1002,7 +1002,8 @@ export class RealtimeRun extends Run {
       if (!slot || slot.kind !== 'active') continue;
       const skill = findSkill(slot.skillId) ?? findHiddenSkill(slot.skillId);
       if (!skill) continue;
-      const cd = skill.cd ?? 30;
+      // 冷却缩减（装备词条 + 传承被动）统一走 stats.cooldown 乘区
+      const cd = (skill.cd ?? 30) * (this.stats.cooldown ?? 1);
       const left = (this.skillCd.get(slot.skillId) ?? 0) - dt;
       if (left > 0) { this.skillCd.set(slot.skillId, left); continue; }
       this.skillCd.set(slot.skillId, cd);
