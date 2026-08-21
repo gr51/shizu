@@ -21,6 +21,7 @@ import { findSkill } from '../data/skills.js';
 import { newlyFiredSynergies } from '../data/synergies.js';
 import { aggregateNestEff } from '../data/nestUpgrades.js';
 import { aggregateRelicEff } from '../data/relics.js';
+import { claimAchievements } from '../data/achievements.js';
 import { activatedRoutes, geneLockLevel } from './geneLock.js';
 import { rngFactory } from './rng.js';
 
@@ -613,6 +614,9 @@ export class Run {
       firstClear = true;
     }
 
+    // 里程碑奖励：达成但未领取的成就一次性发放（必须在落盘前，且在所有进度更新之后）
+    const achievements = claimAchievements(save);
+
     repo.persist(save);   // 红线 6：一次性落盘
 
     this.state = RunState.SETTLED;
@@ -636,6 +640,7 @@ export class Run {
       growth,
       dyn,
       firstClear,
+      achievements,
       grade: gradeRun(victory, this.stageNo, this.kills),
     };
     return this.result;

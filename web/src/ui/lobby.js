@@ -9,7 +9,7 @@ import { ALL_ROUTES, ROUTES, mutexOf } from '../../../shizu-cocos/assets/scripts
 import { planes } from '../../../shizu-cocos/assets/scripts/data/planes.js';
 import { nestLine } from '../../../shizu-cocos/assets/scripts/data/lines.js';
 import { RELICS, relicById } from '../../../shizu-cocos/assets/scripts/data/relics.js';
-import { ACHIEVEMENTS, unlockedAchievements } from '../../../shizu-cocos/assets/scripts/data/achievements.js';
+import { ACHIEVEMENTS, unlockedAchievements, isRewardClaimed } from '../../../shizu-cocos/assets/scripts/data/achievements.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../../../shizu-cocos/assets/scripts/data/nestUpgrades.js';
 import { RIFT_MODS, aggregateRiftMods } from '../../../shizu-cocos/assets/scripts/data/riftMods.js';
 import { findSkill } from '../../../shizu-cocos/assets/scripts/data/skills.js';
@@ -351,11 +351,15 @@ export function openCodex(ctx) {
       }).join('')
     : '<p class="small">尚未获得传承 —— 噬灭位面之主可得。</p>';
 
-  // 成就：已解锁高亮，未解锁灰
+  // 成就：已解锁高亮，未解锁灰；显示里程碑奖励与领取状态
   const unlocked = unlockedAchievements(save);
   const achRows = ACHIEVEMENTS.map((a) => {
     const got = unlocked.has(a.id);
-    return `<div class="codex-row ${got ? 'active' : ''}"><span>${got ? '★' : '·'} ${a.name}</span><span class="small">${a.desc}</span></div>`;
+    const claimed = isRewardClaimed(save, a.id);
+    const tail = got
+      ? `<span class="small ${claimed ? '' : 'gold'}">${a.reward}${claimed ? '（已领取）' : '（下次结算发放）'}</span>`
+      : `<span class="small">${a.desc}</span>`;
+    return `<div class="codex-row ${got ? 'active' : ''}"><span>${got ? '★' : '·'} ${a.name}</span>${tail}</div>`;
   }).join('');
 
   view.showModal({

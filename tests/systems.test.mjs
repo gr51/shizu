@@ -17,6 +17,7 @@ import { ALL_HIDDEN_SKILLS } from '../shizu-cocos/assets/scripts/data/hiddenSkil
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../shizu-cocos/assets/scripts/data/nestUpgrades.js';
 import { RIFT_MODS } from '../shizu-cocos/assets/scripts/data/riftMods.js';
 import { RELICS, aggregateRelicEff } from '../shizu-cocos/assets/scripts/data/relics.js';
+import { claimAchievements, isRewardClaimed, ACHIEVEMENTS } from '../shizu-cocos/assets/scripts/data/achievements.js';
 import { autoPlay, freshSave, repo, rng } from './helpers.mjs';
 
 const plane = (id) => planes.find((p) => p.id === id);
@@ -382,6 +383,9 @@ test('巢髓·残命：致死伤害拦截一次，第二次真死', () => {
 test('局外货币：结算时本局基因入库', () => {
   const save = freshSave({ totalRuns: 5 });
   save.inventory.genes = 100;
+  // 先把成就奖励全部标记为已领取，隔离出「本局基因入库」这一项
+  save.stats.achievementFlags = {};
+  for (const a of ACHIEVEMENTS) save.stats.achievementFlags[a.id] = true;
   const r = repo();
   const { run } = autoPlay(plane('jiguan'), save, 3);
   const earned = run.genes;
@@ -513,6 +517,52 @@ test('出征传说：主动型进自动循环、被动型直接生效、未收�
   const plainRun = new RealtimeRun(passiveSave, generateDungeon(plane('aofa'), passiveSave, 3), 11);
   const buffRun = new RealtimeRun(passiveSave, generateDungeon(plane('aofa'), passiveSave, 3, [], { legendLoadout: 'gongsheng_6' }), 11);
   assert.ok(buffRun.stats.atk > plainRun.stats.atk, '被动型传说应直接提升属性');
+});
+
+// ===== 成就里程碑奖励 =====
+
+test('成就奖励：达成即发放、只发一次、未达成不发', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.stats.achievementFlags = {};
+
+  // 未达成任何成就 → 不发
+  const none = claimAchievements(save);
+  assert.equal(none.length, 0, '未达成不应发放');
+
+  // 达成「初噬」
+  save.player.wins = 1;
+  const genesBefore = save.inventory.genes ?? 0;
+  const got = claimAchievements(save);
+  assert.ok(got.some((g) => g.id === 'first_kill'), '应发放初噬');
+  assert.equal(save.inventory.genes, genesBefore + 300, '奖励应真的入账');
+  assert.ok(isRewardClaimed(save, 'first_kill'), '应标记已领取');
+
+  // 重复结算不得再发
+  const again = claimAchievements(save);
+  assert.ok(!again.some((g) => g.id === 'first_kill'), '同一成就不得重复发放');
+  assert.equal(save.inventory.genes, genesBefore + 300, '基因不应再增加');
+});
+
+test('成就奖励：永久属性类奖励真的写进存档', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.stats.achievementFlags = {};
+  save.player.geneLocks = { dujie: 1, gongde: 1, xiake: 1 };
+  const atkBefore = save.player.permAtkPct;
+  const got = claimAchievements(save);
+  assert.ok(got.some((g) => g.id === 'three_routes'), '应发放十方之途');
+  assert.equal(save.player.permAtkPct, atkBefore + 3, '永久攻击应 +3%');
+});
+
+test('成就奖励：结算时自动结算并写入 result', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.stats.achievementFlags = {};
+  save.stats.bestStage = 5;   // 预置「深入裂缝」条件
+  const r = repo();
+  const { run } = autoPlay(plane('jiguan'), save, 3);
+  const res = run.finalize(r);
+  assert.ok(Array.isArray(res.achievements), 'result 应带 achievements');
+  assert.ok(res.achievements.some((a) => a.id === 'stage5'), '应在结算时发放深入裂缝');
+  assert.ok(isRewardClaimed(save, 'stage5'), '存档应标记已领取');
 });
 
 // ===== 存档迁移 =====

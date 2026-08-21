@@ -375,6 +375,9 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       lines.push(`<div class="diff-row">${ROUTES[c.route].name} 基因锁：第 ${c.from} → 第 ${c.to} 段</div>`);
     }
     if (r.hiddenSkill) lines.push(`<div class="diff-row" style="color:#e0a3d8">🔥 禁忌显现：<b>${r.hiddenSkill.name}</b></div>`);
+    for (const a of r.achievements ?? []) {
+      lines.push(`<div class="diff-row gold">🏅 成就达成「${a.name}」 —— 奖励：${a.reward}</div>`);
+    }
     if (r.relics.length) {
       lines.push(`<div class="diff-row" style="color:#c9b8ff">⟡ 传承残影：</div>`);
       for (const id of r.relics) {
