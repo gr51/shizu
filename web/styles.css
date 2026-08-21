@@ -388,6 +388,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .modal-body { font-size: 14px; }
 .modal-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
 
+/* 三选一卡片：卡片本身即按钮，不再额外排一行「获得 X」 */
 .pick {
   padding: 10px 12px;
   margin-bottom: 8px;
@@ -398,6 +399,81 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .pick b { color: var(--gold); }
 .pick span { display: block; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 .pick.attr b { color: var(--gene); }
+
+.pick-btn {
+  position: relative;
+  cursor: pointer;
+  padding: 12px 14px;
+  /* 左侧色条按类型区分：技能=金 / 强化=紫 / 属性=青 */
+  border-left: 3px solid var(--line);
+  transition: background .12s, border-color .12s, transform .12s;
+}
+.pick-btn:hover, .pick-btn:focus-visible {
+  background: #1c242c;
+  border-color: var(--gold);
+  transform: translateX(2px);
+  outline: none;
+}
+.pick-btn.k-skill { border-left-color: var(--gold); }
+.pick-btn.k-mech  { border-left-color: var(--r-purple); }
+.pick-btn.k-attr  { border-left-color: var(--gene); }
+
+.pick-head { display: block; margin: 0; }
+.pick-head b { font-size: 15px; }
+.pick-tag {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  background: #263038;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-style: normal;
+  vertical-align: 2px;
+}
+.k-skill .pick-tag { background: #3a3016; color: var(--gold); }
+.k-mech  .pick-tag { background: #2e2440; color: var(--r-purple); }
+.k-attr  .pick-tag { background: #1c332f; color: var(--gene); }
+.pick-sub { display: inline !important; margin-left: 8px; font-size: 12px; color: var(--text-dim); }
+.pick-detail { display: block; margin-top: 6px; font-size: 13px; color: var(--text); }
+.pick-detail i { color: var(--gold); font-style: normal; font-weight: 600; }
+
+/* 放逐：卡片右上角的次要动作，不再单独占三行 */
+.pick-banish {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-height: 0;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #6f7a83;
+  font-size: 11px;
+  cursor: pointer;
+}
+.pick-btn:hover .pick-banish { border-color: #43505a; }
+.pick-banish:hover { border-color: var(--danger); color: var(--danger); background: #21161a; }
+.pick-foot { margin: 12px 0 0; }
+
+/* 开局教学：左列动词、右列说明，比一串「·」开头的行好扫 */
+.tut-row {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid #232b33;
+}
+.tut-row:last-child { border-bottom: none; }
+.tut-row em {
+  color: var(--gene);
+  font-style: normal;
+  font-size: 13px;
+  text-align: right;
+}
+.tut-row span { font-size: 13px; color: var(--text-dim); }
+.tut-row b { color: var(--gold); font-weight: 600; }
 
 .bag-item { padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 6px; }
 .bag-btns { display: flex; gap: 6px; margin-top: 6px; }
@@ -421,6 +497,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 #app.in-battle #battleStage { display: flex; }
 
 #hud {
+  position: relative;   /* 给 .hud-mech / .hud-active 提供定位上下文 —— 否则它们
+                           会相对视口定位，浮到顶栏和 HUD 之间的空隙里 */
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; padding: 8px 16px; font-size: 13px;
   border-bottom: 1px solid var(--line); background: var(--bg-raise);
@@ -430,8 +508,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .hud-hp i { display: block; height: 100%; background: linear-gradient(90deg, #a8465a, #d06a7a); transition: width .1s; }
 .hud-mid { color: var(--text-dim); }
 .hud-right .gene { color: var(--gene); }
-.hud-mech { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 10px; background: rgba(20,26,32,.8); color: var(--gold); font-size: 12px; pointer-events: none; }
-.hud-active { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; max-width: min(70vw, 520px); pointer-events: none; }
+/* 挂在 HUD 栏下沿，浮在战场上方 */
+.hud-mech { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 10px; background: rgba(20,26,32,.8); color: var(--gold); font-size: 12px; pointer-events: none; white-space: nowrap; }
+.hud-mech:empty { display: none; }
+.hud-active { position: absolute; top: calc(100% + 32px); left: 50%; transform: translateX(-50%); display: flex; gap: 5px; max-width: min(70vw, 520px); pointer-events: none; }
 .hud-active .hud-cd { margin-left: 0; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(35,44,52,.88); }
 
 #canvasWrap {

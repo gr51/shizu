@@ -148,12 +148,13 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
   if (ctx.save.player.totalRuns === 0) {
     view.showModal({
       title: '第一次苏醒',
-      body: `<div class="small" style="line-height:1.9">
-        · <b>拖动</b>屏幕移动你的巢灵<br>
-        · <b>自动攻击</b>：靠近敌人就出招<br>
-        · 击杀掉落<b>基因</b>，靠近自动吸收<br>
-        · 基因攒满触发<b>三选一升级</b>，越升越强<br>
-        · 活着击破<b>位面之主</b>，带回战利品回巢
+      body: `<div class="tut">
+        <div class="tut-row"><em>移动</em><span><b>WASD</b> / 方向键，触屏则<b>拖动</b>屏幕</span></div>
+        <div class="tut-row"><em>攻击</em><span>自动索敌，靠近敌人就出招</span></div>
+        <div class="tut-row"><em>吞噬爆发</em><span><b>空格</b> —— 范围吸取基因 + 回血 + 狂暴</span></div>
+        <div class="tut-row"><em>闪避翻滚</em><span><b>Shift</b> —— 0.25 秒无敌，用来穿弹幕</span></div>
+        <div class="tut-row"><em>变强</em><span>击杀掉落<b>基因</b>，攒满触发<b>三选一进化</b></span></div>
+        <div class="tut-row"><em>目标</em><span>活着击破<b>位面之主</b>，带回战利品回巢</span></div>
       </div>`,
       buttons: [{ text: '醒来，去吞噬', style: 'primary', onClick: () => view.closeModal() }],
     });
@@ -254,9 +255,13 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       combo: '⚔️ 连击连招', chain: '⚡ 雷链弹射', corpseBlast: '💀 尸爆连锁', missile: '🚀 周期导弹',
       multishot: '🎯 弹幕翻倍', parasite: '🩸 寄生反水', reflect: '🛡 金身反击', stomp: '👣 践踏震荡', laser: '🔦 机关激光',
     };
+    // 没流派、弹体又只有 1 发时这行没有任何信息量，留空（CSS :empty 会整块隐藏）
+    const proj = run.projCount ?? 1;
     H.mech.textContent = run.miniRushRemaining > 0
       ? `⚠ 急袭挑战 · 剩余 ${run.miniRushRemaining}`
-      : run.routeMech ? `${MECH_LABEL[run.routeMech] ?? ''} · 弹体×${run.projCount ?? 1}` : `弹体×${run.projCount ?? 1}`;
+      : run.routeMech ? `${MECH_LABEL[run.routeMech] ?? ''} · 弹体 ×${proj}`
+      : proj > 1 ? `弹体 ×${proj}`
+      : '';
     H.active.innerHTML = run.activeSkillStatus.map((s) =>
       `<span class="hud-cd ${s.ready ? 'ready' : ''}">${s.name} ${s.ready ? '就绪' : `${s.left.toFixed(0)}s`}</span>`).join('');
   }
@@ -275,14 +280,15 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     const deltas = (o) => {
       const e = o.eff ?? {};
       const p = [];
-      if (e.atkPct) p.push(`攻击 ${s.atk.toFixed(1)}→${(s.atk * (1 + e.atkPct)).toFixed(1)}`);
-      if (e.hpPct) p.push(`生命 ${Math.round(s.maxHp)}→${Math.round(s.maxHp * (1 + e.hpPct))}`);
-      if (e.speedPct) p.push(`移速 +${Math.round(e.speedPct * 100)}%`);
-      if (e.aspdPct) p.push(`攻速 +${Math.round(e.aspdPct * 100)}%`);
-      if (e.crit) p.push(`暴击 +${Math.round(e.crit * 100)}%`);
-      if (e.aoe) p.push(`范围 +${Math.round(e.aoe * 100)}%`);
-      if (e.lifesteal) p.push(`吸血 +${Math.round(e.lifesteal * 100)}%`);
-      return p.join(' · ');
+      const pct = (v) => `${v >= 0 ? '+' : ''}${Math.round(v * 100)}%`;
+      if (e.atkPct) p.push(`攻击 ${s.atk.toFixed(1)} → <i>${(s.atk * (1 + e.atkPct)).toFixed(1)}</i>`);
+      if (e.hpPct) p.push(`生命 ${Math.round(s.maxHp)} → <i>${Math.round(s.maxHp * (1 + e.hpPct))}</i>`);
+      if (e.speedPct) p.push(`移速 ${s.speed.toFixed(0)} → <i>${(s.speed * (1 + e.speedPct)).toFixed(0)}</i>`);
+      if (e.aspdPct) p.push(`攻速 ${s.aspd.toFixed(2)} → <i>${(s.aspd * (1 + e.aspdPct)).toFixed(2)}</i>`);
+      if (e.crit) p.push(`暴击 ${pct(s.crit)} → <i>${pct(s.crit + e.crit)}</i>`);
+      if (e.aoe) p.push(`范围 ${pct(1 + (s.aoe ?? 0))} → <i>${pct(1 + (s.aoe ?? 0) + e.aoe)}</i>`);
+      if (e.lifesteal) p.push(`吸血 ${pct(s.lifesteal)} → <i>${pct(s.lifesteal + e.lifesteal)}</i>`);
+      return p.join('　');
     };
     // 构筑共鸣提示：告诉玩家「再拿哪一个就能凑成套」，让选择有目标
     const synergyHint = () => {
@@ -299,39 +305,58 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       const head = fired.length ? `<div class="small gold">已成立共鸣 ×${fired.length}</div>` : '';
       return head + rows.slice(0, 3).join('');
     };
+    // 卡片本身就是按钮 —— 以前是「3 张卡展示 + 3 个『获得 X』按钮 + 3 个放逐按钮」，
+    // 同一件事列三遍，弹窗被撑到需要滚动才看得见选项。
+    const TAG = { skill: '技能', mech: '强化', attr: '属性' };
+    const card = (o, i) => {
+      const detail = o.kind === 'skill'
+        ? `${o.desc}　<i class="gold">${o.val}</i>`
+        : o.kind === 'mech' ? o.desc
+        : (deltas(o) || o.desc);   // 属性只给实数，desc 是同义的抽象百分比
+      const sub = o.kind === 'skill'
+        ? `<span class="pick-sub">${ROUTES[o.route].name} · 第 ${o.lv} 段</span>` : '';
+      return `<div class="pick pick-btn k-${o.kind}" data-pick="${i}" role="button" tabindex="0">
+          <span class="pick-head"><em class="pick-tag">${TAG[o.kind] ?? '进化'}</em><b>${o.name}</b>${sub}</span>
+          <span class="pick-detail">${detail}</span>
+          ${run.banishLeft > 0
+            ? `<button type="button" class="pick-banish" data-banish="${i}" title="永久放逐，本局不再出现">✕ 放逐</button>`
+            : ''}
+        </div>`;
+    };
     view.showModal({
-      title: `${reason} · 选择你的进化`,      body: options.map((o) => {
-        if (o.kind === 'skill') return `<div class="pick"><b>【技能】${o.name}</b> <span class="small">${ROUTES[o.route].name}·第 ${o.lv} 段</span><span>${o.desc}　<i class="gold">${o.val}</i></span></div>`;
-        if (o.kind === 'mech') return `<div class="pick attr"><b>【强化】${o.name}</b><span>${o.desc}</span></div>`;
-        return `<div class="pick attr"><b>【属性】${o.name}</b><span>${o.desc}</span><span class="gold">${deltas(o)}</span></div>`;
-      }).join('')
+      title: `${reason} · 选择你的进化`,
+      body: options.map(card).join('')
         + synergyHint()
-        + `<p class="small">基因 <b class="gold">${run.genes}</b>　重掷 ${run.rerollCost} 基因　放逐剩 ${run.banishLeft} 次</p>`,
-      buttons: [
-        ...options.map((o, i) => ({
-          text: o.kind === 'skill' ? `习得 ${o.name}` : o.kind === 'mech' ? `强化 ${o.name}` : `获得 ${o.name}`,
-          style: o.kind !== 'attr' ? 'primary' : '',
-          onClick: () => { view.closeModal(); run.choose(i); resume(); },
-        })),
-        // 玩家能动性：三个都不想要时可花基因重掷，或永久放逐一个（本局不再出现）
-        {
-          text: `♻ 重掷（${run.rerollCost} 基因）`,
-          disabled: run.genes < run.rerollCost,
-          onClick: () => {
-            view.closeModal();
-            if (run.reroll() && run.pendingOptions) showChoice();
-            else resume();
-          },
+        + `<p class="small pick-foot">基因 <b class="gold">${run.genes}</b>`
+        + `　放逐剩 ${run.banishLeft} 次</p>`,
+      buttons: [{
+        text: `♻ 重掷（${run.rerollCost} 基因）`,
+        disabled: run.genes < run.rerollCost,
+        onClick: () => {
+          view.closeModal();
+          if (run.reroll() && run.pendingOptions) showChoice();
+          else resume();
         },
-        ...(run.banishLeft > 0 ? options.map((o, i) => ({
-          text: `🚫 放逐「${o.name}」（剩 ${run.banishLeft}）`,
-          onClick: () => {
+      }],
+      onMount: (rootEl) => {
+        const pick = (i) => { view.closeModal(); run.choose(i); resume(); };
+        for (const el of rootEl.querySelectorAll('[data-pick]')) {
+          const i = Number(el.dataset.pick);
+          el.addEventListener('click', () => pick(i));
+          // 键盘可达：Enter/空格等同点击
+          el.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(i); }
+          });
+        }
+        for (const el of rootEl.querySelectorAll('[data-banish]')) {
+          el.addEventListener('click', (ev) => {
+            ev.stopPropagation();   // 别让点击冒泡成「选中这张卡」
             view.closeModal();
-            if (run.banish(i) && run.pendingOptions) showChoice();
+            if (run.banish(Number(el.dataset.banish)) && run.pendingOptions) showChoice();
             else resume();
-          },
-        })) : []),
-      ],
+          });
+        }
+      },
     });
   }
 
