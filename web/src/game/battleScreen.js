@@ -59,7 +59,11 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       el.className = `toast-line ${entry.cls}`;
       el.innerHTML = entry.text;
       toast.appendChild(el);
-      setTimeout(() => el.remove(), 2600);
+      // 两段式退场：到期先淡出（.out 过渡），再摘除 DOM —— 直接 remove() 是「啪一下蒸发」
+      setTimeout(() => {
+        el.classList.add('out');
+        setTimeout(() => el.remove(), 200);
+      }, 2400);
     }
     while (toast.childElementCount > 5) toast.firstElementChild.remove();
   }
@@ -113,6 +117,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
   let timeScale = 1;          // 调试用倍速，见 __shizu.setTimeScale
   const SIM_STEP = 1 / 60;    // 仿真固定步长（与全部平衡测试同基线）
   let simAcc = 0;             // 未消耗的仿真时间累加器
+  let hitStop = 0;            // 命中停顿剩余时长：暴击/爆炸瞬间冻结仿真几十毫秒，渲染照跑
   ctx.setTimeScale = (n) => { timeScale = Math.max(0.1, Math.min(60, n)); };
 
   // 可访问性：暂停与静音。切后台自动暂停，避免回来时已被围死。
@@ -173,13 +178,20 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       const act = input.takeActions();
       if (act.devour) run.devour();
       if (act.dodge) run.dodge(move);
-      simAcc += real * timeScale;
-      // 上限 40 步：卡顿或倍速时不追平全部欠账，避免「死亡螺旋」越算越卡
-      let steps = Math.min(40, Math.floor(simAcc / SIM_STEP));
-      simAcc -= steps * SIM_STEP;
-      if (simAcc > SIM_STEP * 40) simAcc = 0;   // 长时间挂起后丢弃积压
-      for (; steps > 0 && run.state === RunState.FIGHTING; steps--) run.update(SIM_STEP, move);
+      // 命中停顿：冻结的是仿真推进，不是渲染 —— 刀刃入肉的顿挫感。
+      // 只影响表现节奏（headless 平衡测试跑 core，不经此处），随机序列不受影响。
+      if (hitStop > 0) hitStop -= real;
+      else {
+        simAcc += real * timeScale;
+        // 上限 40 步：卡顿或倍速时不追平全部欠账，避免「死亡螺旋」越算越卡
+        let steps = Math.min(40, Math.floor(simAcc / SIM_STEP));
+        simAcc -= steps * SIM_STEP;
+        if (simAcc > SIM_STEP * 40) simAcc = 0;   // 长时间挂起后丢弃积压
+        for (; steps > 0 && run.state === RunState.FIGHTING; steps--) run.update(SIM_STEP, move);
+      }
       const fx = run.drainEffects();
+      // 停顿触发延迟一帧生效：本帧的特效先画出来，下一帧再冻 —— 视觉上是「打中→顿住」
+      if (fx.some((e) => e.type === 'crit' || e.type === 'burst')) hitStop = 0.05;
       renderer.pushEffects(fx);
       audio.onEffects(fx);
     }

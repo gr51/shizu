@@ -1,12 +1,34 @@
 // ===== game/renderer.js · Canvas 像素渲染 =====
 // 规则：整数倍缩放 + 关闭平滑 + 坐标取整。任何一条破了，像素风立刻变糊。
 
-import { ARENA, DASH_WINDUP, FUSE_TIME, SLAM_WINDUP, SLAM_RADIUS } from '../../../shizu-cocos/assets/scripts/core/battle.js';
+import { ARENA, DASH_WINDUP, FUSE_BLAST_RADIUS, FUSE_TIME, SLAM_WINDUP, SLAM_RADIUS } from '../../../shizu-cocos/assets/scripts/core/battle.js';
 
 // 特效类型 → effects/ 目录下的静态图文件名
 const FX_SPRITE = {
   hit: 'hit', crit: 'crit', gene: 'gene_pickup',
   slash: 'slash', sword_hit: 'sword_hit', burst: null, surge: null,
+};
+
+// 调色板：十六进制与 shizu-cocos/assets/scripts/game/UiKit.ts 的 C 表同源，
+// 外加战斗语义扩展（精英/自爆/践踏/引信/暴击…）。渲染端只在此处写颜色值 ——
+// 改色一处生效，避免「金四种、红五种」式的漂移。
+const PAL = {
+  bgFallback: '#0d1013',   // 兜底底色（= C.bg）
+  gene: '#5fb8a6',         // 基因青（= C.gene）
+  gold: '#d8bd6a',         // 位面金（= C.gold）
+  danger: '#c9556a',       // 敌意红（= C.danger）
+  boss: '#a678d4',         // Boss 紫（= C.purple）
+  elite: '#e08a4c',        // 精英橙
+  bomber: '#e0653c',       // 自爆 / 冲撞预警橙红
+  tank: '#7fa8c9',         // 重装灰蓝
+  slam: '#c9a227',         // 践踏蓄力土金（刻意区别于位面金）
+  fuse: '#ff6b4a',         // 引信烧红
+  crit: '#ffd76a',         // 暴击亮金（比 UI 金亮一档，只用于飘字）
+  dmgText: '#f5f5f5',      // 普通伤害白
+  shotDot: '#b8e6d0',      // 玩家弹体兜底点
+  playerDot: '#e8e2d6',    // 玩家兜底点
+  barBg: '#11151a',        // 单位血条底
+  shotTrail: 'rgba(255, 140, 110, 0.4)',   // 敌方弹体拖尾（暖色 = 危险向）
 };
 
 export class Renderer {
@@ -16,9 +38,12 @@ export class Renderer {
     this.assets = assets;
     this.planeId = planeId;
     this.fx = [];             // 活跃特效实例
+    this._outlines = new Map();   // 墨线描边版贴图缓存（键 = 原始 Image）
     this.shake = 0;
     this.flash = 0;           // 全屏闪光（升级/进化瞬间）
     this.pop = 0;             // 镜头缩放脉冲（升级瞬间 zoom）
+    this.hurtT = 0;           // 受击红闪剩余时长（屏幕级反馈）
+    this._wasHurt = false;    // 上一帧受击态（边沿检测用）
     this.resize();
     this._onResize = () => this.resize();
     window.addEventListener('resize', this._onResize);
@@ -34,8 +59,12 @@ export class Renderer {
     const wrap = this.canvas.parentElement;
     const availW = wrap.clientWidth;
     const availH = wrap.clientHeight;
-    // 整数倍缩放，保证像素网格不被拉歪
-    const scale = Math.max(1, Math.min(Math.floor(availW / ARENA.w * 2) / 2, availH / ARENA.h));
+    // 半整数步进缩放，保证像素网格不被拉歪。
+    // 宽高必须取自同一个比值并同步取整 —— 旧写法高度方向用原始浮点
+    // （availH / ARENA.h），扁窗口下会得到 1.25 这类非整数倍：
+    // 每个游戏像素被摊成 1~2 设备像素不等，镜头一动全场像素「游动」。
+    const fit = Math.min(availW / ARENA.w, availH / ARENA.h);
+    const scale = Math.max(1, Math.floor(fit * 2) / 2);
     this.scale = scale;
     this.canvas.width = Math.round(ARENA.w * scale);
     this.canvas.height = Math.round(ARENA.h * scale);
@@ -110,7 +139,7 @@ export class Renderer {
         for (let x = startX; x < camX + ARENA.w; x += ARENA.w)
           for (let y = startY; y < camY + ARENA.h; y += ARENA.h)
             ctx.drawImage(bg, Math.round(x), Math.round(y), ARENA.w, ARENA.h);
-      } else { ctx.fillStyle = '#0d1013'; ctx.fillRect(camX, camY, ARENA.w, ARENA.h); }
+      } else { ctx.fillStyle = PAL.bgFallback; ctx.fillRect(camX, camY, ARENA.w, ARENA.h); }
     }
 
     // —— 地面压暗罩 ——
@@ -129,8 +158,8 @@ export class Renderer {
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {
       this.blitClip('gene_orb_pulse', o.x, o.y + Math.sin(o.bob) * 2, o.bob * 4, 0.5)
-        || this.blitSprite('items/gene_orb.png', o.x, o.y + Math.sin(o.bob) * 2, 11)
-        || this.dot(o.x, o.y, 5, '#5fb8a6');
+        || this.blitSprite('items/gene_orb.png', o.x, o.y + Math.sin(o.bob) * 2, 11, false, 1, 1, true)
+        || this.dot(o.x, o.y, 5, PAL.gene);
     }
 
     // —— 敌人：按 y 排序，靠下的后画（伪 2.5D 遮挡）——
@@ -165,6 +194,41 @@ export class Renderer {
 
     ctx.restore();
 
+    // —— 屏外威胁指示（精英/Boss/自爆在画面外逼近时，边缘画指向楔形）——
+    // 怪从约一整个视野之外刷入（core spawnEnemy 以玩家为锚点外扩），
+    // 没有这个提示，「被屏外的精英糊脸」会读成不公平的偷袭。
+    // 颜色沿用它们脚下光环的语义色；投影忽略震屏/zoom 脉冲（瞬态，肉眼无差）。
+    {
+      const viewScale = this.scale * popScale;
+      const W = ctx.canvas.width, H = ctx.canvas.height;
+      const MARGIN = 14;
+      for (const e of run.enemies ?? []) {
+        if (e.dead) continue;
+        const color = e.kind !== 'minion'
+          ? (e.kind === 'boss' ? PAL.boss : PAL.elite)
+          : (e.variant === 'bomber' ? PAL.bomber : null);
+        if (!color) continue;
+        const px = (e.x - camX) * viewScale;
+        const py = (e.y - camY) * viewScale;
+        if (px > MARGIN && px < W - MARGIN && py > MARGIN && py < H - MARGIN) continue;
+        // 钳到画面内边框上，箭头朝向目标真实方位
+        const ax = Math.min(W - MARGIN, Math.max(MARGIN, px));
+        const ay = Math.min(H - MARGIN, Math.max(MARGIN, py));
+        ctx.save();
+        ctx.translate(ax, ay);
+        ctx.rotate(Math.atan2(py - ay, px - ax));
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(7, 0);
+        ctx.lineTo(-4, 5);
+        ctx.lineTo(-4, -5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
     // —— 全屏闪光（升级/进化瞬间的金色脉冲）——
     if (this.flash > 0) {
       const a = Math.min(0.5, this.flash) * 0.5;
@@ -185,6 +249,22 @@ export class Renderer {
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
     }
+
+    // —— 受击红闪：挨打的一瞬屏幕边缘渗一下血 ——
+    // 玩家 hitFlash 此前只提亮自身贴图，屏幕毫无反应，高血量时挨打几乎无感；
+    // 边沿触发（0→正）保证每次受击恰好一段短脉冲，色相与低血红暗角同源。
+    const hurtNow = run.player.hitFlash > 0;
+    if (hurtNow && !this._wasHurt) this.hurtT = 0.22;
+    this._wasHurt = hurtNow;
+    this.hurtT = Math.max(0, this.hurtT - dt);
+    if (this.hurtT > 0) {
+      const k = this.hurtT / 0.22;
+      const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.72);
+      g.addColorStop(0, 'rgba(140, 20, 32, 0)');
+      g.addColorStop(1, `rgba(140, 20, 32, ${(0.34 * k).toFixed(3)})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
   }
 
   /** 触发全屏闪光 + 镜头缩放（升级/进化反馈） */
@@ -200,9 +280,11 @@ export class Renderer {
     ctx.textBaseline = 'middle';
     for (const n of run.damageNums ?? []) {
       const a = Math.min(1, n.life / 0.4);
-      ctx.globalAlpha = a;
-      ctx.fillStyle = n.crit ? '#ffd76a' : '#f5f5f5';
-      ctx.font = n.crit ? 'bold 17px monospace' : 'bold 14px monospace';
+      ctx.globalAlpha = n.dot ? a * 0.55 : a;
+      ctx.fillStyle = n.crit ? PAL.crit : PAL.dmgText;
+      // DoT 跳字降权：小一号、不加粗 —— 灼烧/中毒的跳数不能淹没真正的暴击；
+      // 暴击放大一档（17→20），大额伤害在混战中要一眼可辨。
+      ctx.font = n.crit ? 'bold 20px monospace' : n.dot ? '10px monospace' : 'bold 14px monospace';
       ctx.strokeStyle = 'rgba(0,0,0,0.7)';
       ctx.lineWidth = 3;
       ctx.strokeText(String(n.v), n.x, n.y);
@@ -220,11 +302,11 @@ export class Renderer {
     const y = e.y;   // 不加颠簸，走路全靠 4 帧拼接（颠簸会「一跳一跳」）
     const base = e.sprite || this.spriteBase(kind, e.variant, e.id);
     // 特殊敌人可读性：脚下光环区分（自爆红 / 坦克灰蓝 / 伏击金 / 精英橙 / Boss 紫）
-    const RING = { bomber: '#e0653c', tank: '#7fa8c9' };
+    const RING = { bomber: PAL.bomber, tank: PAL.tank };
     const ringColor = e.affix?.color
-      ?? (e.ambush ? '#d8bd6a'
-      : kind === 'boss' ? '#a678d4'
-      : kind === 'elite' ? '#e08a4c'
+      ?? (e.ambush ? PAL.gold
+      : kind === 'boss' ? PAL.boss
+      : kind === 'elite' ? PAL.elite
       : RING[e.variant] ?? null);
     if (ringColor) {
       const ctx = this.ctx;
@@ -245,11 +327,15 @@ export class Renderer {
       const t = 1 - e.dashWindup / DASH_WINDUP;   // 0→1 蓄满
       const ctx = this.ctx;
       ctx.save();
-      ctx.globalAlpha = 0.85;
-      ctx.strokeStyle = '#e0653c';
-      ctx.lineWidth = 2;
+      ctx.fillStyle = PAL.bomber;
+      ctx.strokeStyle = PAL.bomber;
       ctx.beginPath();
       ctx.arc(e.x, e.y + e.r * 0.4, e.r * (2.2 - t * 1.1), 0, Math.PI * 2);
+      // 半透明面积 + 实线边界双层编码：光靠描边读不出「圈住多大」
+      ctx.globalAlpha = 0.15;
+      ctx.fill();
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = 2;
       ctx.stroke();
       if (player) {
         const a = Math.atan2(player.y - e.y, player.x - e.x);
@@ -268,11 +354,15 @@ export class Renderer {
       const t = 1 - e.slamWindup / SLAM_WINDUP;   // 0→1 蓄满
       const ctx = this.ctx;
       ctx.save();
-      ctx.globalAlpha = 0.4 + t * 0.5;
-      ctx.strokeStyle = '#c9a227';
-      ctx.lineWidth = 3;
+      const pulse = 0.4 + t * 0.5;
+      ctx.fillStyle = PAL.slam;
+      ctx.strokeStyle = PAL.slam;
       ctx.beginPath();
       ctx.arc(e.x, e.y + e.r * 0.4, Math.max(e.r * 1.15, SLAM_RADIUS * (1 - t * 0.85)), 0, Math.PI * 2);
+      ctx.globalAlpha = pulse * 0.3;   // 面积感：圈住的就是要砸的
+      ctx.fill();
+      ctx.globalAlpha = pulse;
+      ctx.lineWidth = 3;
       ctx.stroke();
       ctx.restore();
     }
@@ -281,12 +371,17 @@ export class Renderer {
       const t = Math.min(1, e.fuseT / FUSE_TIME);
       const ctx = this.ctx;
       ctx.save();
-      ctx.globalAlpha = 0.35 + 0.45 * Math.abs(Math.sin(e.fuseT * (8 + t * 26)));
-      ctx.strokeStyle = '#ff6b4a';
+      const pulse = 0.35 + 0.45 * Math.abs(Math.sin(e.fuseT * (8 + t * 26)));
+      ctx.fillStyle = PAL.fuse;
+      ctx.strokeStyle = PAL.fuse;
+      ctx.beginPath();
+      // 半径 = 判定值本身（core 导出常量），别让预告圈和实际爆炸圈差一像素
+      ctx.arc(e.x, e.y + e.r * 0.4, FUSE_BLAST_RADIUS, 0, Math.PI * 2);
+      ctx.globalAlpha = pulse * 0.22;
+      ctx.fill();
+      ctx.globalAlpha = pulse;
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      ctx.arc(e.x, e.y + e.r * 0.4, 62, 0, Math.PI * 2);   // = FUSE_BLAST_RADIUS
       ctx.stroke();
       ctx.restore();
     }
@@ -294,36 +389,41 @@ export class Renderer {
       // 攻击动画：attackT 0.3→0，按进度切 起手→劈砍→收招（小怪/精英/Boss 通用）
       const prog = 1 - e.attackT / 0.3;
       const f = prog < 0.35 ? 'atk0' : prog < 0.7 ? 'atk1' : 'atk2';
-      ok = this.blitSprite(`units/${base}_${f}.png`, e.x, y, targetH, e.hitFlash > 0, facing)
-        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing)
-        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing);
+      ok = this.blitSprite(`units/${base}_${f}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
+        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
+        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true);
       // 刀光特效（优先专属，回退通用）
       this.blitSprite(`effects/${base}_slash.png`, e.x + facing * 16, e.y, targetH * 0.75, false, facing)
         || this.blitSprite('effects/slash.png', e.x + facing * 16, e.y, targetH * 0.75, false, facing);
     } else {
       // 走路动画：4 帧循环（e.anim 每秒 +8）+ 轻微上下颠簸
       const walkF = Math.floor(e.anim) % 4;
-      ok = this.blitSprite(`units/${base}_walk${walkF}.png`, e.x, y, targetH, e.hitFlash > 0, facing)
-        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing)
-        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing)
-        || this.blitSprite(`units/minion_${this.planeId}.png`, e.x, y, targetH, e.hitFlash > 0, facing);
+      ok = this.blitSprite(`units/${base}_walk${walkF}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
+        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
+        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
+        || this.blitSprite(`units/minion_${this.planeId}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true);
     }
-    if (!ok) this.dot(e.x, e.y, e.r, e.kind === 'boss' ? '#a678d4' : '#c9556a');
+    if (!ok) this.dot(e.x, e.y, e.r, e.kind === 'boss' ? PAL.boss : PAL.danger);
 
     // 精英 / BOSS 血条；伏击与词缀额外标注，提示「这只不一样」
     if (e.kind !== 'minion') {
       const w = e.kind === 'boss' ? 64 : 40;
-      this.bar(e.x - w / 2, e.y - e.r - 10, w, 4, e.hp / e.maxHp, e.ambush ? '#d8bd6a' : '#c9556a');
+      this.bar(e.x - w / 2, e.y - e.r - 10, w, 4, e.hp / e.maxHp, e.ambush ? PAL.gold : PAL.danger);
       const tags = [];
       if (e.ambush) tags.push('伏击');
       if (e.affix) tags.push(e.affix.name);
       if (tags.length) {
         const ctx = this.ctx;
         ctx.save();
-        ctx.fillStyle = e.affix?.color ?? '#d8bd6a';
-        ctx.font = 'bold 11px monospace';
+        // 13px + 黑描边：11px 的细字在 scale=1 的画布上读不清，词缀等于没写
+        ctx.fillStyle = e.affix?.color ?? PAL.gold;
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        ctx.lineWidth = 3;
+        ctx.font = 'bold 13px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(tags.join('·'), e.x, e.y - e.r - 16);
+        const label = tags.join('·');
+        ctx.strokeText(label, e.x, e.y - e.r - 16);
+        ctx.fillText(label, e.x, e.y - e.r - 16);
         ctx.restore();
       }
     }
@@ -359,7 +459,10 @@ export class Renderer {
       const targetW = d.kind === 'minion' ? 30 : d.kind === 'elite' ? 50 : 70;
       const a = Math.max(0, 1 - d.t / 0.5);
       this.blitSpriteW(`units/${base}_death.png`, d.x, d.y, targetW, false, d.facing, a)
-        || this.blitSprite(`units/${base}_walk0.png`, d.x, d.y, d.kind === 'minion' ? 34 : d.kind === 'elite' ? 60 : 95, false, d.facing, a);
+        || this.blitSprite(`units/${base}_walk0.png`, d.x, d.y, d.kind === 'minion' ? 34 : d.kind === 'elite' ? 60 : 95, false, d.facing, a, true);
+      // 死亡爆闪：借现成的 hit.png 在倒地头几帧叠一下 —— 匀速淡出没有
+      // 「击杀峰值」，割草最爽的一拍不该是视觉上的平局（零新资产）。
+      if (d.t < 0.06) this.blitSprite('effects/hit.png', d.x, d.y, targetW * 1.3, false, 1, 0.8);
     }
   }
 
@@ -368,8 +471,20 @@ export class Renderer {
     for (const s of run.shots ?? []) {
       const facing = s.vx < 0 ? -1 : 1;
       const sprite = s.sprite ?? 'projectile';
-      const ok = this.blitSprite(`effects/${sprite}.png`, s.x, s.y, 14, false, facing);
-      if (!ok) this.dot(s.x, s.y, 4, '#5fb8a6');
+      // 来路拖尾：反速度方向一条暖色短线 —— 敌方弹体是玩家主要死因，
+      // 14px 的静止单帧在暗色地板上读不出飞行轨迹，躲弹变成猜弹。
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.strokeStyle = PAL.shotTrail;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x - (s.vx || 0) * 0.06, s.y - (s.vy || 0) * 0.06);
+      ctx.lineTo(s.x, s.y);
+      ctx.stroke();
+      ctx.restore();
+      // 14 → 18：致命的东西不该是场上最小的元素
+      const ok = this.blitSprite(`effects/${sprite}.png`, s.x, s.y, 18, false, facing);
+      if (!ok) this.dot(s.x, s.y, 4, PAL.gene);
     }
   }
 
@@ -380,7 +495,7 @@ export class Renderer {
       const a = Math.min(1, s.life / 0.15);
       const sprite = s.sprite ?? 'sword_qi';
       const ok = this.blitSprite(`effects/${sprite}.png`, s.x, s.y, 22, false, facing, a);
-      if (!ok) this.dot(s.x, s.y, 5, '#b8e6d0');
+      if (!ok) this.dot(s.x, s.y, 5, PAL.shotDot);
     }
   }
 
@@ -392,7 +507,7 @@ export class Renderer {
     const ctx = this.ctx;
     ctx.save();
     ctx.globalAlpha = 0.5;
-    ctx.fillStyle = '#5fb8a6';
+    ctx.fillStyle = PAL.gene;
     ctx.beginPath();
     ctx.ellipse(p.x, p.y + 16, 14, 5, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -407,9 +522,9 @@ export class Renderer {
       rel = `units/player_atk${f}.png`;
     } else if (p.state === 'walk') rel = `units/player_walk${Math.floor(p.anim) % 4}.png`;
     else rel = skinBase;
-    const ok = this.blitSprite(rel, p.x, p.y, 46, p.hitFlash > 0, p.facing)
-      || this.blitSprite('units/player.png', p.x, p.y, 46, p.hitFlash > 0, p.facing);
-    if (!ok) this.dot(p.x, p.y, p.r, '#e8e2d6');
+    const ok = this.blitSprite(rel, p.x, p.y, 46, p.hitFlash > 0, p.facing, 1, true)
+      || this.blitSprite('units/player.png', p.x, p.y, 46, p.hitFlash > 0, p.facing, 1, true);
+    if (!ok) this.dot(p.x, p.y, p.r, PAL.playerDot);
   }
 
   // —— 底层绘制 ——
@@ -454,8 +569,36 @@ export class Renderer {
     return true;
   }
 
-  /** 按目标高度绘制静态散图（新接入的雪碧），支持朝向/受击闪白/整体透明度；带投影+墨线描边防止与地面融合 */
-  blitSprite(rel, x, y, targetH, flash = false, facing = 1, alpha = 1) {
+  /**
+   * 缓存「墨线描边」版贴图：四方向各偏移 1px 的深墨剪影打底，再叠原图。
+   * 取代逐帧 ctx.filter='drop-shadow' —— filter 每次绘制都走离屏合成慢路径，
+   * 60 怪同屏时是最大的帧率杀手；且高斯晕是软灰圈，不如 1px 硬墨线贴水墨风。
+   * 每张贴图只构建一次（键 = 原始 Image 元素），之后零额外开销。
+   */
+  outlined(img) {
+    let cached = this._outlines.get(img);
+    if (!cached) {
+      cached = document.createElement('canvas');
+      cached.width = img.width + 2;
+      cached.height = img.height + 2;
+      const g = cached.getContext('2d');
+      g.drawImage(img, 0, 1);
+      g.drawImage(img, 2, 1);
+      g.drawImage(img, 1, 0);
+      g.drawImage(img, 1, 2);
+      g.globalCompositeOperation = 'source-in';   // 剪影只保留 alpha 轮廓
+      g.fillStyle = 'rgba(12, 12, 16, 0.9)';
+      g.fillRect(0, 0, cached.width, cached.height);
+      g.globalCompositeOperation = 'source-over';
+      g.drawImage(img, 1, 1);
+      this._outlines.set(img, cached);
+    }
+    return cached;
+  }
+
+  /** 按目标高度绘制静态散图（新接入的雪碧），支持朝向/受击闪白/整体透明度；带投影防止与地面融合。
+   *  outlined=true 时叠加缓存的墨线描边（角色/拾取物用；特效不需要，省一笔开销）。 */
+  blitSprite(rel, x, y, targetH, flash = false, facing = 1, alpha = 1, outlined = false) {
     const img = this.assets.img(rel);
     if (!img) return false;
     const scale = targetH / img.height;
@@ -463,6 +606,13 @@ export class Renderer {
     const dh = Math.round(img.height * scale);
     const dx = Math.round(x - dw / 2);
     const dy = Math.round(y - dh / 2);
+    // 描边版比原图四周各多 ~1 游戏像素的墨边，绘制矩形同步外扩
+    const src = outlined ? this.outlined(img) : img;
+    const o = outlined ? Math.round(scale) : 0;
+    const rx = dx - o;
+    const ry = dy - o;
+    const rw = dw + o * 2;
+    const rh = dh + o * 2;
     const ctx = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -473,19 +623,15 @@ export class Renderer {
     ctx.ellipse(Math.round(x), Math.round(y + dh * 0.42), dw * 0.30, Math.max(3, dh * 0.09), 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 墨线描边：沿 alpha 轮廓加一圈细黑边，让角色从背景里跳出来
-    if ('filter' in ctx) ctx.filter = 'drop-shadow(0 0 1.5px rgba(0,0,0,0.85))';
-
     if (facing < 0) {
-      ctx.translate(dx + dw, dy);
+      ctx.translate(rx + rw, ry);
       ctx.scale(-1, 1);
-      ctx.drawImage(img, 0, 0, dw, dh);
-      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(img, 0, 0, dw, dh); }
+      ctx.drawImage(src, 0, 0, rw, rh);
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(src, 0, 0, rw, rh); }
     } else {
-      ctx.drawImage(img, dx, dy, dw, dh);
-      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(img, dx, dy, dw, dh); }
+      ctx.drawImage(src, rx, ry, rw, rh);
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(src, rx, ry, rw, rh); }
     }
-    if ('filter' in ctx) ctx.filter = 'none';
     ctx.restore();
     return true;
   }
@@ -499,20 +645,24 @@ export class Renderer {
     const dh = Math.round(img.height * scale);
     const dx = Math.round(x - dw / 2);
     const dy = Math.round(y - dh / 2);
+    const o = Math.round(scale);   // 尸体固定走描边版：躺倒姿态贴地，没墨线会和地板糊成一片
+    const rx = dx - o;
+    const ry = dy - o;
+    const rw = dw + o * 2;
+    const rh = dh + o * 2;
+    const src = this.outlined(img);
     const ctx = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
-    if ('filter' in ctx) ctx.filter = 'drop-shadow(0 0 1.5px rgba(0,0,0,0.85))';
     if (facing < 0) {
-      ctx.translate(dx + dw, dy);
+      ctx.translate(rx + rw, ry);
       ctx.scale(-1, 1);
-      ctx.drawImage(img, 0, 0, dw, dh);
-      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(img, 0, 0, dw, dh); }
+      ctx.drawImage(src, 0, 0, rw, rh);
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(src, 0, 0, rw, rh); }
     } else {
-      ctx.drawImage(img, dx, dy, dw, dh);
-      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(img, dx, dy, dw, dh); }
+      ctx.drawImage(src, rx, ry, rw, rh);
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(src, rx, ry, rw, rh); }
     }
-    if ('filter' in ctx) ctx.filter = 'none';
     ctx.restore();
     return true;
   }
@@ -531,7 +681,10 @@ export class Renderer {
 
   bar(x, y, w, h, ratio, color) {
     const ctx = this.ctx;
-    ctx.fillStyle = '#11151a';
+    // 先画一圈浅灰外框再填底：底色 #11151a 在渐晕压暗的屏幕边缘几乎隐形
+    ctx.fillStyle = '#3a444e';
+    ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, w + 2, h + 2);
+    ctx.fillStyle = PAL.barBg;
     ctx.fillRect(Math.round(x), Math.round(y), w, h);
     ctx.fillStyle = color;
     ctx.fillRect(Math.round(x), Math.round(y), Math.round(w * Math.max(0, ratio)), h);

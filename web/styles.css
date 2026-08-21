@@ -81,6 +81,7 @@ html, body {
   position: absolute;
   inset: -6% -4%;
   background: url('../shizu-cocos/assets/art/lobby/bg.png') center / cover no-repeat;
+  image-rendering: pixelated;   /* 像素美术别走双线性：cover 非整数拉伸也要保住硬边 */
   animation: kenburns 36s ease-in-out infinite alternate;
   will-change: transform;
   pointer-events: none;
@@ -243,6 +244,7 @@ html, body {
   width: 28px;
   height: 28px;
   background: center / contain no-repeat;
+  image-rendering: pixelated;   /* 与侧栏 .portrait/.route-ic 同规：像素图标不许被插值糊掉 */
   filter: drop-shadow(0 0 6px rgba(95, 184, 166, .5));
 }
 #options button.primary {
@@ -383,6 +385,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   border-radius: 10px;
   background: var(--bg-card);
   box-shadow: 0 18px 60px rgba(0,0,0,.6);
+  animation: modalIn .16s ease-out;   /* 三选一/结算不该「啪一下出现」：短促上滑入场 */
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
 }
 .modal h3 { margin: 0 0 14px; color: var(--gold); font-size: 17px; }
 .modal-body { font-size: 14px; }
@@ -506,7 +512,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .hud-left { display: flex; align-items: center; gap: 8px; min-width: 260px; }
 .hud-hp { width: 180px; height: 10px; border-radius: 5px; background: #2a1a1e; overflow: hidden; }
 .hud-hp i { display: block; height: 100%; background: linear-gradient(90deg, #a8465a, #d06a7a); transition: width .1s; }
-.hud-mid { color: var(--text-dim); }
+.hud-mid { color: var(--text); font-variant-numeric: tabular-nums; }   /* 等宽数字：计时器每 0.1s 重写不横跳 */
 .hud-right .gene { color: var(--gene); }
 /* 挂在 HUD 栏下沿，浮在战场上方 */
 .hud-mech { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 10px; background: rgba(20,26,32,.8); color: var(--gold); font-size: 12px; pointer-events: none; white-space: nowrap; }
@@ -534,6 +540,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .toast-line.win, .toast-line.gene { color: #8fe0cb; border-color: rgba(95, 184, 166, .45); }
 .toast-line.drop, .toast-line.learn, .toast-line.hidden { color: #d5b8f0; border-color: rgba(166, 120, 212, .45); }
 @keyframes toastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+/* 两段式退场的第一段：JS 到期先加 .out 淡出，200ms 后再摘除 DOM */
+.toast-line.out { opacity: 0; transform: translateY(-6px); transition: opacity .18s ease-out, transform .18s ease-out; }
 
 /* 虚拟摇杆可视化：触摸端必须看得见按在哪、推了多远（触控可用性） */
 #stickBase {
