@@ -269,12 +269,33 @@ export async function startBattle(ctx, plane) {
         if (o.kind === 'skill') return `<div class="pick"><b>【技能】${o.name}</b> <span class="small">${ROUTES[o.route].name}·第 ${o.lv} 段</span><span>${o.desc}　<i class="gold">${o.val}</i></span></div>`;
         if (o.kind === 'mech') return `<div class="pick attr"><b>【强化】${o.name}</b><span>${o.desc}</span></div>`;
         return `<div class="pick attr"><b>【属性】${o.name}</b><span>${o.desc}</span><span class="gold">${deltas(o)}</span></div>`;
-      }).join(''),
-      buttons: options.map((o, i) => ({
-        text: o.kind === 'skill' ? `习得 ${o.name}` : o.kind === 'mech' ? `强化 ${o.name}` : `获得 ${o.name}`,
-        style: o.kind !== 'attr' ? 'primary' : '',
-        onClick: () => { view.closeModal(); run.choose(i); resume(); },
-      })),
+      }).join('')
+        + `<p class="small">基因 <b class="gold">${run.genes}</b>　重掷 ${run.rerollCost} 基因　放逐剩 ${run.banishLeft} 次</p>`,
+      buttons: [
+        ...options.map((o, i) => ({
+          text: o.kind === 'skill' ? `习得 ${o.name}` : o.kind === 'mech' ? `强化 ${o.name}` : `获得 ${o.name}`,
+          style: o.kind !== 'attr' ? 'primary' : '',
+          onClick: () => { view.closeModal(); run.choose(i); resume(); },
+        })),
+        // 玩家能动性：三个都不想要时可花基因重掷，或永久放逐一个（本局不再出现）
+        {
+          text: `♻ 重掷（${run.rerollCost} 基因）`,
+          disabled: run.genes < run.rerollCost,
+          onClick: () => {
+            view.closeModal();
+            if (run.reroll() && run.pendingOptions) showChoice();
+            else resume();
+          },
+        },
+        ...(run.banishLeft > 0 ? options.map((o, i) => ({
+          text: `🚫 放逐「${o.name}」（剩 ${run.banishLeft}）`,
+          onClick: () => {
+            view.closeModal();
+            if (run.banish(i) && run.pendingOptions) showChoice();
+            else resume();
+          },
+        })) : []),
+      ],
     });
   }
 

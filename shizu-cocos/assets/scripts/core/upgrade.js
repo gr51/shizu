@@ -70,16 +70,19 @@ export function rollUpgradeOptions(dungeon, save, runState, rng) {
   // 渐进复杂度：开局只给核心成长（攻/血/速/攻速/范围），专精类选项到中期才进池。
   // 早期就混入情境型选项会稀释成长曲线 —— 实测会让整局强度明显下滑。
   const level = runState.level ?? 0;
-  const attrs = attrPool().filter((a) => (a.minLevel ?? 0) <= level);
+  // 放逐：本局被移除的选项永不再出现（构筑的「减法」）
+  const banished = runState.banished ?? new Set();
+  const keep = (x) => !banished.has(x.id);
+  const attrs = attrPool().filter((a) => (a.minLevel ?? 0) <= level).filter(keep);
   // 构筑感：已激活路线的机制强化选项，名字/描述直接引用你的 Build
-  const mechPool = mechUpgradePool(currentRouteMech(save.player.geneLocks));
+  const mechPool = mechUpgradePool(currentRouteMech(save.player.geneLocks)).filter(keep);
 
   if (dungeon.channel === 'attr') {
     // 硬规则：只有属性 + 机制强化，一个路线技能都不能出现
     return weightedPickMany([...attrs, ...mechPool], CHOICE_COUNT, weightOf, rng);
   }
 
-  const skills = skillPool(dungeon.channelRoutes, save, runState.learnedSkills);
+  const skills = skillPool(dungeon.channelRoutes, save, runState.learnedSkills).filter(keep);
   const picked = weightedPickMany([...skills, ...mechPool], CHOICE_COUNT, weightOf, rng);
   if (picked.length < CHOICE_COUNT) {
     // 技能池枯竭 → 用通用属性补位（属性非路线专属，不违反红线 3）

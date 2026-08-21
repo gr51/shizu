@@ -31,6 +31,14 @@ export const UPGRADE_GENE_STEPS = Array.from({ length: UPGRADE_LEVEL_CAP }, (_, 
 );
 
 /**
+ * 三选一的「玩家能动性」成本（幸存者like 的 reroll / banish）：
+ * 重掷用基因买，价格递增防止刷到最优解；放逐一局只有 2 次，稀缺才构成决策。
+ */
+export const REROLL_BASE_COST = 20;
+export const REROLL_COST_STEP = 15;
+export const BANISH_PER_RUN = 2;
+
+/**
  * 主动技折算成「持续贡献」的权重。
  *
  * 单纯按占空比（duration / cd）会**严重低估割草里的爆发清场**：
@@ -92,6 +100,9 @@ export class Run {
     this.result = null;
     this.bossDrop = null;
     this.mechLvl = {};   // 路线机制强化等级（三选一「构筑感」选项累积）
+    this.banished = new Set();   // 本局被放逐的选项 id（不再出现）
+    this.rerollUsed = 0;         // 已重掷次数（决定下次价格）
+    this.banishUsed = 0;         // 已放逐次数（一局有限）
 
     // 指南 13.1 onRunStart：隐藏刻印开局自动装载，永不入三选一池
     this.engraved = engravedSkills(save);
@@ -254,13 +265,57 @@ export class Run {
     const options = rollUpgradeOptions(
       this.dungeon,
       this.save,
-      { learnedSkills: this.learnedSkills, takenAttrs: this.takenAttrs, level: this.geneStep },
+      { learnedSkills: this.learnedSkills, takenAttrs: this.takenAttrs, level: this.geneStep, banished: this.banished },
       this.rng,
     );
     if (options.length === 0) return;
     this.pendingOptions = { reason, options };
     this.state = RunState.CHOOSING;
   }
+
+  /**
+   * 重掷：花费基因换一批新选项（玩家能动性 —— 三个都不想要时不必被迫吃亏）。
+   * 价格随次数递增，避免无限刷到最优解。
+   */
+  reroll() {
+    if (this.state !== RunState.CHOOSING || !this.pendingOptions) return false;
+    const cost = this.rerollCost;
+    if (this.genes < cost) return false;
+    this.genes -= cost;
+    this.rerollUsed += 1;
+    const reason = this.pendingOptions.reason;
+    this.pendingOptions = null;
+    this.openChoice(reason);
+    // 池子枯竭导致没roll出东西时，保持在战斗态而不是卡住
+    if (!this.pendingOptions) this.state = RunState.FIGHTING;
+    this.emit(`♻ 重掷选项（-${cost} 基因）`, 'info');
+    return true;
+  }
+
+  /** 当前重掷价格：20 起，每次 +15 */
+  get rerollCost() { return REROLL_BASE_COST + this.rerollUsed * REROLL_COST_STEP; }
+
+  /**
+   * 放逐：永久移除某个选项（本局不再出现），并立刻重掷一批。
+   * 这是构筑的「减法」——把不想要的东西从池子里拿掉，提高后续命中率。
+   */
+  banish(index) {
+    if (this.state !== RunState.CHOOSING || !this.pendingOptions) return false;
+    const option = this.pendingOptions.options[index];
+    if (!option) return false;
+    if (this.banishLeft <= 0) return false;
+    this.banished.add(option.id);
+    this.banishUsed += 1;
+    const reason = this.pendingOptions.reason;
+    this.pendingOptions = null;
+    this.openChoice(reason);
+    if (!this.pendingOptions) this.state = RunState.FIGHTING;
+    this.emit(`🚫 放逐 <b>${option.name}</b>（本局不再出现）`, 'info');
+    return true;
+  }
+
+  /** 剩余放逐次数（一局 2 次，稀缺才有决策价值） */
+  get banishLeft() { return Math.max(0, BANISH_PER_RUN - this.banishUsed); }
 
   choose(index) {
     if (this.state !== RunState.CHOOSING || !this.pendingOptions) return;

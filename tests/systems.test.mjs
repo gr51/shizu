@@ -7,6 +7,7 @@ import { computePower, STAGE_COEF, UNIT_BASE } from '../shizu-cocos/assets/scrip
 import { activateRoute, chargeGeneLock, GENE_LOCK_MAX, isSealed, segmentForCharge } from '../shizu-cocos/assets/scripts/core/geneLock.js';
 import { applyHiddenSkill, learnSkill, SLOT_KEYS, allSlotsEngraved, rollHiddenSkill } from '../shizu-cocos/assets/scripts/core/skillSlots.js';
 import { Run, RunState } from '../shizu-cocos/assets/scripts/core/run.js';
+import { RealtimeRun } from '../shizu-cocos/assets/scripts/core/battle.js';
 import { migrate, createDefaultSave, DYN_FACTOR_MAX } from '../shizu-cocos/assets/scripts/core/save.js';
 import { generateGear } from '../shizu-cocos/assets/scripts/core/gear.js';
 import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
@@ -254,6 +255,52 @@ test('红线6：整局战斗过程零落盘，只在 finalize 时写一次', () 
   assert.equal(r.persistCount, 0, '战斗中途落盘了 —— 违反红线 6');
   run.finalize(r);
   assert.equal(r.persistCount, 1, 'finalize 应当且仅当落盘一次');
+});
+
+// ===== 三选一的玩家能动性：重掷 / 放逐 =====
+
+test('重掷：花基因换一批新选项，价格递增且余额不足时拒绝', () => {
+  const save = freshSave({ totalRuns: 5 });
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  run.genes = 200;
+  run.openChoice('测试');
+  assert.equal(run.state, RunState.CHOOSING, '应进入三选一');
+  assert.equal(run.rerollCost, 20, '首次重掷价 20');
+  assert.ok(run.reroll(), '有余额应重掷成功');
+  assert.equal(run.genes, 180, '应扣除基因');
+  assert.equal(run.rerollCost, 35, '价格应递增到 35');
+  assert.equal(run.state, RunState.CHOOSING, '重掷后仍在三选一');
+
+  run.genes = 0;
+  assert.equal(run.reroll(), false, '余额不足必须拒绝');
+});
+
+test('放逐：被放逐的选项本局不再出现，且次数有限', () => {
+  const save = freshSave({ totalRuns: 5 });
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  run.openChoice('测试');
+  const target = run.pendingOptions.options[0];
+  assert.equal(run.banishLeft, 2, '一局 2 次放逐');
+  assert.ok(run.banish(0), '应放逐成功');
+  assert.equal(run.banishLeft, 1, '放逐次数应减少');
+  assert.ok(run.banished.has(target.id), '应记录被放逐的 id');
+
+  for (let i = 0; i < 30; i++) {
+    run.state = RunState.FIGHTING;
+    run.openChoice('测试');
+    if (!run.pendingOptions) continue;
+    assert.ok(
+      !run.pendingOptions.options.some((o) => o.id === target.id),
+      `被放逐的 ${target.id} 不应再出现`,
+    );
+  }
+
+  run.state = RunState.CHOOSING;
+  run.openChoice('测试');
+  assert.ok(run.banish(0), '第二次放逐仍可用');
+  run.state = RunState.CHOOSING;
+  run.openChoice('测试');
+  assert.equal(run.banish(0), false, '用完后必须拒绝');
 });
 
 // ===== 存档迁移 =====

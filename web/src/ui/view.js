@@ -64,7 +64,7 @@ export function setAdvance(visible, label = '前 进 ▶', onClick = null) {
   els.btnAdvance.onclick = onClick;
 }
 
-/** modal: { title, body, buttons:[{text,style,onClick}], onMount } | null */
+/** modal: { title, body, buttons:[{text,style,onClick,disabled}], onMount } | null */
 export function showModal(modal) {
   if (!modal) {
     els.modalRoot.className = '';
@@ -77,7 +77,7 @@ export function showModal(modal) {
       <div class="modal-body">${modal.body ?? ''}</div>
       <div class="modal-btns">
         ${(modal.buttons ?? [])
-          .map((b, i) => `<button type="button" class="${b.style ?? ''}" data-i="${i}">${b.text}</button>`)
+          .map((b, i) => `<button type="button" class="${b.style ?? ''}" data-i="${i}"${b.disabled ? ' disabled' : ''}>${b.text}</button>`)
           .join('')}
       </div>
     </div>`;
