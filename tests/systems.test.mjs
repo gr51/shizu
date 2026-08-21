@@ -416,6 +416,44 @@ test('裂缝变异：刷怪/血量/移速修正生效，基因倍率封顶 2.5',
   assert.ok(glassRun.genes - before > 100, '基因倍率应在入账时生效');
 });
 
+// ===== 无尽模式：通关后续接深渊层 =====
+
+test('无尽模式：击破BOSS后续接深渊层，敌人与基因倍率递增', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.stats.endlessUnlocked = true;
+  const d = generateDungeon(plane('aofa'), save, 3, [], { endless: true });
+  const run = new RealtimeRun(save, d, 11);
+  assert.equal(run.endless, true, '解锁后应启用无尽');
+  assert.equal(run.endlessLayer, 0, '起始层为 0');
+
+  const stagesBefore = run.dungeon.stages.length;
+  const geneMulBefore = run.geneMul;
+  run.onKill({ kind: 'boss', name: 'B' });
+  assert.equal(run.state, RunState.CHOOSING, '无尽下击破BOSS应进入升级而非结束');
+  assert.equal(run.endlessLayer, 1, '应进入第 1 层');
+  assert.equal(run.dungeon.stages.length, stagesBefore + 1, '应追加一层');
+  assert.ok(run.geneMul > geneMulBefore, '基因倍率应递增');
+
+  const layer1 = run.dungeon.stages[run.dungeon.stages.length - 1];
+  assert.ok(layer1.minion.hp > run.dungeon.stages[4].minion.hp, '深渊杂兵应更硬');
+  assert.ok(layer1.spawnRate > run.dungeon.stages[4].spawnRate, '深渊刷怪应更快');
+});
+
+test('无尽模式：未解锁时不启用；主动撤离以胜利结算', () => {
+  const locked = freshSave({ totalRuns: 5 });
+  const lockedRun = new RealtimeRun(locked, generateDungeon(plane('aofa'), locked, 3, [], { endless: true }), 11);
+  assert.equal(lockedRun.endless, false, '未解锁不得启用无尽');
+  lockedRun.onKill({ kind: 'boss', name: 'B' });
+  assert.equal(lockedRun.state, RunState.WON, '未解锁应正常结束');
+  assert.equal(lockedRun.retire(), false, '非无尽不可撤离');
+
+  const save = freshSave({ totalRuns: 5 });
+  save.stats.endlessUnlocked = true;
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3, [], { endless: true }), 11);
+  assert.ok(run.retire(), '无尽模式可主动撤离');
+  assert.equal(run.state, RunState.WON, '撤离应以胜利结算');
+});
+
 // ===== 存档迁移 =====
 
 test('迁移：残缺旧档补齐全部默认字段而不丢玩家数据', () => {

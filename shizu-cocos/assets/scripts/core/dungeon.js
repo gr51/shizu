@@ -15,7 +15,7 @@
 // 红线 1：位面不设固有强度 —— 敌人数值只由「通用基准 × D × 阶段系数 × dynFactor」生成。
 // 红线 2：D 在开副本时快照，进入副本后不随局内 Build 变动。
 
-import { buildEnemy, dungeonDifficulty, computePower, stageCoef, UNIT_BASE } from './balance.js';
+import { buildEnemy, dungeonDifficulty, computePower, stageCoef, STAGE_COEF, UNIT_BASE } from './balance.js';
 import { planeChannel, channelRoutes } from './planePool.js';
 import { rngFactory } from './rng.js';
 import { aggregateRiftMods } from '../data/riftMods.js';
@@ -91,7 +91,7 @@ export function spawnStyleRateMul(spawnStyle) {
  * @param {object} save  存档
  * @param {number} seed  随机种子（每日挑战传 dailySeed()）
  */
-export function generateDungeon(plane, save, seed, riftMods = []) {
+export function generateDungeon(plane, save, seed, riftMods = [], opts = {}) {
   const rng = rngFactory(seed);
   const p = save.player;
 
@@ -168,6 +168,60 @@ export function generateDungeon(plane, save, seed, riftMods = []) {
     stages,
     riftMods: [...(riftMods ?? [])],
     mods,
+    endless: Boolean(opts.endless),
+  };
+}
+
+/**
+ * 无尽模式：在通关 5 阶段后无限续接「深渊层」。
+ * 每层敌人强度与刷怪率按层数递增，基因产出同步递增；
+ * 层数即分数，玩家自己决定何时收手（贪多必死是核心张力）。
+ */
+export const ENDLESS_LAYER_SECONDS = 150;
+export const ENDLESS_HP_PER_LAYER = 0.35;   // 每层杂兵/精英/BOSS 数值 +35%
+export const ENDLESS_RATE_PER_LAYER = 0.12; // 每层刷怪率 +12%
+export const ENDLESS_GENE_PER_LAYER = 0.2;  // 每层基因产出 +20%
+
+/**
+ * 生成一个无尽层（在原 dungeon 基础上按层数放大）。
+ * @param {object} dungeon 原副本蓝图
+ * @param {number} layer 层数（1 起）
+ */
+export function buildEndlessStage(dungeon, layer) {
+  const scale = 1 + layer * ENDLESS_HP_PER_LAYER;
+  const rate = 1 + layer * ENDLESS_RATE_PER_LAYER;
+  const plane = dungeon.plane;
+  const coef = STAGE_COEF[STAGE_COEF.length - 1] * scale;
+  const dyn = dungeon.dynFactor;
+  const D = dungeon.D;
+  const hpMul = spawnStyleHpMul(plane.spawnStyle) * (dungeon.mods?.minionHpMul ?? 1);
+  const rateMul = spawnStyleRateMul(plane.spawnStyle) * (dungeon.mods?.spawnMul ?? 1) * rate;
+
+  const minion = buildEnemy(
+    { baseHp: UNIT_BASE.minion.baseHp * hpMul, baseAtk: UNIT_BASE.minion.baseAtk },
+    D, coef, dyn,
+  );
+
+  return {
+    stage: 5 + layer,
+    endlessLayer: layer,
+    coef,
+    duration: ENDLESS_LAYER_SECONDS,
+    spawnRate: SPAWN_RATE[4] * rateMul,
+    surges: [
+      { atSec: Math.round(ENDLESS_LAYER_SECONDS * 0.35), count: Math.round(SURGE_SIZE[4] * rateMul) },
+      { atSec: Math.round(ENDLESS_LAYER_SECONDS * 0.7), count: Math.round(SURGE_SIZE[4] * rateMul) },
+    ],
+    minionName: `${plane.theme}·深渊喽啰`,
+    minion,
+    closer: {
+      kind: 'boss',
+      name: `${plane.boss}·深渊第 ${layer} 层`,
+      desc: plane.bossDesc,
+      ...buildEnemy(UNIT_BASE.boss, D, coef, dyn),
+    },
+    closerAt: Math.max(30, ENDLESS_LAYER_SECONDS - CLOSER_LEAD_SEC),
+    extraElite: false,
   };
 }
 

@@ -16,9 +16,9 @@ import { audio } from './audio.js';
 import { gearItemHtml } from '../ui/cards.js';
 import * as view from '../ui/view.js';
 
-export async function startBattle(ctx, plane, riftMods = []) {
+export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
   const seed = Math.floor(ctx.rng() * 0xffffffff) >>> 0;
-  const dungeon = generateDungeon(plane, ctx.save, seed, riftMods);
+  const dungeon = generateDungeon(plane, ctx.save, seed, riftMods, opts);
   const run = new RealtimeRun(ctx.save, dungeon, seed ^ 0x9e3779b9);
   ctx.run = run;
 
@@ -82,6 +82,7 @@ export async function startBattle(ctx, plane, riftMods = []) {
         <span class="hud-cd" data-devour></span><span class="hud-cd" data-dodge></span>
         <button class="hud-btn" data-pause type="button">⏸ 暂停</button>
         <button class="hud-btn" data-mute type="button">🔊</button>
+        <button class="hud-btn" data-retire type="button" hidden>🚪 撤离</button>
       </div>
       <div class="hud-mech" data-mech></div>
       <div class="hud-active" data-active></div>`;
@@ -98,6 +99,7 @@ export async function startBattle(ctx, plane, riftMods = []) {
       active: hud.querySelector('[data-active]'),
       pause: hud.querySelector('[data-pause]'),
       mute: hud.querySelector('[data-mute]'),
+      retire: hud.querySelector('[data-retire]'),
     };
   }
 
@@ -212,6 +214,21 @@ export async function startBattle(ctx, plane, riftMods = []) {
   const pauseVeil = root.querySelector('#pauseVeil');
   H.pause?.addEventListener('click', () => setPaused(!userPaused));
   H.mute?.addEventListener('click', toggleMute);
+  // 无尽模式：随时主动撤离并保住战利品（贪多必死 → 收手也是一种技术）
+  if (run.endless && H.retire) {
+    H.retire.hidden = false;
+    H.retire.addEventListener('click', () => {
+      view.showModal({
+        title: '撤离深渊？',
+        body: `<p>当前深渊第 <b class="gold">${run.endlessLayer}</b> 层，基因 <b class="gold">${run.genes}</b>。</p>`
+          + '<p class="small">撤离后立即以胜利结算，保住全部战利品；继续深入则敌人更强、基因更多。</p>',
+        buttons: [
+          { text: '撤离结算', style: 'primary', onClick: () => { view.closeModal(); run.retire(); } },
+          { text: '继续深入', onClick: () => view.closeModal() },
+        ],
+      });
+    });
+  }
   let hudTick = 0;
   function drawHud(dt) {
     hudTick += dt;
@@ -221,7 +238,9 @@ export async function startBattle(ctx, plane, riftMods = []) {
     const ss = String(Math.floor(run.time % 60)).padStart(2, '0');
     H.hpBar.style.width = `${Math.max(0, (run.hp / run.stats.maxHp) * 100)}%`;
     H.hp.textContent = `${Math.max(0, Math.round(run.hp))} / ${Math.round(run.stats.maxHp)}`;
-    H.stage.textContent = `阶段 ${run.stageNo}/5 · ⏱ ${mm}:${ss}`;
+    H.stage.textContent = run.endless && run.endlessLayer > 0
+      ? `深渊 ${run.endlessLayer} 层 · ⏱ ${mm}:${ss}`
+      : `阶段 ${run.stageNo}/5 · ⏱ ${mm}:${ss}`;
     H.genes.textContent = `基因 ${run.genes}`;
     H.kills.textContent = run.kills;
     H.screen.textContent = run.onScreen;

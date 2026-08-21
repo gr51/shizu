@@ -142,6 +142,10 @@ function openRift(ctx, picked = []) {
     `,
     buttons: [
       { text: '撕开裂缝，进入', style: 'primary', onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked); } },
+      ...(save.stats.endlessUnlocked ? [{
+        text: '★ 无尽模式（通关后续接深渊层）',
+        onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { endless: true }); },
+      }] : []),
       ...RIFT_MODS.map((m) => ({
         text: `${picked.includes(m.id) ? '取消' : '叠加'}「${m.name}」`,
         onClick: () => {

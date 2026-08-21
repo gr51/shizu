@@ -14,6 +14,7 @@ import { adjustDynamicFactor, applyPermGrowth, calcDamage, combatStats } from '.
 import { applyAttrOption, rollUpgradeOptions } from './upgrade.js';
 import { applyHiddenSkill, engravedSkills, learnSkill } from './skillSlots.js';
 import { rollBossDrop, rollKillDrop } from './drop.js';
+import { buildEndlessStage, ENDLESS_GENE_PER_LAYER } from './dungeon.js';
 import { ZHUTIAN_ID } from '../data/planes.js';
 import { skillsByRoute } from '../data/skills.js';
 import { newlyFiredSynergies } from '../data/synergies.js';
@@ -103,6 +104,10 @@ export class Run {
       this.hp = this.stats.maxHp;
     }
     this.geneMul = mods.geneMul ?? 1;
+
+    // 无尽模式：通关 5 阶段后无限续接深渊层（需先解锁）
+    this.endless = Boolean(dungeon.endless) && Boolean(save.stats?.endlessUnlocked);
+    this.endlessLayer = 0;
 
     this.stageIndex = 0;
     this.elapsed = 0;           // 全局已过秒数
@@ -221,6 +226,11 @@ export class Run {
       this.addGenes(drop.genes, false);
       for (const g of drop.gear) this.addGear(g);
       this.emit(`噬灭位面之主 <b>${enemy.name}</b>！基因 +${drop.genes}`, 'win');
+      // 无尽模式：击破后不结束，续接更深一层（层数即分数，贪多必死）
+      if (this.endless) {
+        this.pushEndlessLayer();
+        return;
+      }
       this.state = RunState.WON;
       return;
     }
@@ -255,6 +265,31 @@ export class Run {
   addGear(item) {
     this.gearFound.push(item);
     this.emit(`🎁 掉落装备 <b class="r-${item.rarity}">${item.name}</b>`, 'drop');
+  }
+
+  /**
+   * 无尽模式：追加一层深渊并立刻推进过去。
+   * 层数越深敌人越强、基因越多；玩家可随时主动收手结算（retire）。
+   */
+  pushEndlessLayer() {
+    this.endlessLayer += 1;
+    this.dungeon.stages.push(buildEndlessStage(this.dungeon, this.endlessLayer));
+    this.geneMul = (this.dungeon.mods?.geneMul ?? 1) * (1 + this.endlessLayer * ENDLESS_GENE_PER_LAYER);
+    this.stageIndex = this.dungeon.stages.length - 1;
+    this.stageElapsed = 0;
+    this.surgeDone = 0;
+    this.closerSpawned = false;
+    this.spawnCarry = 0;
+    this.emit(`🕳 深渊第 ${this.endlessLayer} 层 —— 敌人更强，基因 ×${this.geneMul.toFixed(2)}`, 'wave');
+    this.openChoice(`深入深渊第 ${this.endlessLayer} 层`);
+  }
+
+  /** 无尽模式主动收手：立即以胜利结算，保住已赚的基因 */
+  retire() {
+    if (!this.endless || this.state !== RunState.FIGHTING) return false;
+    this.emit(`🚪 主动撤离 —— 深渊第 ${this.endlessLayer} 层，带着战利品回巢`, 'win');
+    this.state = RunState.WON;
+    return true;
   }
 
   addGenes(amount, allowUpgrade) {
