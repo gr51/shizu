@@ -5,7 +5,7 @@ const els = {};
 
 export function initView() {
   for (const id of [
-    'meta', 'sceneTitle', 'sceneDesc', 'events', 'options',
+    'meta', 'sceneTitle', 'sceneDesc', 'sceneNote', 'events', 'options',
     'playerCard', 'geneCard', 'gearCard', 'slotsCard',
     'btnAdvance', 'hint', 'modalRoot', 'panelToggle', 'stage',
   ]) {
@@ -20,6 +20,8 @@ export function initView() {
 export function setMeta(html) { els.meta.innerHTML = html; }
 export function setTitle(text) { els.sceneTitle.textContent = text; }
 export function setDesc(html) { els.sceneDesc.innerHTML = html; }
+/** 主区札记：状态面板默认收起，回巢台词/统计至少在主区露一面，大厅不只剩一列按钮 */
+export function setNote(html) { els.sceneNote.innerHTML = html; }
 export function setHint(text) { els.hint.textContent = text; }
 
 export function setCards({ playerCard = '', geneCard = '', gearCard = '', slotsCard = '' }) {

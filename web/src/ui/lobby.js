@@ -54,6 +54,9 @@ export function renderLobby(ctx) {
   }
   lines.push({ text: `传承 ${save.inventory.relics.length} · 传说技能 ${save.inventory.comboSkills.length} · 禁忌 ${save.inventory.hiddenSkills.length}/10`, cls: 'gene' });
   if (save.stats.endlessUnlocked) lines.push({ text: '★ 无尽模式已解锁', cls: 'win' });
+  // 札记前两条（台词 + 统计）同步上浮到主区：状态面板默认收起，
+  // 不上浮的话精心写的回巢文案玩家根本看不到
+  view.setNote(lines.slice(0, 2).map((e) => `<div class="evt ${e.cls}">${e.text}</div>`).join(''));
   view.renderLog(lines, '回巢札记');
 
   view.setCards({
@@ -131,10 +134,24 @@ function openRift(ctx, picked = [], legend = null, weapon = null) {
   // 出征路线：玩家选定的武器来源（未选 = 自动按基因锁最高路线）
   const weaponPool = (ROUTES ? Object.values(ROUTES) : []).filter((r) => r.id && geneLockLevel(save, r.id) > 0);
 
+  // 可点行：选项的「展示」与「切换」合并成同一个对象 —— 原先每个变异/武器/传说
+  // 还要再配一个同权重按钮，最多堆出十几行的按钮墙。点击后关窗重开
+  // （沿用原按钮的做法），ctx._riftPlane 缓存保证重开的还是同一道裂缝。
   const modRows = RIFT_MODS.map((m) => {
     const on = picked.includes(m.id);
-    return `<div class="diff-row${on ? ' gold' : ''}">${on ? '✔ ' : '· '}<b>${m.name}</b>`
-      + `<div class="small">${m.desc}</div></div>`;
+    return `<div class="diff-row pickable${on ? ' gold' : ''}" data-mod="${m.id}" role="button" tabindex="0">`
+      + `${on ? '✔ ' : '· '}<b>${m.name}</b><div class="small">${m.desc}</div></div>`;
+  }).join('');
+  const weaponRows = weaponPool.map((r) => {
+    const on = weapon === r.id;
+    return `<div class="diff-row pickable${on ? ' gold' : ''}" data-weapon="${r.id}" role="button" tabindex="0">`
+      + `${on ? '✔ ' : '☆ '}<b>${r.name}</b>${geneLockLevel(save, r.id) ? `<span class="small">　Lv${geneLockLevel(save, r.id)}</span>` : ''}</div>`;
+  }).join('');
+  const legendRows = legendPool.map((id) => {
+    const s = findSkill(id);
+    const on = legend === id;
+    return `<div class="diff-row pickable${on ? ' gold' : ''}" data-legend="${id}" role="button" tabindex="0">`
+      + `${on ? '✔ ' : '☆ '}${s ? s.name : id}</div>`;
   }).join('');
 
   view.showModal({
@@ -153,7 +170,7 @@ function openRift(ctx, picked = [], legend = null, weapon = null) {
       <div class="diff-row">当前：<b class="gold">${weapon
         ? (ROUTES[weapon]?.name ?? weapon)
         : '自动（按基因锁最高路线）'}</b></div>
-      ${weaponPool.length ? '' : '<p class="small">尚未激活任何路线 —— 使用默认巢灵之爪（自动索敌 + 近战冲击）。</p>'}
+      ${weaponPool.length ? weaponRows : '<p class="small">尚未激活任何路线 —— 使用默认巢灵之爪（自动索敌 + 近战冲击）。</p>'}
       <h4 class="gold" style="margin-top:12px">裂缝变异 · 风险 ${mods.risk} · 基因 ×${mods.geneMul.toFixed(2)}</h4>
       <p class="small">自选变异：敌人更强，但基因产出更高（倍率封顶 ×2.5）。</p>
       ${modRows}
@@ -161,40 +178,36 @@ function openRift(ctx, picked = [], legend = null, weapon = null) {
       <p class="small">${legendPool.length
         ? `从收藏的终极技里带一个进本局：<b class="gold">${legendSkill ? legendSkill.name : '未选择'}</b>`
         : '尚无传说技能 —— 噬灭匹配位面之主有机会掉落。'}</p>
+      ${legendRows}
       ${pre.firstVisit ? '<p class="small gold">⚠ 首次进入 —— 通关后将永久激活该路线基因锁，并永久封印其互斥路线。此操作不可撤销。</p>' : ''}
     `,
+    // 按钮区只留主操作；变异/武器/传说的切换全部走上面的可点行
     buttons: [
       { text: '撕开裂缝，进入', style: 'primary', onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { legendLoadout: legend, weaponLoadout: weapon }); } },
       ...(save.stats.endlessUnlocked ? [{
         text: '★ 无尽模式（通关后续接深渊层）',
         onClick: () => { view.closeModal(); ctx._riftPlane = null; ctx.startRun(plane, picked, { endless: true, legendLoadout: legend, weaponLoadout: weapon }); },
       }] : []),
-      ...weaponPool.map((r) => {
-        const on = weapon === r.id;
-        return {
-          text: `${on ? '✔ ' : '☆ '}${r.name}${geneLockLevel(save, r.id) ? `（Lv${geneLockLevel(save, r.id)}）` : ''}`,
-          onClick: () => { view.closeModal(); openRift(ctx, picked, legend, on ? null : r.id); },
-        };
-      }),
-      ...legendPool.map((id) => {
-        const s = findSkill(id);
-        const on = legend === id;
-        return {
-          text: `${on ? '✔ ' : '☆ '}${s ? s.name : id}`,
-          onClick: () => { view.closeModal(); openRift(ctx, picked, on ? null : id, weapon); },
-        };
-      }),
-      ...RIFT_MODS.map((m) => ({
-        text: `${picked.includes(m.id) ? '取消' : '叠加'}「${m.name}」`,
-        onClick: () => {
-          view.closeModal();
-          const next = picked.includes(m.id) ? picked.filter((x) => x !== m.id) : [...picked, m.id];
-          openRift(ctx, next, legend, weapon);
-        },
-      })),
       { text: '换一道裂缝', onClick: () => { view.closeModal(); ctx._riftPlane = null; openRift(ctx); } },
       { text: '再想想', onClick: () => { view.closeModal(); ctx._riftPlane = null; } },
     ],
+    onMount(root) {
+      const toggle = (kind, id) => {
+        view.closeModal();
+        if (kind === 'mod') openRift(ctx, picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id], legend, weapon);
+        else if (kind === 'weapon') openRift(ctx, picked, legend, weapon === id ? null : id);
+        else openRift(ctx, picked, legend === id ? null : id, weapon);
+      };
+      for (const el of root.querySelectorAll('[data-mod]')) el.addEventListener('click', () => toggle('mod', el.dataset.mod));
+      for (const el of root.querySelectorAll('[data-weapon]')) el.addEventListener('click', () => toggle('weapon', el.dataset.weapon));
+      for (const el of root.querySelectorAll('[data-legend]')) el.addEventListener('click', () => toggle('legend', el.dataset.legend));
+      // 键盘可达：可点行支持 Enter / 空格（与三选一卡片同一套约定）
+      for (const el of root.querySelectorAll('.pickable')) {
+        el.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el.click(); }
+        });
+      }
+    },
   });
 }
 
@@ -409,7 +422,7 @@ export function openCodex(ctx) {
         const r = relicById(id);
         const effText = Object.entries(r.eff ?? {}).map(([k, v]) => `${RELIC_EFF_LABEL[k] ?? k} +${Math.round(v * 100)}%`).join('，');
         return `<div class="codex-row"><span>${r.name}</span><span class="small gold">${effText || (r.rare ? '稀有' : '')}</span></div>
-          <div class="small" style="padding:0 8px 8px;color:#8f98a3;line-height:1.5">${r.story}</div>`;
+          <div class="small" style="padding:0 8px 8px;line-height:1.5">${r.story}</div>`;
       }).join('')
     : '<p class="small">尚未获得传承 —— 噬灭位面之主可得。</p>';
 

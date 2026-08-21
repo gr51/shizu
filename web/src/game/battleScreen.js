@@ -2,7 +2,7 @@
 // 把 core/battle.js 的仿真、game/renderer 的绘制、game/input 的输入接起来，
 // 并在三选一 / 槽位冲突 / 结算时挂起循环、弹出既有的 UI 模态。
 
-import { RealtimeRun, ARENA } from '../../../shizu-cocos/assets/scripts/core/battle.js';
+import { RealtimeRun, ARENA, DEVOUR_CD, DODGE_CD } from '../../../shizu-cocos/assets/scripts/core/battle.js';
 import { RunState } from '../../../shizu-cocos/assets/scripts/core/run.js';
 import { generateDungeon } from '../../../shizu-cocos/assets/scripts/core/dungeon.js';
 import { SLOT_LABEL } from '../../../shizu-cocos/assets/scripts/core/skillSlots.js';
@@ -78,7 +78,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
   function buildHud() {
     hud.innerHTML = `
       <div class="hud-left">
-        <div class="hud-hp"><i></i></div><span data-hp></span>
+        <div class="hud-hp"><i class="hp-ghost"></i><i></i></div><span data-hp></span>
       </div>
       <div class="hud-mid" data-stage></div>
       <div class="hud-right">
@@ -91,7 +91,8 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       <div class="hud-mech" data-mech></div>
       <div class="hud-active" data-active></div>`;
     return {
-      hpBar: hud.querySelector('.hud-hp i'),
+      hpBar: hud.querySelector('.hud-hp i:not(.hp-ghost)'),
+      hpGhost: hud.querySelector('.hud-hp .hp-ghost'),   // 残影条：延迟过渡的旧血量，掉血量一眼可读
       hp: hud.querySelector('[data-hp]'),
       stage: hud.querySelector('[data-stage]'),
       genes: hud.querySelector('[data-genes]'),
@@ -250,7 +251,11 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     hudTick = 0;
     const mm = String(Math.floor(run.time / 60)).padStart(2, '0');
     const ss = String(Math.floor(run.time % 60)).padStart(2, '0');
-    H.hpBar.style.width = `${Math.max(0, (run.hp / run.stats.maxHp) * 100)}%`;
+    const hpWidth = `${Math.max(0, (run.hp / run.stats.maxHp) * 100)}%`;
+    H.hpBar.style.width = hpWidth;
+    // 残影条赋同一个宽度：它带 0.3s 延迟的慢过渡，掉血时黄色旧值缓慢追平 ——
+    // 「这一下掉了多少」不用心算，格斗游戏血条的标配做法
+    H.hpGhost.style.width = hpWidth;
     H.hp.textContent = `${Math.max(0, Math.round(run.hp))} / ${Math.round(run.stats.maxHp)}`;
     H.stage.textContent = run.endless && run.endlessLayer > 0
       ? `深渊 ${run.endlessLayer} 层 · ⏱ ${mm}:${ss}`
@@ -261,8 +266,11 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     const p = run.player;
     H.devour.textContent = p.devourCd > 0 ? `吞噬 ${p.devourCd.toFixed(0)}s` : '吞噬 就绪';
     H.devour.className = `hud-cd ${p.devourCd > 0 ? '' : 'ready'}`;
+    // CD 芯片底部填充（CSS 读 --cd 画 scaleX 进度条）：恢复进度不用心算
+    H.devour.style.setProperty('--cd', p.devourCd > 0 ? String(1 - p.devourCd / DEVOUR_CD) : '0');
     H.dodge.textContent = p.dodgeCd > 0 ? '闪避 …' : '闪避 就绪';
     H.dodge.className = `hud-cd ${p.dodgeCd > 0 ? '' : 'ready'}`;
+    H.dodge.style.setProperty('--cd', p.dodgeCd > 0 ? String(1 - p.dodgeCd / DODGE_CD) : '0');
     const MECH_LABEL = {
       combo: '⚔️ 连击连招', chain: '⚡ 雷链弹射', corpseBlast: '💀 尸爆连锁', missile: '🚀 周期导弹',
       multishot: '🎯 弹幕翻倍', parasite: '🩸 寄生反水', reflect: '🛡 金身反击', stomp: '👣 践踏震荡', laser: '🔦 机关激光',
@@ -274,8 +282,11 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       : run.routeMech ? `${MECH_LABEL[run.routeMech] ?? ''} · 弹体 ×${proj}`
       : proj > 1 ? `弹体 ×${proj}`
       : '';
-    H.active.innerHTML = run.activeSkillStatus.map((s) =>
-      `<span class="hud-cd ${s.ready ? 'ready' : ''}">${s.name} ${s.ready ? '就绪' : `${s.left.toFixed(0)}s`}</span>`).join('');
+    H.active.innerHTML = run.activeSkillStatus.map((s) => {
+      // 就绪态不给填充（与吞噬/闪避芯片一致）：绿色 ready 底本身就是「满了」的信号
+      const ratio = s.ready || !(s.cd > 0) ? 0 : Math.max(0, Math.min(1, 1 - s.left / s.cd));
+      return `<span class="hud-cd ${s.ready ? 'ready' : ''}" style="--cd:${ratio.toFixed(3)}">${s.name} ${s.ready ? '就绪' : `${s.left.toFixed(0)}s`}</span>`;
+    }).join('');
   }
 
   function resume() {
@@ -431,21 +442,23 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     for (const a of r.activations) {
       lines.push(`<div class="diff-row gold">⟡ 永久激活基因锁：${ROUTES[a.route].name}</div>`);
       if (a.newlySealed.length) {
-        lines.push(`<div class="diff-row" style="color:#a5717c">✕ 永久封印：${a.newlySealed.map((s) => ROUTES[s].name).join('、')}</div>`);
+        // 封印行走 .sealed 令牌色：与图鉴 .codex-row.sealed 同源，不再各写一个灰粉
+        lines.push(`<div class="diff-row sealed">✕ 永久封印：${a.newlySealed.map((s) => ROUTES[s].name).join('、')}</div>`);
       }
     }
     for (const c of r.charges) {
       lines.push(`<div class="diff-row">${ROUTES[c.route].name} 基因锁：第 ${c.from} → 第 ${c.to} 段</div>`);
     }
-    if (r.hiddenSkill) lines.push(`<div class="diff-row" style="color:#e0a3d8">🔥 禁忌显现：<b>${r.hiddenSkill.name}</b></div>`);
+    if (r.hiddenSkill) lines.push(`<div class="diff-row hidden">🔥 禁忌显现：<b>${r.hiddenSkill.name}</b></div>`);
     for (const a of r.achievements ?? []) {
       lines.push(`<div class="diff-row gold">🏅 成就达成「${a.name}」 —— 奖励：${a.reward}</div>`);
     }
     if (r.relics.length) {
-      lines.push(`<div class="diff-row" style="color:#c9b8ff">⟡ 传承残影：</div>`);
+      lines.push(`<div class="diff-row relic">⟡ 传承残影：</div>`);
       for (const id of r.relics) {
         const relic = relicById(id);
-        lines.push(`<div class="small" style="padding:4px 8px;line-height:1.5;color:#9aa4af"><b class="gold">${relic.name}</b>　${relic.story}</div>`);
+        // 故事正文交给 .small 的默认次级灰，不再内联另一个一次性灰
+        lines.push(`<div class="small" style="padding:4px 8px;line-height:1.5"><b class="gold">${relic.name}</b>　${relic.story}</div>`);
       }
     }
     if (r.gear.length) {

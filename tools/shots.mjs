@@ -44,8 +44,17 @@ await p.click('#options button');
 await p.waitForSelector('#modalRoot.show', { timeout: 5000 });
 await shot('modal-confirm');
 
-await p.click('.modal-btns button');
+// 按文本点「撕开裂缝」——出征弹窗的按钮区已重构（可点行 + 少量主按钮），
+// 「第一个按钮」不再保证是开始键
+await p.click('#modalRoot .modal-btns button:has-text("撕开裂缝")');
 await p.waitForSelector('#gameCanvas', { timeout: 10000 });
+// DEBUG
+console.log('DEBUG post-start:', JSON.stringify(await p.evaluate(() => ({
+  state: globalThis.__shizu.run?.state,
+  time: globalThis.__shizu.run?.time,
+  modalShow: document.querySelector('#modalRoot')?.classList.contains('show'),
+  modalTitle: document.querySelector('#modalRoot .modal-title')?.textContent ?? null,
+}))));
 await p.waitForFunction(() => (globalThis.__shizu.run?.time ?? 0) > 0.2, null, { timeout: 20000 });
 await shot('battle-start', 800);
 

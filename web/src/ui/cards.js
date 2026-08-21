@@ -43,7 +43,7 @@ export function geneCard(save, run = null) {
       }).join('')
     : '<p class="small">尚未激活任何路线。<br>首次进入某位面副本即可永久激活其路线基因锁。</p>';
   const sealed = save.player.sealedRoutes.length
-    ? `<p class="small" style="color:#7a5c62">已封印：${save.player.sealedRoutes.map((r) => ROUTES[r].name).join('、')}</p>`
+    ? `<p class="small sealed">已封印：${save.player.sealedRoutes.map((r) => ROUTES[r].name).join('、')}</p>`
     : '';
   const runLine = run ? `<p>本局基因 <b class="gold">${run.genes}</b> · 击杀 <b>${run.kills}</b> · 同屏 ${run.onScreen}</p>` : '';
   return `<h4>基因锁</h4>${runLine}${rows}${sealed}`;
