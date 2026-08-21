@@ -108,6 +108,8 @@ export async function startBattle(ctx, plane) {
   let paused = false;
   let lastState = null;
   let timeScale = 1;          // 调试用倍速，见 __shizu.setTimeScale
+  const SIM_STEP = 1 / 60;    // 仿真固定步长（与全部平衡测试同基线）
+  let simAcc = 0;             // 未消耗的仿真时间累加器
   ctx.setTimeScale = (n) => { timeScale = Math.max(0.1, Math.min(60, n)); };
 
   // 可访问性：暂停与静音。切后台自动暂停，避免回来时已被围死。
@@ -115,7 +117,7 @@ export async function startBattle(ctx, plane) {
   const setPaused = (v) => {
     userPaused = v;
     paused = v;
-    if (v) audio.stopBgm(); else { audio.startBgm(plane.id); last = performance.now(); }
+    if (v) audio.stopBgm(); else { audio.startBgm(plane.id); last = performance.now(); simAcc = 0; }
     if (H?.pause) H.pause.textContent = v ? '▶ 继续' : '⏸ 暂停';
     if (pauseVeil) pauseVeil.classList.toggle('on', v);
   };
@@ -159,16 +161,20 @@ export async function startBattle(ctx, plane) {
     last = now;
 
     if (!paused) {
-      // 倍速时切成多个小步长推进，避免一帧跨太多导致碰撞穿透
-      const total = real * timeScale;
-      const steps = Math.min(40, Math.ceil(total / 0.05));
-      const dt = total / steps;
+      // 固定步长推进（fix your timestep）：仿真恒定 1/60 一步。
+      // 变步长会让 144Hz / 30Hz 设备打出不同结果，而全部平衡测试都在 1/60 下校准，
+      // 这里对齐后线上手感与测试基线一致；余下不足一步的时间留到下一帧累计。
       const move = input.read();
       input.tickHold(real);
       const act = input.takeActions();
       if (act.devour) run.devour();
       if (act.dodge) run.dodge(move);
-      for (let i = 0; i < steps && run.state === RunState.FIGHTING; i++) run.update(dt, move);
+      simAcc += real * timeScale;
+      // 上限 40 步：卡顿或倍速时不追平全部欠账，避免「死亡螺旋」越算越卡
+      let steps = Math.min(40, Math.floor(simAcc / SIM_STEP));
+      simAcc -= steps * SIM_STEP;
+      if (simAcc > SIM_STEP * 40) simAcc = 0;   // 长时间挂起后丢弃积压
+      for (; steps > 0 && run.state === RunState.FIGHTING; steps--) run.update(SIM_STEP, move);
       const fx = run.drainEffects();
       renderer.pushEffects(fx);
       audio.onEffects(fx);
@@ -238,6 +244,7 @@ export async function startBattle(ctx, plane) {
     paused = false;
     lastState = run.state;      // 同步守卫，允许下一次进入 CHOOSING 再弹
     last = performance.now();
+    simAcc = 0;                 // 三选一停顿期间不积压仿真时间
   }
 
   function showChoice() {
