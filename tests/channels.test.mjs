@@ -4,9 +4,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planeChannel, planeWeight, previewPlane, resolveConflict, rollPlane } from '../shizu-cocos/assets/scripts/core/planePool.js';
 import { generateDungeon } from '../shizu-cocos/assets/scripts/core/dungeon.js';
-import { rollUpgradeOptions } from '../shizu-cocos/assets/scripts/core/upgrade.js';
+import { rollUpgradeOptions, SKILL_REACH } from '../shizu-cocos/assets/scripts/core/upgrade.js';
 import { rollCommonGear, ATTR_CHANNEL_GEAR_MULT } from '../shizu-cocos/assets/scripts/core/drop.js';
 import { activateRoute } from '../shizu-cocos/assets/scripts/core/geneLock.js';
+import { skillsByRoute } from '../shizu-cocos/assets/scripts/data/skills.js';
 import { planes, TUTORIAL_PLANE_ID } from '../shizu-cocos/assets/scripts/data/planes.js';
 import { ALL_ROUTES, ROUTES, mutexOf } from '../shizu-cocos/assets/scripts/data/routes.js';
 import { freshSave, rng } from './helpers.mjs';
@@ -112,7 +113,7 @@ test('红线3：属性通道也拿不到「传说」档（平衡表 6.1 只有�
   }
 });
 
-test('红线3：匹配位面才给技能，且只给已解锁段位', () => {
+test('红线3：匹配位面才给技能，且只给「已解锁段位之上、SKILL_REACH 段以内」', () => {
   const save = freshSave({ totalRuns: 5 });
   activateRoute(save, 'dujie');
   save.player.geneLocks.dujie = 3;                    // 只解锁到第 3 段
@@ -126,10 +127,39 @@ test('红线3：匹配位面才给技能，且只给已解锁段位', () => {
       if (o.kind !== 'skill') continue;
       sawSkill = true;
       assert.equal(o.route, 'dujie');
-      assert.ok(o.lv <= 3, `漏出了未解锁段位 Lv${o.lv}`);
+      // 已解锁段位由基因锁开局自动生效，不再进池；三选一只提供「还没永久拿到的下一段」
+      assert.ok(o.lv > 3, `已解锁段位不该再进池 Lv${o.lv}`);
+      assert.ok(o.lv <= 3 + SKILL_REACH, `够太远了 Lv${o.lv}`);
     }
   }
   assert.ok(sawSkill, '匹配位面一个技能都没出');
+});
+
+// 这条是上面那条的「真实游戏版」。
+// 上面传的是空的 learnedSkills —— 那个状态在真实游戏里根本不存在：
+// RealtimeRun 构造函数里的 equipGeneLockSkills() 会先把所有已解锁段位塞进 learnedSkills。
+// 曾经两处用的是同一个谓词（lv <= geneLockLevel），于是技能池恒为空集，
+// 60 个技能全是死内容，而全套用例照样绿灯 —— 因为没有一条测试模拟过开局发放。
+test('红线3：模拟开局自动发放后，技能池仍然出得来货（防死内容回归）', () => {
+  const save = freshSave({ totalRuns: 5 });
+  activateRoute(save, 'dujie');
+  save.player.geneLocks.dujie = 3;
+  const d = dungeonFor('dujie', save);
+
+  // 复刻 equipGeneLockSkills()：已解锁段位开局即生效，写进本局 learnedSkills
+  const learnedSkills = new Set(
+    skillsByRoute('dujie').filter((s) => s.lv <= 3).map((s) => s.id),
+  );
+  assert.ok(learnedSkills.size > 0, '前置条件：已解锁段位应当非空');
+
+  const r = rng(77);
+  let sawSkill = false;
+  for (let i = 0; i < 500; i++) {
+    for (const o of rollUpgradeOptions(d, save, { learnedSkills, takenAttrs: new Set() }, r)) {
+      if (o.kind === 'skill') sawSkill = true;
+    }
+  }
+  assert.ok(sawSkill, '开局自动发放后技能池变成了空集 —— skills.js 又成死内容了');
 });
 
 test('红线3：装备通道对全位面开放，属性通道掉率 ×1.5', () => {

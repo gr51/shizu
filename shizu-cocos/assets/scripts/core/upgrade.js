@@ -14,17 +14,34 @@ import { weightedPickMany } from './rng.js';
 export const CHOICE_COUNT = 3;
 
 /**
- * 本副本可选的路线技能池：已激活路线中、段位已解锁、且本局未学过的技能。
+ * 三选一能「够到」的段位上限 = 基因锁等级 + 这个值。
+ * 够太远会让局内一次拿到终极技，破坏「越滚越强」的节奏；只够 2 段刚好是
+ * 「本局能摸到下一阶段的样子，想永久拥有还得去刷基因锁」。
+ */
+export const SKILL_REACH = 2;
+
+/**
+ * 本副本可选的路线技能池：已激活路线中、**尚未永久解锁**、且本局未学过的技能。
+ *
+ * ⚠ 这里的过滤条件曾经是 `s.lv <= unlocked`，与 run.js 的 equipGeneLockSkills()
+ * 完全同谓词 —— 那边会把所有 `lv <= geneLockLevel` 的技能开局就发放并写进 learnedIds，
+ * 于是本函数返回的永远是空集：实测连打 8 局、59 次三选一、177 个选项，
+ * 技能类一个都没出过，data/skills.js 里的 60 个技能是彻底的死内容。
+ *
+ * 现在改成只提供**已解锁段位之上**的段位：基因锁给的是永久解锁，
+ * 三���一给的是「本局提前够到下一段」，两者不再抢同一批内容。
+ *
  * @param {string[]} routes 通道路线（planePool.channelRoutes）
  * @param {object} save
- * @param {Set<string>} learnedIds 本局已学技能 id
+ * @param {Set<string>} learnedIds 本局已学技能 id（含开局自动生效的基因锁段位）
  */
 export function skillPool(routes, save, learnedIds) {
   const pool = [];
   for (const route of routes) {
     const unlocked = save.player.geneLocks[route] ?? 0;
     for (const s of skillsByRoute(route)) {
-      if (s.lv > unlocked) continue;
+      if (s.lv <= unlocked) continue;          // 已永久解锁 → 开局自动生效，不必再选
+      if (s.lv > unlocked + SKILL_REACH) continue;
       if (learnedIds.has(s.id)) continue;
       pool.push({
         id: s.id,
