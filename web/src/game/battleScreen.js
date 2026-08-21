@@ -28,6 +28,21 @@ export async function startBattle(ctx, plane) {
   const canvas = root.querySelector('#gameCanvas');
   const hud = root.querySelector('#hud');
   const toast = root.querySelector('#battleToast');
+  const stickBase = root.querySelector('#stickBase');
+  const stickKnob = root.querySelector('#stickKnob');
+  const wrap = root.querySelector('#canvasWrap');
+  // 触控可视化：显示摇杆按下位置与推杆量，长按蓄吞噬时变金色
+  function drawStick() {
+    if (!stickBase || !wrap) return;
+    const s = input.stick();
+    if (!s) { stickBase.classList.remove('on', 'hold'); return; }
+    const box = wrap.getBoundingClientRect();
+    stickBase.classList.add('on');
+    stickBase.style.left = `${s.ox - box.left}px`;
+    stickBase.style.top = `${s.oy - box.top}px`;
+    stickKnob.style.transform = `translate(${s.mx * 30}px, ${s.my * 30}px)`;
+    stickBase.classList.toggle('hold', input.holdT > 0.12);
+  }
   // 战斗中事件提示：core 的日志只在结算面板可见，战斗时玩家看不到预警/事件，
   // 这里把关键事件（预警/事件/进化/掉落）实时浮到画面上，保证可读性。
   let logSeen = 0;
@@ -129,6 +144,7 @@ export async function startBattle(ctx, plane) {
     renderer.draw(run, dt);
     drawHud(dt);
     pumpToast();
+    drawStick();
 
     // 只在**状态发生变化**时弹一次窗。
     // 早期版本每帧都调 showChoice()，模态框每秒重建 60 次 ——

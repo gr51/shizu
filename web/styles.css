@@ -454,6 +454,22 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .toast-line.win, .toast-line.gene { color: #8fe0cb; border-color: rgba(95, 184, 166, .45); }
 .toast-line.drop, .toast-line.learn, .toast-line.hidden { color: #d5b8f0; border-color: rgba(166, 120, 212, .45); }
 @keyframes toastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 虚拟摇杆可视化：触摸端必须看得见按在哪、推了多远（触控可用性） */
+#stickBase {
+  position: absolute; display: none; pointer-events: none; z-index: 4;
+  width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(95,184,166,.10), rgba(95,184,166,.02) 70%);
+  border: 2px solid rgba(95,184,166,.35);
+}
+#stickBase.on { display: block; }
+#stickKnob {
+  position: absolute; top: 50%; left: 50%; width: 46px; height: 46px;
+  margin: -23px 0 0 -23px; border-radius: 50%;
+  background: rgba(95,184,166,.35); border: 2px solid rgba(168,230,214,.75);
+}
+#stickBase.hold { border-color: rgba(216,189,106,.8); }
+#stickBase.hold #stickKnob { background: rgba(216,189,106,.4); border-color: rgba(255,215,106,.9); }
 #gameCanvas { image-rendering: pixelated; display: block; touch-action: none; }
 #battleHint { padding: 8px 16px; font-size: 12px; color: var(--text-dim); border-top: 1px solid var(--line); background: var(--bg-raise); }
 .hud-cd { margin-left: 10px; padding: 1px 6px; border-radius: 4px; background: #232c34; color: var(--text-dim); font-size: 12px; }
