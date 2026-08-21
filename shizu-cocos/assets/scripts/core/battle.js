@@ -723,13 +723,16 @@ export class RealtimeRun extends Run {
     const splash = 34 * this.stats.range + this.stats.aoe * 40 + this.geneStep * 3;
     const isCrit = this.rng() < this.stats.crit;
     const berserk = p.berserk > 0 ? BERSERK_MUL : 1;
-    let dmg = calcDamage(this.stats.atk * berserk * comboMul * lvlMul, 1, isCrit);
+    let dmg = calcDamage(this.stats.atk * berserk * comboMul * lvlMul, 1, isCrit, 0, this.stats.critDmg ?? 0);
     if (this.mech?.type === 'armor') dmg *= (1 - this.mech.factor);   // 功德：金身减伤
     let healed = 0;
+    const execBonus = this.stats.execute ?? 0;
     const hitFn = (e) => {
-      e.hp -= dmg;
+      // 斩杀本能：残血（<30%）目标吃额外伤害，奖励「补刀收割」的打法
+      const eDmg = execBonus > 0 && e.hp / Math.max(1, e.maxHp) < 0.3 ? dmg * (1 + execBonus) : dmg;
+      e.hp -= eDmg;
       e.hitFlash = 0.12;
-      healed += dmg;
+      healed += eDmg;
       if (e.hp <= 0) this.killEnemy(e);
       // 渡劫·雷链弹射：命中后在敌人间跳跃（构筑强化可 +跳数/+伤害）
       if (this.routeMech === 'chain') {
@@ -1269,6 +1272,21 @@ export class RealtimeRun extends Run {
           o.hp -= this.stats.atk * rDmg;
           o.hitFlash = 0.12;
           this.damageNums.push({ x: o.x, y: o.y - 24, v: Math.round(this.stats.atk * rDmg), crit: false, life: 0.9 });
+          if (o.hp <= 0) this.killEnemy(o);
+        }
+      }
+      this.emitFx('burst', p.x, p.y);
+    }
+    // 倒刺外壳（属性构筑）：受击反震周身敌人，与路线反击可叠加
+    const thorn = this.stats.thorn ?? 0;
+    if (thorn > 0) {
+      for (const o of [...this.enemies]) {
+        if (o.dead) continue;
+        if (Math.hypot(o.x - p.x, o.y - p.y) <= 85 + o.r) {
+          const td = this.stats.atk * thorn;
+          o.hp -= td;
+          o.hitFlash = 0.12;
+          this.damageNums.push({ x: o.x, y: o.y - 24, v: Math.round(td), crit: false, life: 0.9 });
           if (o.hp <= 0) this.killEnemy(o);
         }
       }

@@ -254,7 +254,7 @@ export class Run {
     const options = rollUpgradeOptions(
       this.dungeon,
       this.save,
-      { learnedSkills: this.learnedSkills, takenAttrs: this.takenAttrs },
+      { learnedSkills: this.learnedSkills, takenAttrs: this.takenAttrs, level: this.geneStep },
       this.rng,
     );
     if (options.length === 0) return;

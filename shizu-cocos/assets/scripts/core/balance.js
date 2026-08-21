@@ -102,9 +102,11 @@ export function buildEnemy(unit, D, coef, dynFactor) {
   return { hp: Math.ceil(unit.baseHp * d), atk: Math.ceil(unit.baseAtk * d) };
 }
 
-/** 单次伤害 = 攻 × 技能倍率 × 暴击(1.5) − 防御，保底 1（指南 4.5） */
-export function calcDamage(atk, skillMul, isCrit, def = 0) {
-  return Math.max(1, atk * skillMul * (isCrit ? 1.5 : 1) - def);
+/** 单次伤害 = 攻 × 技能倍率 × 暴击倍率 − 防御，保底 1（指南 4.5）
+ *  暴击倍率基准 1.5，可由「暴击伤害」属性叠加（critDmg 为额外倍数） */
+export function calcDamage(atk, skillMul, isCrit, def = 0, critDmg = 0) {
+  const critMul = isCrit ? 1.5 + critDmg : 1;
+  return Math.max(1, atk * skillMul * critMul - def);
 }
 
 /**

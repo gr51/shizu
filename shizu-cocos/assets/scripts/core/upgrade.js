@@ -65,13 +65,18 @@ export function attrPool() {
  * @returns {Array} 最多 3 个去重选项
  */
 export function rollUpgradeOptions(dungeon, save, runState, rng) {
-  const weightOf = (x) => RARITY_WEIGHT[x.rarity] ?? 1;
+  // 权重：稀有度为默认档位，条目可用显式 weight 覆盖（情境型属性压低，避免稀释核心成长）
+  const weightOf = (x) => x.weight ?? RARITY_WEIGHT[x.rarity] ?? 1;
+  // 渐进复杂度：开局只给核心成长（攻/血/速/攻速/范围），专精类选项到中期才进池。
+  // 早期就混入情境型选项会稀释成长曲线 —— 实测会让整局强度明显下滑。
+  const level = runState.level ?? 0;
+  const attrs = attrPool().filter((a) => (a.minLevel ?? 0) <= level);
   // 构筑感：已激活路线的机制强化选项，名字/描述直接引用你的 Build
   const mechPool = mechUpgradePool(currentRouteMech(save.player.geneLocks));
 
   if (dungeon.channel === 'attr') {
     // 硬规则：只有属性 + 机制强化，一个路线技能都不能出现
-    return weightedPickMany([...attrPool(), ...mechPool], CHOICE_COUNT, weightOf, rng);
+    return weightedPickMany([...attrs, ...mechPool], CHOICE_COUNT, weightOf, rng);
   }
 
   const skills = skillPool(dungeon.channelRoutes, save, runState.learnedSkills);
@@ -79,7 +84,7 @@ export function rollUpgradeOptions(dungeon, save, runState, rng) {
   if (picked.length < CHOICE_COUNT) {
     // 技能池枯竭 → 用通用属性补位（属性非路线专属，不违反红线 3）
     const fill = weightedPickMany(
-      attrPool().filter((a) => !picked.some((x) => x.id === a.id)),
+      attrs.filter((a) => !picked.some((x) => x.id === a.id)),
       CHOICE_COUNT - picked.length,
       weightOf,
       rng,
@@ -101,5 +106,11 @@ export function applyAttrOption(stats, option) {
   if (e.regen) stats.regen += e.regen;
   if (e.range) stats.range *= 1 + e.range;
   if (e.aoe) stats.aoe = (stats.aoe ?? 0) + e.aoe;
+  // 构筑分化：暴伤 / 减伤 / 反震 / 吸取 / 斩杀
+  if (e.critDmg) stats.critDmg = (stats.critDmg ?? 0) + e.critDmg;
+  if (e.dmgReduct) stats.dmgReduct = Math.min(0.8, (stats.dmgReduct ?? 0) + e.dmgReduct);
+  if (e.thorn) stats.thorn = (stats.thorn ?? 0) + e.thorn;
+  if (e.suckRadius) stats.suckRadius = (stats.suckRadius ?? 1) * (1 + e.suckRadius);
+  if (e.execute) stats.execute = (stats.execute ?? 0) + e.execute;
   return stats;
 }

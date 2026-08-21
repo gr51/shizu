@@ -35,6 +35,15 @@ export const GENERIC_ATTR_POOL = [
   { id: 'attr_lifesteal', kind: 'attr', rarity: 'feature', name: '血饲之牙', desc: '吸血 +6%',            eff: { lifesteal: 0.06 } },
   { id: 'attr_regen',     kind: 'attr', rarity: 'feature', name: '自愈之囊', desc: '每秒回血 +1.5% 上限', eff: { regen: 0.015 } },
   { id: 'attr_range',     kind: 'attr', rarity: 'feature', name: '贪婪触须', desc: '攻击范围 +20%',       eff: { range: 0.20 } },
+  // —— 构筑分化扩充（属性通道也要能捏出不同流派，而不是只有一条「攻血速」直线）——
+  // 仍严格只有 base/feature 两档，不破坏红线 3「属性通道拿不到传说」。
+  // 两道闸门：weight 压低（情境型不该与核心成长等权）、minLevel 中期才进池
+  //（实测无闸门时单体型位面同屏峰值从 60 掉到 25，整局强度明显下滑）。
+  { id: 'attr_critdmg',   kind: 'attr', rarity: 'feature', weight: 12, minLevel: 5, name: '裂骨之刃', desc: '暴击伤害 +25%',       eff: { critDmg: 0.25 } },
+  { id: 'attr_dmgreduct', kind: 'attr', rarity: 'feature', weight: 12, minLevel: 5, name: '钝感甲片', desc: '减伤 +6%',            eff: { dmgReduct: 0.06 } },
+  { id: 'attr_thorn',     kind: 'attr', rarity: 'feature', weight: 10, minLevel: 8, name: '倒刺外壳', desc: '受击反震周身敌人',    eff: { thorn: 0.5 } },
+  { id: 'attr_suck',      kind: 'attr', rarity: 'base',    weight: 10, minLevel: 5, name: '饥饿触须', desc: '基因吸取半径 +40%',   eff: { suckRadius: 0.40 } },
+  { id: 'attr_execute',   kind: 'attr', rarity: 'feature', weight: 12, minLevel: 8, name: '斩杀本能', desc: '对残血敌人伤害 +30%', eff: { execute: 0.30 } },
 ];
 
 // ===== 装备（平衡表 7.5）=====
