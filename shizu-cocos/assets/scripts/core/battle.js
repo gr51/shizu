@@ -570,7 +570,7 @@ export class RealtimeRun extends Run {
         if (leech > 0) {
           e.hp = Math.min(e.maxHp, e.hp + e.maxHp * leech);
         }
-        if (this.hp <= 0) {
+        if (this.hp <= 0 && !this.tryRevive()) {
           this.hp = 0;
           this.state = RunState.LOST;
           this.emit(`被 <b>${e.name}</b> 吞噬，你倒在裂缝之中……`, 'death');
@@ -1174,7 +1174,7 @@ export class RealtimeRun extends Run {
         p.invuln = INVULN_ON_HIT * 0.6;
         p.hitFlash = 0.18;
         this.emitFx('hit', p.x, p.y);
-        if (this.hp <= 0) {
+        if (this.hp <= 0 && !this.tryRevive()) {
           this.hp = 0;
           this.state = RunState.LOST;
           this.emit('生命耗尽，你倒在裂缝之中……', 'death');
@@ -1333,7 +1333,7 @@ export class RealtimeRun extends Run {
       }
       this.emitFx('burst', p.x, p.y);
     }
-    if (this.hp <= 0) {
+    if (this.hp <= 0 && !this.tryRevive()) {
       this.hp = 0;
       this.state = RunState.LOST;
       this.emit('生命耗尽，你倒在裂缝之中……', 'death');

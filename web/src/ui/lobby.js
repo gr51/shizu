@@ -10,6 +10,7 @@ import { planes } from '../../../shizu-cocos/assets/scripts/data/planes.js';
 import { nestLine } from '../../../shizu-cocos/assets/scripts/data/lines.js';
 import { RELICS, relicById } from '../../../shizu-cocos/assets/scripts/data/relics.js';
 import { ACHIEVEMENTS, unlockedAchievements } from '../../../shizu-cocos/assets/scripts/data/achievements.js';
+import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../../../shizu-cocos/assets/scripts/data/nestUpgrades.js';
 import { gearCard, gearItemHtml, geneCard, metaLine, playerCard, slotsCard } from './cards.js';
 import * as view from './view.js';
 
@@ -55,6 +56,7 @@ export function renderLobby(ctx) {
   const ICON = (id) => `../shizu-cocos/assets/art/lobby/icons/${id}.png`;
   view.setOptions([
     { text: '开启裂缝', style: 'primary', icon: ICON('rift'), onClick: () => openRift(ctx) },
+    { text: '虫巢强化', icon: ICON('gear'), onClick: () => openNest(ctx) },
     { text: '装备背包', icon: ICON('bag'), onClick: () => openBag(ctx) },
     { text: '进化图鉴', icon: ICON('codex'), onClick: () => openCodex(ctx) },
     { text: '难度设置', icon: ICON('gear'), onClick: () => openDifficulty(ctx) },
@@ -62,6 +64,42 @@ export function renderLobby(ctx) {
   ]);
   view.setPanelCollapsed(true);
   view.setHint(save.player.totalRuns === 0 ? '首次裂缝固定为「机关城」，用于熟悉基本操作' : '选择一项行动');
+}
+
+// ===== 虫巢强化（局外元进度）=====
+
+export function openNest(ctx) {
+  const { save } = ctx;
+  const bank = save.inventory.genes ?? 0;
+  const rows = NEST_UPGRADES.map((u) => {
+    const lv = nestLevel(save, u.id);
+    const cost = nextCost(save, u.id);
+    const state = cost === null ? '<span class="gold">已满级</span>' : `${cost} 基因`;
+    return `<div class="diff-row"><b>${u.name}</b> <span class="small">Lv${lv}/${u.max}</span>`
+      + `<div class="small">${u.desc}　${state}</div></div>`;
+  }).join('');
+
+  view.showModal({
+    title: '虫巢强化',
+    body: `<p class="small">库存基因：<b class="gold">${bank}</b>　每局带回的基因都会入库，失败也算推进。</p>${rows}`,
+    buttons: [
+      ...NEST_UPGRADES.filter((u) => nextCost(save, u.id) !== null).map((u) => ({
+        text: `${u.name}（${nextCost(save, u.id)}）`,
+        style: bank >= nextCost(save, u.id) ? 'primary' : '',
+        disabled: bank < nextCost(save, u.id),
+        onClick: () => {
+          const res = buyNestUpgrade(save, u.id);
+          if (res.ok) {
+            ctx.repo.persist(save);
+            view.closeModal();
+            renderLobby(ctx);
+            openNest(ctx);
+          }
+        },
+      })),
+      { text: '返回', onClick: () => { view.closeModal(); renderLobby(ctx); } },
+    ],
+  });
 }
 
 // ===== 开裂缝 =====

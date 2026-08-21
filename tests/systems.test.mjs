@@ -14,6 +14,7 @@ import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
 import { CHARGE_THRESHOLDS, skills, skillsByRoute } from '../shizu-cocos/assets/scripts/data/skills.js';
 import { ALL_ROUTES } from '../shizu-cocos/assets/scripts/data/routes.js';
 import { ALL_HIDDEN_SKILLS } from '../shizu-cocos/assets/scripts/data/hiddenSkills.js';
+import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../shizu-cocos/assets/scripts/data/nestUpgrades.js';
 import { autoPlay, freshSave, repo, rng } from './helpers.mjs';
 
 const plane = (id) => planes.find((p) => p.id === id);
@@ -323,6 +324,67 @@ test('构筑共鸣：凑齐组合触发一次性强化，且不重复触发', ()
   run.checkSynergies('attr_crit');
   assert.equal(run.stats.critDmg, afterFire, '同一条共鸣不得重复结算');
   assert.equal(run.firedSynergies.size, 1, '仍只触发一条');
+});
+
+// ===== 局外元进度：虫巢强化 =====
+
+test('虫巢强化：买断式扣库存基因、满级拒绝、效果开局生效', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.inventory.genes = 10000;
+
+  // 买不起时拒绝
+  const poor = freshSave({ totalRuns: 5 });
+  poor.inventory.genes = 0;
+  assert.equal(buyNestUpgrade(poor, 'nest_fang').ok, false, '基因不足必须拒绝');
+
+  const before = save.inventory.genes;
+  const r1 = buyNestUpgrade(save, 'nest_fang');
+  assert.ok(r1.ok, '有余额应购买成功');
+  assert.equal(save.inventory.genes, before - r1.cost, '应扣除库存基因');
+  assert.equal(nestLevel(save, 'nest_fang'), 1, '等级应为 1');
+  // 价格递增
+  assert.ok(nextCost(save, 'nest_fang') > r1.cost, '下一级更贵');
+
+  // 效果必须真的进开局属性
+  const plainRun = new RealtimeRun(freshSave({ totalRuns: 5 }), generateDungeon(plane('aofa'), save, 3), 11);
+  const buffRun = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  assert.ok(buffRun.stats.atk > plainRun.stats.atk, '巢髓·利齿应提升开局攻击');
+
+  // 满级拒绝
+  const capSave = freshSave({ totalRuns: 5 });
+  capSave.inventory.genes = 999999;
+  const u = NEST_UPGRADES.find((x) => x.id === 'nest_revive');
+  for (let i = 0; i < u.max; i++) assert.ok(buyNestUpgrade(capSave, u.id).ok);
+  assert.equal(buyNestUpgrade(capSave, u.id).ok, false, '满级后必须拒绝');
+  assert.equal(nextCost(capSave, u.id), null, '满级后无下一级价格');
+});
+
+test('巢髓·残命：致死伤害拦截一次，第二次真死', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.inventory.genes = 999999;
+  assert.ok(buyNestUpgrade(save, 'nest_revive').ok);
+  const run = new RealtimeRun(save, generateDungeon(plane('aofa'), save, 3), 11);
+  assert.equal(run.reviveLeft, 1, '解锁后每局一次');
+
+  run.player.invuln = 0;
+  run.hurtPlayer(999999, 0);
+  assert.equal(run.state, RunState.FIGHTING, '首次致死应被残命拦截');
+  assert.ok(run.hp > 0, '应保留生命');
+  assert.equal(run.reviveLeft, 0, '拦截后次数用尽');
+
+  run.player.invuln = 0;
+  run.hurtPlayer(999999, 0);
+  assert.equal(run.state, RunState.LOST, '第二次致死应真死');
+});
+
+test('局外货币：结算时本局基因入库', () => {
+  const save = freshSave({ totalRuns: 5 });
+  save.inventory.genes = 100;
+  const r = repo();
+  const { run } = autoPlay(plane('jiguan'), save, 3);
+  const earned = run.genes;
+  run.finalize(r);
+  assert.equal(save.inventory.genes, 100 + earned, '本局基因应入库供虫巢消费');
 });
 
 // ===== 存档迁移 =====

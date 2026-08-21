@@ -17,6 +17,7 @@ import { rollBossDrop, rollKillDrop } from './drop.js';
 import { ZHUTIAN_ID } from '../data/planes.js';
 import { skillsByRoute } from '../data/skills.js';
 import { newlyFiredSynergies } from '../data/synergies.js';
+import { aggregateNestEff } from '../data/nestUpgrades.js';
 import { activatedRoutes, geneLockLevel } from './geneLock.js';
 import { rngFactory } from './rng.js';
 
@@ -83,6 +84,17 @@ export class Run {
     const base = combatStats(save.player);
     this.stats = { ...base, maxHp: base.hp, aoe: 0 };
     this.hp = base.hp;
+
+    // 虫巢永久升级（局外元进度）：开局即生效，让下一局起点真的不同
+    this.nest = aggregateNestEff(save);
+    if (this.nest.hpPct) {
+      this.stats.maxHp *= 1 + this.nest.hpPct;
+      this.hp = this.stats.maxHp;
+    }
+    if (this.nest.atkPct) this.stats.atk *= 1 + this.nest.atkPct;
+    if (this.nest.suckRadius) this.stats.suckRadius = (this.stats.suckRadius ?? 1) * (1 + this.nest.suckRadius);
+    this.reviveLeft = this.nest.revive > 0 ? 1 : 0;   // 残命：每局一次
+    this.freeRerollLeft = this.nest.freeReroll ?? 0;
 
     this.stageIndex = 0;
     this.elapsed = 0;           // 全局已过秒数
@@ -282,16 +294,18 @@ export class Run {
    */
   reroll() {
     if (this.state !== RunState.CHOOSING || !this.pendingOptions) return false;
-    const cost = this.rerollCost;
-    if (this.genes < cost) return false;
-    this.genes -= cost;
-    this.rerollUsed += 1;
+    // 巢髓·抉择：先用免费次数，再花基因
+    const free = this.freeRerollLeft > 0;
+    const cost = free ? 0 : this.rerollCost;
+    if (!free && this.genes < cost) return false;
+    if (free) this.freeRerollLeft -= 1;
+    else { this.genes -= cost; this.rerollUsed += 1; }
     const reason = this.pendingOptions.reason;
     this.pendingOptions = null;
     this.openChoice(reason);
     // 池子枯竭导致没roll出东西时，保持在战斗态而不是卡住
     if (!this.pendingOptions) this.state = RunState.FIGHTING;
-    this.emit(`♻ 重掷选项（-${cost} 基因）`, 'info');
+    this.emit(free ? '♻ 免费重掷（巢髓·抉择）' : `♻ 重掷选项（-${cost} 基因）`, 'info');
     return true;
   }
 
@@ -317,8 +331,8 @@ export class Run {
     return true;
   }
 
-  /** 剩余放逐次数（一局 2 次，稀缺才有决策价值） */
-  get banishLeft() { return Math.max(0, BANISH_PER_RUN - this.banishUsed); }
+  /** 剩余放逐次数（基础 2 次 + 巢髓·断绝，稀缺才有决策价值） */
+  get banishLeft() { return Math.max(0, BANISH_PER_RUN + (this.nest?.banish ?? 0) - this.banishUsed); }
 
   /**
    * 构筑共鸣：记录本次获得的 id，若与已有选项凑成套则一次性给永久强化。
@@ -340,6 +354,19 @@ export class Run {
       if (e.aspdPct) this.stats.aspd *= 1 + e.aspdPct;
       this.emit(`✨ ${syn.name} —— ${syn.desc}`, 'win');
     }
+  }
+
+  /**
+   * 致死拦截：巢髓·残命解锁后每局一次，保留 1 点生命并回复 25%。
+   * 战斗层在把 state 置为 LOST 之前先问这里，避免每处死亡分支各写一遍。
+   * @returns {boolean} true = 已被救回，不应死亡
+   */
+  tryRevive() {
+    if (this.reviveLeft <= 0) return false;
+    this.reviveLeft -= 1;
+    this.hp = Math.max(1, this.stats.maxHp * 0.25);
+    this.emit('💠 巢髓·残命触发：从致死伤害中挣脱', 'win');
+    return true;
   }
 
   choose(index) {
@@ -469,6 +496,9 @@ export class Run {
     }
 
     const growth = applyPermGrowth(save, this.genes);
+
+    // 局外货币：本局基因入库，供虫巢永久升级消费（失败也有推进）
+    save.inventory.genes = (save.inventory.genes ?? 0) + this.genes;
 
     const drop = this.bossDrop;
     if (drop) {

@@ -72,6 +72,7 @@ export function createDefaultSave() {
       gear: {},            // GearSlotId -> GearItem
       gearBag: [],
       gearEssence: 0,
+      nestUpgrades: {},    // 虫巢永久升级 id -> 等级（局外元进度，买断式）
     },
     inventory: {
       genes: 0,
