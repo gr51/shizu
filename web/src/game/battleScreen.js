@@ -555,7 +555,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       : `<div class="diff-row small">历史最佳 阶段 ${r.prevBestStage}/5 —— 本局 ${r.stageReached}/5，${r.prevBestStage - r.stageReached <= 0 ? '再稳一点就能刷新' : `还差 ${r.prevBestStage - r.stageReached} 阶段`}</div>`);
     // 动态下一局建议（backlog 剧情单薄）：根据本局表现生成针对性策略提示
     const hints = [];
-    if (!r.victory && r.stageReached <= 2) hints.push('前期生存不足——回巢优先升级「厚甲之壳」和「血饲之牙」');
+    if (!r.victory && r.stageReached <= 2) hints.push('前期生存不足——回巢优先升级「巢髓·体质」和「巢髓·利齿」');
     else if (!r.victory) hints.push('后期乏力——尝试换一条出征路线，或叠加「贪婪诅咒」提高收益');
     if (r.victory) hints.push('已通关！试试更高难度位面或无尽模式');
     if (r.gradeBonusGenes > 0) hints.push(`获得 ${r.gradeBonusGenes} 评级加成基因——保持支线完成度可持续触发`);

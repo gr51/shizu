@@ -27,6 +27,7 @@ import { nestLine } from '../data/lines.js';
 import { relicById } from '../data/relics.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../data/nestUpgrades.js';
 import { ACHIEVEMENTS } from '../data/achievements.js';
+import { SYNERGIES } from '../data/synergies.js';
 import { RIFT_MODS, aggregateRiftMods } from '../data/riftMods.js';
 
 const { ccclass } = _decorator;
@@ -599,11 +600,24 @@ export class GameRoot extends Component {
       if (o.kind === 'skill') {
         rows.push({ text: `${i + 1}. 【技能】${o.name}　${ROUTES[o.route].name}·第${o.lv}段`, color: C.gold });
         rows.push({ text: `　　 ${o.desc}　${o.val}`, size: 15, color: C.dim });
+      } else if (o.kind === 'mech') {
+        rows.push({ text: `${i + 1}. 【强化】${o.name}`, color: '#c9b8ff' });
+        rows.push({ text: `　　 ${o.desc}`, size: 15, color: C.dim });
       } else {
         rows.push({ text: `${i + 1}. 【属性】${o.name}`, color: C.gene });
         rows.push({ text: `　　 ${o.desc}`, size: 15, color: C.dim });
       }
     });
+    // 共鸣提示（与 web 端同口径）：差一件的共鸣列出来，让选择有目标
+    const fired = run.firedSynergies ?? new Set<string>();
+    const owned = run.ownedPicks ?? new Set<string>();
+    for (const syn of SYNERGIES) {
+      if (fired.has(syn.id)) continue;
+      const missing = syn.need.filter((id: string) => !owned.has(id));
+      if (missing.length !== 1) continue;
+      const inRoll = options.some((o: any) => o.id === missing[0]);
+      rows.push({ text: `${inRoll ? '★ ' : ''}${syn.name}：还差 1 件即可成立${inRoll ? '（本次可选）' : ''}`, size: 13, color: inRoll ? C.gold : C.dim });
+    }
 
     this.modal.show({
       title: `${reason} · 选择你的进化`,
@@ -747,6 +761,16 @@ export class GameRoot extends Component {
       size: 15, color: C.dim,
     });
     if (r.firstClear) rows.push({ text: '★ 首通诸天之心 —— 无尽模式已解锁', color: C.gold });
+    // 动态下一局建议（与 web 端同口径）：根据本局表现生成针对性提示
+    {
+      const hints: string[] = [];
+      if (!r.victory && r.stageReached <= 2) hints.push('前期生存不足——回巢优先升级「巢髓·体质」和「巢髓·利齿」');
+      else if (!r.victory) hints.push('后期乏力——尝试换一条出征路线，或叠加「贪婪诅咒」提高收益');
+      if (r.victory) hints.push('已通关！试试更高难度位面或无尽模式');
+      if (r.gradeBonusGenes) hints.push(`获得 ${r.gradeBonusGenes} 评级加成基因——保持支线完成度可持续触发`);
+      if (!hints.length) hints.push(r.victory ? '试试无尽模式冲击深渊层' : '回巢强化后再开裂缝');
+      rows.push({ text: `💡 ${hints.slice(0, 2).join('；')}`, size: 14, color: C.dim });
+    }
 
     this.modal.show({
       title: r.victory ? `噬灭 · ${r.plane.name}` : `身陨 · ${r.plane.name}`,
