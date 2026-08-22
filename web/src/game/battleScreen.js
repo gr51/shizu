@@ -83,6 +83,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       </div>
       <div class="hud-mid" data-stage></div>
       <div class="sidequest"><span class="sq-bar"><i class="sq-fill"></i></span><span data-quest></span></div>
+      <div class="combo-display" data-combo hidden></div>
       <div class="hud-right">
         <b class="gene" data-genes></b> · 噬灭 <b data-kills></b> · 同屏 <span data-screen></span>
         <span class="hud-cd" data-devour></span><span class="hud-cd" data-dodge></span>
@@ -99,7 +100,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       stage: hud.querySelector('[data-stage]'),
       quest: hud.querySelector('[data-quest]'),
       questFill: hud.querySelector('.sq-fill'),
-      quest: hud.querySelector('[data-quest]'),
+      combo: hud.querySelector('[data-combo]'),
       genes: hud.querySelector('[data-genes]'),
       kills: hud.querySelector('[data-kills]'),
       screen: hud.querySelector('[data-screen]'),
@@ -299,6 +300,18 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     H.genes.textContent = `基因 ${run.genes}`;
     H.kills.textContent = run.kills;
     H.screen.textContent = run.onScreen;
+    // 击杀连击可视化：连击数 ≥3 时显示，1.5s 无击杀自动隐藏
+    if (H.combo) {
+      const combo = run.comboCount ?? 0;
+      const active = combo >= 3 && (run.time - (run.lastKillTime ?? -99)) <= 1.5;
+      if (active) {
+        H.combo.hidden = false;
+        H.combo.textContent = `${combo} COMBO`;
+        H.combo.style.fontSize = `${Math.min(28, 14 + combo * 0.5)}px`;
+      } else {
+        H.combo.hidden = true;
+      }
+    }
     const p = run.player;
     H.devour.textContent = p.devourCd > 0 ? `吞噬 ${p.devourCd.toFixed(0)}s` : '吞噬 就绪';
     H.devour.className = `hud-cd ${p.devourCd > 0 ? '' : 'ready'}`;
