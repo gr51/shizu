@@ -526,7 +526,9 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
         + `</div></div>`);
     }
     for (const c of r.charges) {
-      lines.push(`<div class="diff-row">${ROUTES[c.route].name} 基因锁：第 ${c.from} → 第 ${c.to} 段</div>`);
+      // 基因锁升级反馈（backlog 剧情单薄）：说明每段的实际收益，让「升段」有意义
+      lines.push(`<div class="diff-row">${ROUTES[c.route].name} 基因锁：第 ${c.from} → 第 <b class="gold">${c.to}</b> 段`
+        + `<span class="small">　战力 +${((c.to - c.from) * 2).toFixed(0)}%</span></div>`);
     }
     if (r.hiddenSkill) lines.push(`<div class="diff-row hidden">🔥 禁忌显现：<b>${r.hiddenSkill.name}</b></div>`);
     for (const a of r.achievements ?? []) {
