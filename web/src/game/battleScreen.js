@@ -526,7 +526,15 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     lines.push(r.newBest
       ? `<div class="diff-row gold">★ 新纪录：阶段 ${r.stageReached}/5（旧纪录 ${r.prevBestStage}）</div>`
       : `<div class="diff-row small">历史最佳 阶段 ${r.prevBestStage}/5 —— 本局 ${r.stageReached}/5，${r.prevBestStage - r.stageReached <= 0 ? '再稳一点就能刷新' : `还差 ${r.prevBestStage - r.stageReached} 阶段`}</div>`);
-    lines.push(`<div class="diff-row small">下一局建议：${r.victory ? '难度已上调，可尝试更深阶段或换位面收集传承' : '带回的永久成长已入账，回巢强化后再开裂缝'}</div>`);
+    // 动态下一局建议（backlog 剧情单薄）：根据本局表现生成针对性策略提示
+    const hints = [];
+    if (!r.victory && r.stageReached <= 2) hints.push('前期生存不足——回巢优先升级「厚甲之壳」和「血饲之牙」');
+    else if (!r.victory) hints.push('后期乏力——尝试换一条出征路线，或叠加「贪婪诅咒」提高收益');
+    if (r.victory) hints.push('已通关！试试更高难度位面或无尽模式');
+    if (r.gradeBonusGenes > 0) hints.push(`获得 ${r.gradeBonusGenes} 评级加成基因——保持支线完成度可持续触发`);
+    if (r.activations.length) hints.push('新路线已激活——下局可用该路线的出征武器体验新机制');
+    if (!hints.length) hints.push(r.victory ? '试试无尽模式冲击深渊层' : '回巢强化后再开裂缝');
+    lines.push(`<div class="diff-row small">💡 ${hints.slice(0, 2).join('；')}</div>`);
 
     // 结局演出：首通诸天之心 → 巢灵成新噬祖
     if (r.victory && r.plane.id === 'zhutian' && r.firstClear) {
