@@ -417,25 +417,44 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
   /** 裂缝黑市：阶段间用基因换即时战力（攒着升级 vs 现在买） */
   function showShop() {
     const items = run.shopItems ?? [];
-    const rows = items.map((it, i) => {
-      const bought = run.shopBought?.has(it.id);
-      const afford = run.genes >= it.price;
-      return `<div class="pick${bought ? '' : ' attr'}"><b>${bought ? '✔ ' : ''}${it.name}</b>`
-        + `<span>${it.desc}</span>`
-        + `<span class="${afford && !bought ? 'gold' : 'small'}">${it.price} 基因${bought ? '（已购）' : afford ? '' : '（不足）'}</span></div>`;
-    }).join('');
+    // 黑市 v2（backlog 交互弱）：内联购物卡片替代按钮墙——每件商品一张卡，
+    // 名称/效果/价格/购买按钮一体化，点卡即买。底部只留「离开」。
+    const renderCards = () => {
+      return items.map((it, i) => {
+        const bought = run.shopBought?.has(it.id);
+        const afford = run.genes >= it.price;
+        return `<div class="shop-item${bought ? ' bought' : ''}${!afford && !bought ? ' poor' : ''}">`
+          + `<div class="shop-info"><b>${it.name}</b><div class="small">${it.desc}</div></div>`
+          + `<div class="shop-buy">`
+          + `<span class="shop-price ${afford ? 'gold' : 'sealed'}">${it.price} 🧬</span>`
+          + (bought
+            ? `<span class="small sealed">已购</span>`
+            : `<button class="shop-btn" data-shop="${i}" ${(!afford) ? 'disabled' : ''}>购入</button>`)
+          + `</div></div>`;
+      }).join('');
+    };
+    const renderBody = () =>
+      `<p class="small">当前基因 <b class="gold gene-balance">${run.genes}</b> 🧬　—— 花掉的基因不再计入升级进度，权衡再买。</p>`
+      + `<div class="shop-list">${renderCards()}</div>`;
+
+    const bindShop = (root) => {
+      root.querySelectorAll('[data-shop]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.shop);
+          run.buyShopItem(idx);
+          // 局部刷新：只更新卡片和余额，不重建整个模态
+          root.querySelector('.shop-list').innerHTML = renderCards();
+          root.querySelector('.gene-balance').textContent = run.genes;
+          bindShop(root);   // 重绑（innerHTML 替换了旧按钮）
+        });
+      });
+    };
+
     view.showModal({
       title: `裂缝黑市 · 阶段 ${run.stageNo}`,
-      body: `<p class="small">当前基因 <b class="gold">${run.genes}</b>　—— 花掉的基因不再计入升级进度，权衡再买。</p>${rows}`,
-      buttons: [
-        ...items.map((it, i) => ({
-          text: `购入 ${it.name}（${it.price}）`,
-          style: run.genes >= it.price && !run.shopBought?.has(it.id) ? 'primary' : '',
-          disabled: run.genes < it.price || run.shopBought?.has(it.id),
-          onClick: () => { view.closeModal(); run.buyShopItem(i); showShop(); },
-        })),
-        { text: '离开黑市', onClick: () => { view.closeModal(); run.closeShop(); resume(); } },
-      ],
+      body: renderBody(),
+      buttons: [{ text: '离开黑市', onClick: () => { view.closeModal(); run.closeShop(); resume(); } }],
+      onMount: bindShop,
     });
   }
 

@@ -530,6 +530,21 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .sidequest.done { color: var(--gene, #7fe0c3); }
 .sidequest.failed { color: var(--sealed, #a5717c); text-decoration: line-through; }
 
+/* 黑市 v2：内联购物卡片——名称/效果/价格/购买按钮一体化 */
+.shop-item { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 8px; margin: 4px 0; border: 1px solid rgba(255,255,255,.08); border-radius: 4px;
+  background: rgba(20,26,32,.45); transition: border-color .12s; }
+.shop-item.bought { opacity: .45; border-color: rgba(127,224,195,.3); }
+.shop-item.poor { opacity: .6; }
+.shop-info { flex: 1; min-width: 0; font-size: 13px; line-height: 1.5; }
+.shop-buy { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.shop-price { font-size: 13px; font-weight: bold; }
+.shop-btn { padding: 4px 14px; font-size: 12px; cursor: pointer;
+  background: var(--gold, #d8a3d8); color: #1a1208; border: none; border-radius: 3px; font-weight: bold; }
+.shop-btn:hover:not(:disabled) { filter: brightness(1.2); }
+.shop-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+
 
 /* 流派卡片（出征武器选择）：立绘 + 定位 + 机制说明——赛前决策值得真正的操作性界面 */
 .route-card { display: flex; gap: 10px; align-items: flex-start; padding: 8px; margin: 6px 0;
