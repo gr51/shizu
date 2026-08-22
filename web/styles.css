@@ -544,6 +544,15 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .shop-btn:hover:not(:disabled) { filter: brightness(1.2); }
 .shop-btn:disabled { opacity: .35; cursor: not-allowed; }
 
+/* 基因锁解锁演出：立绘 + 定位 + 机制说明——首次激活是里程碑时刻 */
+.unlock-card { display: flex; gap: 12px; align-items: center; padding: 10px; margin: 6px 0;
+  border: 1px solid var(--gold, #d8a3d8); border-radius: 4px;
+  background: rgba(45, 38, 22, .35); }
+.unlock-portrait { width: 56px; height: 56px; flex: 0 0 56px; object-fit: contain;
+  image-rendering: pixelated; background: rgba(0,0,0,.3); border-radius: 4px; }
+.unlock-body { flex: 1; min-width: 0; line-height: 1.55; }
+
+
 
 
 /* 流派卡片（出征武器选择）：立绘 + 定位 + 机制说明——赛前决策值得真正的操作性界面 */

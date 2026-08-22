@@ -7,6 +7,7 @@ import { RunState } from '../../../shizu-cocos/assets/scripts/core/run.js';
 import { generateDungeon } from '../../../shizu-cocos/assets/scripts/core/dungeon.js';
 import { SLOT_LABEL } from '../../../shizu-cocos/assets/scripts/core/skillSlots.js';
 import { ROUTES } from '../../../shizu-cocos/assets/scripts/data/routes.js';
+import { MECH_INFO, ROUTE_MECHANIC } from '../../../shizu-cocos/assets/scripts/data/weaponAttack.js';
 import { relicById } from '../../../shizu-cocos/assets/scripts/data/relics.js';
 import { SYNERGIES } from '../../../shizu-cocos/assets/scripts/data/synergies.js';
 import { Assets } from './assets.js';
@@ -490,11 +491,16 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       lines.push(`<div class="diff-row">永久成长：${r.growth.grants.map((g) => `${g.label} +${g.pct}%`).join('，')}</div>`);
     }
     for (const a of r.activations) {
-      lines.push(`<div class="diff-row gold">⟡ 永久激活基因锁：${ROUTES[a.route].name}</div>`);
-      if (a.newlySealed.length) {
-        // 封印行走 .sealed 令牌色：与图鉴 .codex-row.sealed 同源，不再各写一个灰粉
-        lines.push(`<div class="diff-row sealed">✕ 永久封印：${a.newlySealed.map((s) => ROUTES[s].name).join('、')}</div>`);
-      }
+      const route = ROUTES[a.route];
+      const mech = MECH_INFO[ROUTE_MECHANIC[a.route]];
+      // 基因锁解锁演出（backlog 剧情单薄）：立绘 + 定位 + 机制说明——首次激活是里程碑时刻
+      lines.push(`<div class="unlock-card">`
+        + `<img class="unlock-portrait" src="../shizu-cocos/assets/art/units/player_${a.route}.png" alt="${route.name}">`
+        + `<div class="unlock-body">`
+        + `<div class="gold" style="font-size:15px">⟡ 基因锁激活：${route.name}</div>`
+        + `<div class="small">${route.role} · ${mech ? `${mech.name} —— ${mech.desc}` : ''}</div>`
+        + (a.newlySealed.length ? `<div class="small sealed">⚠ 互斥封印：${a.newlySealed.map((s) => ROUTES[s].name).join('、')}</div>` : '')
+        + `</div></div>`);
     }
     for (const c of r.charges) {
       lines.push(`<div class="diff-row">${ROUTES[c.route].name} 基因锁：第 ${c.from} → 第 ${c.to} 段</div>`);
