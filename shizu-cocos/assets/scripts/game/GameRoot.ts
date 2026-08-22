@@ -319,6 +319,16 @@ export class GameRoot extends Component {
       rows.push({ text: '⚠ 首次进入：通关后永久激活该路线，', color: C.gold, size: 15 });
       rows.push({ text: '　 并永久封印其互斥路线，不可撤销。', color: C.gold, size: 15 });
     }
+    // 配置回显：从配置屏返回后能确认自己选了什么
+    if (this.riftPicked.length || this.riftWeapon) {
+      const mods = aggregateRiftMods(this.riftPicked);
+      const wName = this.riftWeapon ? (ROUTES as Record<string, { name: string }>)[this.riftWeapon].name : '自动';
+      rows.push({
+        text: `已配置：变异×${this.riftPicked.length}（倍率 ×${mods.geneMul.toFixed(2)}）　武器：${wName}`,
+        color: C.gene,
+        size: 15,
+      });
+    }
 
     this.modal.show({
       title: `裂缝 · ${pre.name}`,
