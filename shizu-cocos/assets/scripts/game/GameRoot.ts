@@ -43,6 +43,10 @@ export class GameRoot extends Component {
   private lastState: string | null = null;
   private keys = new Set<number>();
   private hudLabel: Label | null = null;
+  /** 叙事 toast：run.log 增量泵出，2.6s 自动退场（与 web 端 pumpToast 同口径） */
+  private toastBase: Node | null = null;
+  private toastLabels: Label[] = [];
+  private logSeen = 0;
   /** 裂缝配置暂存：变异 picks 与出征武器（撕开裂缝时消费，换裂缝时重置） */
   private riftPicked: string[] = [];
   private riftWeapon: any = null;
@@ -107,6 +111,37 @@ export class GameRoot extends Component {
     const combo = run.comboCount ?? 0;
     if (combo >= 3 && run.time - (run.lastKillTime ?? -99) <= 1.5) s += `　🔥${combo}`;
     this.hudLabel.string = s;
+    this.pumpToast();
+  }
+
+  /** 叙事 toast 泵：run.log 增量 → 浮动文本，2.6s 自动退场，同屏至多 4 条 */
+  private pumpToast(): void {
+    if (!this.toastBase || !this.run) return;
+    const log = this.run.log ?? [];
+    if (this.logSeen > log.length) this.logSeen = 0;
+    const CLS_COLOR: Record<string, string> = {
+      death: '#e06c5b', wave: '#cdd4da', win: C.gold, gene: C.gene,
+      drop: C.gold, learn: C.gold, stage: C.gold, hidden: '#c9b8ff',
+    };
+    for (; this.logSeen < log.length; this.logSeen++) {
+      const entry = log[this.logSeen];
+      const color = CLS_COLOR[entry.cls];
+      if (!color) continue;
+      if (this.toastLabels.length >= 4) {
+        const old = this.toastLabels.shift();
+        old?.node.destroy();
+      }
+      const y = 236 - this.toastLabels.length * 24;
+      const l = makeLabel(this.toastBase, String(entry.text).replace(/<[^>]+>/g, ''), 0, y, {
+        size: 14, color, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40,
+      });
+      this.toastLabels.push(l);
+      this.scheduleOnce(() => {
+        const i = this.toastLabels.indexOf(l);
+        if (i >= 0) this.toastLabels.splice(i, 1);
+        l.node.destroy();
+      }, 2.6);
+    }
   }
 
   /** 无尽模式撤离确认：立即以胜利结算保住战利品（与 web 端同口径） */
@@ -474,6 +509,8 @@ export class GameRoot extends Component {
       size: 14, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 24,
     });
     this.refreshBattleHud();
+    // 叙事 toast 容器：run.log 的新条目在这里浮出（任务简报/Boss 降临/阶段叙事/胜利诗）
+    this.toastBase = makeNode('Toasts', s, 0, 0);
     // 无尽模式：主动撤离入口（贪多必死 → 收手也是一种技术；与 web 端同口径）
     if (run.endless) {
       makeButton(s, '🚪 撤离结算', 0, -180, 220, () => this.confirmRetire());
