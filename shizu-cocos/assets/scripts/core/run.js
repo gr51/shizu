@@ -198,6 +198,11 @@ export class Run {
       'info',
     );
     this.emit(`—— 阶段 1 · ${dungeon.plane.theme} ——`, 'wave');
+    // 无限流任务简报（backlog 剧情单薄）：主线 + 支线 + Boss 一次交代清楚
+    this.emit(`📡 主线：生存，击破位面之主【${dungeon.plane.boss}】，带回战利品`, 'stage');
+    if (this.sideQuest) {
+      this.emit(`📋 支线【${this.sideQuest.name}】：${this.sideQuest.desc}（奖励 ${this.sideQuest.reward} 基因）`, 'gene');
+    }
   }
 
   /**
