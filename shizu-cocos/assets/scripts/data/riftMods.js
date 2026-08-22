@@ -45,6 +45,28 @@ export const RIFT_MODS = [
     risk: 3,
     eff: { playerHpMul: 0.75, geneMul: 1.4 },
   },
+  // —— 扩充：填补风险档位空缺，增加开局构筑多样性 ——
+  {
+    id: 'mod_swift',
+    name: '迅捷风暴',
+    desc: '敌人移速 +30%，基因产出 +25%',
+    risk: 2,
+    eff: { enemySpeedMul: 1.3, geneMul: 1.25 },
+  },
+  {
+    id: 'mod_tide',
+    name: '钢铁洪流',
+    desc: '杂兵生命 +30%，刷怪速率 +25%，基因产出 +40%',
+    risk: 3,
+    eff: { minionHpMul: 1.3, spawnMul: 1.25, geneMul: 1.4 },
+  },
+  {
+    id: 'mod_bounty',
+    name: '贪婪诅咒',
+    desc: '基因产出 +55%，但敌人移速 +15%、杂兵生命 +15%',
+    risk: 3,
+    eff: { geneMul: 1.55, enemySpeedMul: 1.15, minionHpMul: 1.15 },
+  },
 ];
 
 export function riftModById(id) {
