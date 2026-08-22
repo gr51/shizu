@@ -1446,6 +1446,17 @@ export class RealtimeRun extends Run {
     this.kills += 1;
     if (e.kind === 'minion') this.minionKills += 1;
     if (e.kind === 'elite') this.elitesKilled = (this.elitesKilled ?? 0) + 1;   // 猎头协议进度
+
+    // 击杀连击（backlog 爽感）：快速连续击杀累积连击数，里程碑奖励额外基因
+    const now = this.time;
+    this.comboCount = (now - (this.lastKillTime ?? -99) <= 1.5) ? (this.comboCount ?? 0) + 1 : 1;
+    this.lastKillTime = now;
+    if (this.comboCount > 0 && this.comboCount % 10 === 0) {
+      const bonus = Math.min(50, this.comboCount);
+      this.addGenes(bonus, false);
+      this.emit(`🔥 ${this.comboCount} 连击！基因 +${bonus}`, 'win');
+    }
+
     this.emitFx('burst', e.x, e.y);
     if (e.kind !== 'minion') this.hitStop = 0.08;   // 精英/Boss 击杀：命中停顿
     // 自爆怪：死时爆炸，近身波及玩家（别贴脸杀它）
