@@ -136,6 +136,12 @@ check(snap().screen === 'battle', '已进入副本');
 check(root_.run?.dungeon?.mods?.spawnMul === 1.35, `配置的虫潮变异已透传进局（spawnMul=${root_.run?.dungeon?.mods?.spawnMul}）`);
 check(snap().plane === '机关城', `位面 = ${snap().plane}`);
 
+// —— 叙事 toast：开局任务简报必须浮出（主动审计回归守护）——
+root_.update(1 / 60);
+const battleLabels0 = collectAllLabels(canvas);
+check(battleLabels0.some((s) => s.includes('主线：')), '开局任务简报 toast 已显示');
+check(battleLabels0.some((s) => s.includes('支线【')), '支线协议 toast 已显示');
+
 // —— 5. 打完整局（实时：直接驱动组件的 update(dt)，模拟游戏循环）——
 console.log('\n[4] 实时战斗推进');
 const DT = 1 / 60;
