@@ -96,7 +96,7 @@ export class GameRoot extends Component {
     const p = this.save.player;
     this.header.string =
       `战力 ${computePower(p).toFixed(2)}　难度 ${DIFFICULTY_LABEL[p.difficultyLevel]}`
-      + `　动态 ${p.dynFactor.toFixed(2)}　通关 ${p.wins}/${p.totalRuns}` + (extra ? `　${extra}` : '');
+      + `　动态 ${p.dynFactor.toFixed(2)}　战绩 胜${p.wins}/共${p.totalRuns}局` + (extra ? `　${extra}` : '');
   }
 
   private resetScreen(): Node {
