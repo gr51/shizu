@@ -1594,6 +1594,13 @@ export class RealtimeRun extends Run {
     this.surgeDone = 0;
     this.closerSpawned = false;
     this.spawnCarry = 0;
+    // 阶段叙事节拍（backlog 剧情单薄）：关键阶段注入位面级氛围文本
+    const plane = this.dungeon.plane;
+    if (this.stageNo === 3) {
+      this.emit(`⚔ ${plane.theme}深处，真正的考验开始了……`, 'wave');
+    } else if (this.stageNo === 5) {
+      this.emit(`☠ ${plane.boss}在等你。这是最后一战。`, 'death');
+    }
   }
 
   /** 远程弹幕：命中玩家或超时消失 */

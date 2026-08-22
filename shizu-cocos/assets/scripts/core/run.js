@@ -835,6 +835,8 @@ export class Run {
       engraveResult,
       activations,
       charges,
+      growth,
+      dyn,
       achievements,
     };
     // 完成度评价（无限流式）：多因子评级 + 按评级发放结算基因加成
