@@ -96,7 +96,26 @@ export class GameRoot extends Component {
       if (run.isSideQuestDone()) s += `　✅${q.name}`;
       else s += `　支线 ${run.sideQuestProgress()}/${q.target}`;
     }
+    // 击杀连击：≥3 且 1.5s 内有击杀时显示（与 web 端同口径）
+    const combo = run.comboCount ?? 0;
+    if (combo >= 3 && run.time - (run.lastKillTime ?? -99) <= 1.5) s += `　🔥${combo}`;
     this.hudLabel.string = s;
+  }
+
+  /** 无尽模式撤离确认：立即以胜利结算保住战利品（与 web 端同口径） */
+  private confirmRetire(): void {
+    const run = this.run;
+    if (!run || !run.endless || run.state !== RunState.FIGHTING) return;
+    const s = this.resetScreen();
+    makeLabel(s, '撤 离 深 渊 ？', 0, 170, { size: 24, color: C.gold, align: Label.HorizontalAlign.CENTER, bold: true });
+    makeLabel(s, `当前深渊第 ${run.endlessLayer} 层 · 基因 ${run.genes}`, 0, 130, {
+      size: 16, align: Label.HorizontalAlign.CENTER,
+    });
+    makeLabel(s, '撤离后立即以胜利结算，保住全部战利品；继续深入则敌人更强、基因更多。', 0, 100, {
+      size: 13, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 80,
+    });
+    makeButton(s, '撤离结算', -120, 30, 220, () => { run.retire(); }, 'primary');
+    makeButton(s, '继续深入', 120, 30, 220, () => this.renderBattle());
   }
 
   // ===== 通用 =====
@@ -349,6 +368,10 @@ export class GameRoot extends Component {
       size: 14, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 24,
     });
     this.refreshBattleHud();
+    // 无尽模式：主动撤离入口（贪多必死 → 收手也是一种技术；与 web 端同口径）
+    if (run.endless) {
+      makeButton(s, '🚪 撤离结算', 0, -180, 220, () => this.confirmRetire());
+    }
 
     // 战场：当前用 Graphics 画色块占位。
     // 接入 tools/gen-pixel-assets.mjs 产出的像素资产时，把这里换成 Sprite + SpriteFrame，
@@ -575,6 +598,14 @@ export class GameRoot extends Component {
       { text: `噬灭 ${r.kills} 只（杂兵 ${r.minionKills}）　存活 ${Math.floor(r.survivedSec / 60)}:${String(r.survivedSec % 60).padStart(2, '0')}` },
       { text: `吞噬基因 ${r.genes}` },
     ];
+    // 支线协议与评级加成（无限流任务制）：与 web 端结算同口径
+    const sq = this.run.sideQuest;
+    if (sq && this.run.isSideQuestDone()) {
+      rows.push({ text: `✅ 支线协议【${sq.name}】完成 +${sq.reward} 基因`, color: C.gold });
+    }
+    if (r.gradeBonusGenes) {
+      rows.push({ text: `🏅 完成度评价 ${r.grade}：基因加成 +${r.gradeBonusGenes}`, color: C.gold });
+    }
 
     if (r.growth.grants.length) {
       rows.push({ text: `永久成长：${r.growth.grants.map((g: any) => `${g.label} +${g.pct}%`).join('，')}`, color: C.gene });
