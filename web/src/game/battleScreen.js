@@ -399,6 +399,9 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       title: `${reason} · 选择你的进化`,
       body: options.map(card).join('')
         + synergyHint()
+        + (run.dungeon.channel !== 'skill'
+          ? '<p class="small sealed">ℹ 属性通道：三选一只出属性强化——技能需在匹配位面路线的技能通道获取</p>'
+          : '')
         + `<p class="small pick-foot">基因 <b class="gold">${run.genes}</b>`
         + `　放逐剩 ${run.banishLeft} 次</p>`,
       buttons: [{
