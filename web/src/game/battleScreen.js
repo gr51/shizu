@@ -81,6 +81,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
         <div class="hud-hp"><i class="hp-ghost"></i><i></i></div><span data-hp></span>
       </div>
       <div class="hud-mid" data-stage></div>
+      <div class="sidequest" data-quest></div>
       <div class="hud-right">
         <b class="gene" data-genes></b> · 噬灭 <b data-kills></b> · 同屏 <span data-screen></span>
         <span class="hud-cd" data-devour></span><span class="hud-cd" data-dodge></span>
@@ -95,6 +96,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       hpGhost: hud.querySelector('.hud-hp .hp-ghost'),   // 残影条：延迟过渡的旧血量，掉血量一眼可读
       hp: hud.querySelector('[data-hp]'),
       stage: hud.querySelector('[data-stage]'),
+      quest: hud.querySelector('[data-quest]'),
       genes: hud.querySelector('[data-genes]'),
       kills: hud.querySelector('[data-kills]'),
       screen: hud.querySelector('[data-screen]'),
@@ -276,6 +278,19 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     H.stage.textContent = run.endless && run.endlessLayer > 0
       ? `深渊 ${run.endlessLayer} 层 · ⏱ ${mm}:${ss}`
       : `阶段 ${run.stageNo}/5 · ⏱ ${mm}:${ss}`;
+    // 支线协议进度（无限流任务制）：10Hz 同步，完成打勾、超时划叉
+    if (H.quest) {
+      const q = run.sideQuest;
+      if (!q || run.sideQuestFailed) H.quest.textContent = '';
+      else {
+        const prog = run.sideQuestProgress();
+        const done = run.isSideQuestDone();
+        H.quest.textContent = done
+          ? `✅ 支线【${q.name}】达成 +${q.reward}基因`
+          : `支线【${q.name}】${prog}/${q.target}`;
+        H.quest.className = `sidequest${done ? ' done' : ''}${run.sideQuestFailed ? ' failed' : ''}`;
+      }
+    }
     H.genes.textContent = `基因 ${run.genes}`;
     H.kills.textContent = run.kills;
     H.screen.textContent = run.onScreen;

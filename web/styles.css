@@ -525,6 +525,12 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .diff-row.pickable:focus-visible { outline: none; background: rgba(35, 45, 55, .55); border-left-color: var(--gold); }
 .diff-row.pickable.gold { border-left-color: var(--gold); }   /* 选中态：金字 + 金色左缘 */
 
+/* 支线协议（无限流任务制）：常驻 HUD 一行，完成打勾、失败划叉 */
+.sidequest { font-size: 12px; color: var(--gold); letter-spacing: .5px; min-height: 14px; }
+.sidequest.done { color: var(--gene, #7fe0c3); }
+.sidequest.failed { color: var(--sealed, #a5717c); text-decoration: line-through; }
+
+
 /* 流派卡片（出征武器选择）：立绘 + 定位 + 机制说明——赛前决策值得真正的操作性界面 */
 .route-card { display: flex; gap: 10px; align-items: flex-start; padding: 8px; margin: 6px 0;
   border: 1px solid rgba(255,255,255,.08); border-left: 3px solid transparent; border-radius: 4px;

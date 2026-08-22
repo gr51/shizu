@@ -96,7 +96,7 @@ export const BOSS_BY_PLANE = {
 };
 
 /** 远程小怪散集：这些 sprite 用远程弹体，其余一律近战 */
-const RANGED_SPRITES = new Set(['anqi', 'gongshou', 'yuan_jingling', 'huo_bing', 'bing_yuansu', 'aoshu_shicong', 'fashu_jiguan', 'jing_ling', 'lei_jing', 'tianlei_zi', 'shi_wu', 'wuren_ji', 'guidao_paotai', 'shaojie', 'zizou_pao', 'benghuai_suipian', 'weimian_canying', 'xukong_jiti', 'paotai_ji']);
+export const RANGED_SPRITES = new Set(['anqi', 'gongshou', 'yuan_jingling', 'huo_bing', 'bing_yuansu', 'aoshu_shicong', 'fashu_jiguan', 'jing_ling', 'lei_jing', 'tianlei_zi', 'shi_wu', 'wuren_ji', 'guidao_paotai', 'shaojie', 'zizou_pao', 'benghuai_suipian', 'weimian_canying', 'xukong_jiti', 'paotai_ji']);
 
 /** 远程小怪的射击参数 */
 export const SPIT_RANGE = 300;
@@ -479,7 +479,8 @@ export class RealtimeRun extends Run {
       ? (tpl.kind === 'boss' ? (BOSS_BY_PLANE[this.dungeon.plane.id] ?? null) : null)
       : this.stageMinionSprite();
     // 已配齐小怪表 + 近战/远程分明的位面（武侠、机关城）：远程造型→spitter，近战→walker/charger，
-    // 不串味；其余位面（每面才 2 小怪）：维持旧的权重随机（守平衡测试，串味待补图后修）
+    // 不串味；其余位面维持权重随机——全量硬派实测会让远程占比暴涨（各表约半数名为远程），
+    // 盲走机器人 0.4 分钟即死。串味修复需逐位面调远程配比（美术战役后的独立平衡课题）。
     const HARD_ASSIGN = this.dungeon.plane.id === 'wuxia' || this.dungeon.plane.id === 'jiguan';
     const variant = isBig ? null
       : (HARD_ASSIGN
@@ -1443,6 +1444,7 @@ export class RealtimeRun extends Run {
     e.dead = true;
     this.kills += 1;
     if (e.kind === 'minion') this.minionKills += 1;
+    if (e.kind === 'elite') this.elitesKilled = (this.elitesKilled ?? 0) + 1;   // 猎头协议进度
     this.emitFx('burst', e.x, e.y);
     if (e.kind !== 'minion') this.hitStop = 0.08;   // 精英/Boss 击杀：命中停顿
     // 自爆怪：死时爆炸，近身波及玩家（别贴脸杀它）

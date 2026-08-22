@@ -22,6 +22,7 @@ import { findSkill } from '../data/skills.js';
 import { newlyFiredSynergies } from '../data/synergies.js';
 import { COMBO_SKILLS } from '../data/routes.js';
 import { aggregateNestEff } from '../data/nestUpgrades.js';
+import { SIDE_QUESTS } from '../data/sideQuests.js';
 import { aggregateRelicEff } from '../data/relics.js';
 import { claimAchievements } from '../data/achievements.js';
 import { rollShop } from '../data/shopItems.js';
@@ -108,6 +109,10 @@ export class Run {
     this.bonusBanish = save.player.bonusBanish ?? 0;
     this.synergiesFiredCount = 0;   // 本局触发共鸣数（行为成就「共鸣大师」）
     this.chestsOpened = 0;          // 本局开启宝箱数（行为成就「开箱有喜」）
+    // 支线协议（无限流任务制）：开局一条可选支线，完成拿额外基因。
+    // 按副本种子确定性选取——不在构造器消耗 rng（会移位整条随机流，重签平衡基线）
+    this.sideQuest = SIDE_QUESTS[this.dungeon.seed % SIDE_QUESTS.length];
+    this.elitesKilled = 0;          // 守关/伏击精英击杀数（猎头协议）
 
     // 传承残影：收集到的强者基因作为永久被动，开局装载（收集才有回报）
     this.relicEff = aggregateRelicEff(save.inventory?.relics);
@@ -326,6 +331,15 @@ export class Run {
 
   /** 阶段收尾单位被击杀 → 进入下一阶段（整体策划 2.4） */
   advanceStage() {
+    // 速通协议判定：第 3 阶段的抵达时刻若已超时（>150s），支线宣告失败
+    if (
+      this.sideQuest?.id === 'speedrun' && this.stageNo >= 3
+      && !this.sideQuestDone && this.time > 150
+    ) {
+      this.sideQuestDone = false;
+      this.sideQuestFailed = true;
+      this.emit('❌ 速通协议失败：超时抵达第 3 阶段', 'death');
+    }
     // 第 4 阶段是精英×2，两只都死才过
     if (this.enemies.some((e) => e.kind === 'elite' && e.hp > 0)) return;
     if (this.stageIndex + 1 >= this.dungeon.stages.length) return;
@@ -420,6 +434,17 @@ export class Run {
       this.geneStep += 1;
       this.openChoice('吞噬充能已满');
     }
+  }
+
+  /** 支线协议当前进度（HUD 与结算共用同一口径，杜绝双源漂移） */
+  sideQuestProgress() {
+    return this.sideQuest ? Math.min(this.sideQuest.target, this.sideQuest.progress(this) || 0) : 0;
+  }
+
+  /** 支线是否已完成（速通协议超时后永久失败） */
+  isSideQuestDone() {
+    if (!this.sideQuest || this.sideQuestFailed) return false;
+    return this.sideQuestProgress() >= this.sideQuest.target;
   }
 
   /** 选完后若基因仍够下一档，立即补开下一次三选一（连续升级） */
@@ -779,6 +804,13 @@ export class Run {
     save.stats.chestsThisRunMax = Math.max(save.stats.chestsThisRunMax ?? 0, this.chestsOpened ?? 0);
     if (victory) save.stats.modsLastVictory = Math.max(save.stats.modsLastVictory ?? 0, (this.dungeon.mods?.length ?? 0));
     if (this.endlessLayer) save.stats.deepestAbyss = Math.max(save.stats.deepestAbyss ?? 0, this.endlessLayer);
+
+    // 支线协议结算（无限流任务制）：完成 → 额外基因入库 + 计数（未来行为成就挂钩）
+    if (this.sideQuest && this.isSideQuestDone()) {
+      save.inventory.genes = (save.inventory.genes ?? 0) + this.sideQuest.reward;
+      save.stats.sideQuestsDone = (save.stats.sideQuestsDone ?? 0) + 1;
+      this.emit(`✅ 支线协议【${this.sideQuest.name}】完成！额外基因 +${this.sideQuest.reward}`, 'win');
+    }
 
     // 里程碑奖励：达成但未领取的成就一次性发放（必须在落盘前，且在所有进度更新之后）
     const achievements = claimAchievements(save);

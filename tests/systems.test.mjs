@@ -391,6 +391,8 @@ test('局外货币：结算时本局基因入库', () => {
   const r = repo();
   const { run } = autoPlay(plane('jiguan'), save, 3);
   const earned = run.genes;
+  // 同口径隔离：支线协议奖励也标记为不发放（新收入源单独有自己的测试）
+  if (run.sideQuest) run.sideQuestFailed = true;
   run.finalize(r);
   assert.equal(save.inventory.genes, 100 + earned, '本局基因应入库供虫巢消费');
 });
