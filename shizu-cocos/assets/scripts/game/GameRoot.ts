@@ -26,6 +26,7 @@ import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY, RARITY_ORDER } from '../data/at
 import { nestLine } from '../data/lines.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../data/nestUpgrades.js';
 import { ACHIEVEMENTS } from '../data/achievements.js';
+import { RIFT_MODS, aggregateRiftMods } from '../data/riftMods.js';
 
 const { ccclass } = _decorator;
 
@@ -40,6 +41,10 @@ export class GameRoot extends Component {
   private lastState: string | null = null;
   private keys = new Set<number>();
   private hudLabel: Label | null = null;
+  /** 裂缝配置暂存：变异 picks 与出征武器（撕开裂缝时消费，换裂缝时重置） */
+  private riftPicked: string[] = [];
+  private riftWeapon: any = null;
+  private riftPlane: any = null;
   private bank = new SpriteBank();
   /** 战场实体的显示节点池：entityId → { node, sprite } */
   private pool = new Map<number, { node: Node; sprite: Sprite }>();
@@ -276,6 +281,9 @@ export class GameRoot extends Component {
 
   private openRift(): void {
     const plane = rollPlane(this.save, this.uiRng);
+    this.riftPlane = plane;
+    this.riftPicked = [];
+    this.riftWeapon = null;
     const pre = previewPlane(plane, this.save);
     const D = dungeonDifficulty(computePower(this.save.player), this.save.player.difficultyLevel) * this.save.player.dynFactor;
 
@@ -303,16 +311,88 @@ export class GameRoot extends Component {
       title: `裂缝 · ${pre.name}`,
       rows,
       buttons: [
-        { text: '撕开裂缝，进入', style: 'primary', onClick: () => this.startRun(plane) },
+        { text: '变异与出征武器', onClick: () => this.openRiftConfig() },
+        {
+          text: '撕开裂缝，进入',
+          style: 'primary',
+          onClick: () => {
+            const picked = this.riftPicked;
+            const weapon = this.riftWeapon;
+            this.riftPicked = [];
+            this.riftWeapon = null;
+            this.startRun(plane, picked, { weaponLoadout: weapon });
+          },
+        },
+        ...(this.save.stats.endlessUnlocked
+          ? [{
+              text: '★ 无尽模式（通关后续接深渊层）',
+              onClick: () => {
+                const picked = this.riftPicked;
+                const weapon = this.riftWeapon;
+                this.riftPicked = [];
+                this.riftWeapon = null;
+                this.startRun(plane, picked, { endless: true, weaponLoadout: weapon });
+              },
+            }]
+          : []),
         { text: '换一道裂缝', onClick: () => this.openRift() },
         { text: '再想想', onClick: () => {} },
       ],
     });
   }
 
-  private startRun(plane: any): void {
+  /** 裂缝配置屏：变异开关（点按钮切换）+ 出征武器轮换——与 web 端同口径 */
+  private openRiftConfig(): void {
+    const plane = this.riftPlane;
+    if (!plane) { this.openRift(); return; }
+    const picked = this.riftPicked;
+    const pool = activatableRoutes(this.save);
+
+    const render = () => {
+      const mods = aggregateRiftMods(picked);
+      const weaponText = this.riftWeapon
+        ? (ROUTES as Record<string, { name: string }>)[this.riftWeapon].name
+        : (pool.length ? `自动（按基因最高：${ROUTES[pool[0]].name}）` : '自动（默认巢灵之爪）');
+      const rows: ModalRow[] = [
+        { text: `基因倍率 ×${mods.geneMul.toFixed(2)}　风险合计 ${mods.risk}`, color: picked.length ? C.gold : C.dim },
+        ...RIFT_MODS.map((m) => {
+          const on = picked.includes(m.id);
+          return { text: `${on ? '✔' : '·'} ${m.name}（风险${m.risk}）：${m.desc}`, color: on ? C.gold : C.dim, size: 14 };
+        }),
+        { text: `出征武器：${weaponText}`, color: C.gene },
+      ];
+      const buttons = [
+        ...RIFT_MODS.map((m) => ({
+          text: `${picked.includes(m.id) ? '取消' : '叠加'} ${m.name}`,
+          onClick: () => {
+            const i = picked.indexOf(m.id);
+            if (i >= 0) picked.splice(i, 1); else picked.push(m.id);
+            render();
+          },
+        })),
+      ];
+      if (pool.length > 1) {
+        buttons.push({
+          text: '轮换出征武器',
+          onClick: () => {
+            if (!this.riftWeapon) { this.riftWeapon = pool[0]; }
+            else {
+              const i = pool.indexOf(this.riftWeapon);
+              this.riftWeapon = i >= 0 && i < pool.length - 1 ? pool[i + 1] : null;   // 末位回到自动
+            }
+            render();
+          },
+        });
+      }
+      buttons.push({ text: '确认，返回裂缝', onClick: () => this.openRift() });
+      this.modal.show({ title: `裂缝配置 · ${plane.name}`, rows, buttons });
+    };
+    render();
+  }
+
+  private startRun(plane: any, riftMods: string[] = [], opts: any = {}): void {
     const seed = Math.floor(this.uiRng() * 0xffffffff) >>> 0;
-    const dungeon = generateDungeon(plane, this.save, seed);
+    const dungeon = generateDungeon(plane, this.save, seed, riftMods, opts);
     this.run = new RealtimeRun(this.save, dungeon, seed ^ 0x9e3779b9);
     this.lastState = null;
     this.pool.clear();
