@@ -295,24 +295,29 @@ function openDifficulty(ctx) {
     normal: '基准 · 标准成长 · 标准刷怪',
     hard: '敌人强 · 成长快 · 怪多（挑战）',
   };
+  // 难度选择 v2：可点选卡片替代按钮墙——点卡即切换
+  const renderCards = () => Object.keys(DIFFICULTY_COEF).map((k) => {
+    const on = save.player.difficultyLevel === k;
+    return `<div class="diff-card pickable${on ? ' gold' : ''}" data-diff="${k}" role="button" tabindex="0">`
+      + `<div class="diff-head"><b>${DIFFICULTY_LABEL[k]}</b><span class="small">系数 ×${DIFFICULTY_COEF[k]}</span>${on ? '<span class="gold"> ✓</span>' : ''}</div>`
+      + `<div class="small">${MECH[k]}</div></div>`;
+  }).join('');
+  const bindDiff = (root) => {
+    root.querySelectorAll('[data-diff]').forEach((el) => {
+      el.addEventListener('click', () => {
+        save.player.difficultyLevel = el.dataset.diff;
+        ctx.repo.persist(save);
+        root.querySelector('.diff-list').innerHTML = renderCards();
+        bindDiff(root);
+      });
+    });
+  };
   view.showModal({
     title: '难度等级',
     body: `<p class="small">难度越高，敌人越强、成长越快、刷怪越多，但掉落越丰厚。</p>`
-      + Object.keys(DIFFICULTY_COEF).map((k) =>
-        `<div class="diff-row"><b>${DIFFICULTY_LABEL[k]}</b> 系数 ${DIFFICULTY_COEF[k]}<div class="small">${MECH[k]}</div>`
-        + (save.player.difficultyLevel === k ? ' <span class="gold">← 当前</span>' : '') + '</div>').join(''),
-    buttons: [
-      ...Object.keys(DIFFICULTY_COEF).map((k) => ({
-        text: `选择【${DIFFICULTY_LABEL[k]}】`,
-        onClick: () => {
-          save.player.difficultyLevel = k;
-          ctx.repo.persist(save);
-          view.closeModal();
-          renderLobby(ctx);
-        },
-      })),
-      { text: '关闭', onClick: () => view.closeModal() },
-    ],
+      + `<div class="diff-list">${renderCards()}</div>`,
+    buttons: [{ text: '关闭', onClick: () => view.closeModal() }],
+    onMount: bindDiff,
   });
 }
 
