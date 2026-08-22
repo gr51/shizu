@@ -418,33 +418,38 @@ function openForge(ctx, slot = 'claw') {
 
 function openCraft(ctx) {  const { save, rng } = ctx;
   const bag = save.player.gearBag;
-  const body = RARITY_ORDER.slice(0, -1).map((r) => {
+  // 合成 v2：内联卡片替代按钮墙——每档稀有度一张卡，够 3 件即可点
+  const renderCards = () => RARITY_ORDER.slice(0, -1).map((r) => {
     const n = bag.filter((x) => x.rarity === r).length;
-    return `<div class="diff-row"><span class="r-${r}">${GEAR_RARITY[r].name}</span> × ${n} ${n >= 3 ? '<b class="gold">✔ 可合成</b>' : '（不足 3 件）'}</div>`;
+    const can = n >= 3;
+    return `<div class="shop-item${can ? '' : ' poor'}">`
+      + `<div class="shop-info"><b class="r-${r}">${GEAR_RARITY[r].name}</b> × ${n}`
+      + `<div class="small">3 件 → 1 件高一档随机装备</div></div>`
+      + `<div class="shop-buy"><button class="shop-btn" data-craft="${r}" ${can ? '' : 'disabled'}>${can ? '合成' : `还差 ${3 - n} 件`}</button></div></div>`;
   }).join('');
+  const bindCraft = (root) => {
+    root.querySelectorAll('[data-craft]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const r = btn.dataset.craft;
+        const picks = bag.filter((x) => x.rarity === r).slice(0, 3);
+        if (picks.length < 3) return;
+        const made = craftGear(picks, rng);
+        if (!made) return;
+        for (const g of picks) bag.splice(bag.indexOf(g), 1);
+        bag.push(made);
+        ctx.repo.persist(save);
+        root.querySelector('.shop-list').innerHTML = renderCards();
+        bindCraft(root);
+      });
+    });
+  };
 
   view.showModal({
     title: '合成',
-    body: '<p class="small">消耗 3 件同稀有度装备，换 1 件高一档的随机装备。</p>' + body,
-    buttons: [
-      ...RARITY_ORDER.slice(0, -1)
-        .filter((r) => bag.filter((x) => x.rarity === r).length >= 3)
-        .map((r) => ({
-          text: `合成 ${GEAR_RARITY[r].name} × 3`,
-          style: 'primary',
-          onClick: () => {
-            const picks = bag.filter((x) => x.rarity === r).slice(0, 3);
-            const made = craftGear(picks, rng);
-            if (made) {
-              for (const g of picks) bag.splice(bag.indexOf(g), 1);
-              bag.push(made);
-              ctx.repo.persist(save);
-            }
-            openBag(ctx);
-          },
-        })),
-      { text: '返回', onClick: () => openBag(ctx) },
-    ],
+    body: '<p class="small">消耗 3 件同稀有度装备，换 1 件高一档的随机装备。</p>'
+      + `<div class="shop-list">${renderCards()}</div>`,
+    buttons: [{ text: '返回', onClick: () => openBag(ctx) }],
+    onMount: bindCraft,
   });
 }
 
@@ -456,27 +461,31 @@ function openEnhance(ctx) {
     return t.star < 5 && fodder.length >= 3;
   });
 
+  // 强化 v2：内联卡片替代按钮墙——每件可强化装备一张卡
   view.showModal({
     title: '强化',
     body: targets.length
       ? '<p class="small">消耗背包中 3 件同槽位同稀有度装备，为已装备的该件 +1 星（词条数值 ×1.1/星，上限 5 星）。</p>'
-        + targets.map((t) => `<div class="diff-row">${gearItemHtml(t)}</div>`).join('')
+        + `<div class="shop-list">${targets.map((t) => `
+          <div class="shop-item">
+            <div class="shop-info">${gearItemHtml(t)}</div>
+            <div class="shop-buy"><button class="shop-btn" data-enh="${t.slot}">强化 → ${t.star + 1}★</button></div>
+          </div>`).join('')}</div>`
       : '<p class="small">没有可强化的装备：需要「已装备的某件」+「背包里 3 件同槽位同稀有度」。</p>',
-    buttons: [
-      ...targets.map((t) => ({
-        text: `强化 ${t.name} → ${t.star + 1} 星`,
-        style: 'primary',
-        onClick: () => {
+    buttons: [{ text: '返回', onClick: () => openBag(ctx) }],
+    onMount(root) {
+      for (const btn of root.querySelectorAll('[data-enh]')) {
+        btn.addEventListener('click', () => {
+          const t = Object.values(p.gear).find((g) => g && g.slot === btn.dataset.enh);
+          if (!t) return;
           const fodder = p.gearBag.filter((g) => g.slot === t.slot && g.rarity === t.rarity).slice(0, 3);
-          if (enhanceGear(t, fodder)) {
-            for (const g of fodder) p.gearBag.splice(p.gearBag.indexOf(g), 1);
-            ctx.repo.persist(save);
-          }
+          if (fodder.length < 3 || !enhanceGear(t, fodder)) return;
+          for (const g of fodder) p.gearBag.splice(p.gearBag.indexOf(g), 1);
+          ctx.repo.persist(save);
           openBag(ctx);
-        },
-      })),
-      { text: '返回', onClick: () => openBag(ctx) },
-    ],
+        });
+      }
+    },
   });
 }
 
