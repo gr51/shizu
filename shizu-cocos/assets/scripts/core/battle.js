@@ -1447,13 +1447,14 @@ export class RealtimeRun extends Run {
     if (e.kind === 'minion') this.minionKills += 1;
     if (e.kind === 'elite') this.elitesKilled = (this.elitesKilled ?? 0) + 1;   // 猎头协议进度
 
-    // 击杀连击（backlog 爽感）：快速连续击杀累积连击数，里程碑奖励额外基因
+    // 击杀连击（backlog 爽感）：快速连续击杀累积连击数，里程碑奖励额外基因。
+    // 奖励直接入存档库存而非 this.genes——不干扰升级阈值触发节奏
     const now = this.time;
     this.comboCount = (now - (this.lastKillTime ?? -99) <= 1.5) ? (this.comboCount ?? 0) + 1 : 1;
     this.lastKillTime = now;
     if (this.comboCount > 0 && this.comboCount % 10 === 0) {
       const bonus = Math.min(50, this.comboCount);
-      this.addGenes(bonus, false);
+      this.save.inventory.genes = (this.save.inventory.genes ?? 0) + bonus;
       this.emit(`🔥 ${this.comboCount} 连击！基因 +${bonus}`, 'win');
     }
 
