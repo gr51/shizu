@@ -85,9 +85,16 @@ export class GameRoot extends Component {
     const run = this.run;
     const mm = String(Math.floor(run.time / 60)).padStart(2, '0');
     const ss = String(Math.floor(run.time % 60)).padStart(2, '0');
-    this.hudLabel.string =
+    let s =
       `HP ${Math.max(0, Math.round(run.hp))}/${Math.round(run.stats.maxHp)}　⏱ ${mm}:${ss}`
       + `　阶段 ${run.stageNo}/5　基因 ${run.genes}　噬灭 ${run.kills}　同屏 ${run.onScreen}`;
+    // 支线协议进度（无限流任务制）：与 web 端 HUD 同口径
+    const q = run.sideQuest;
+    if (q && !run.sideQuestFailed) {
+      if (run.isSideQuestDone()) s += `　✅${q.name}`;
+      else s += `　支线 ${run.sideQuestProgress()}/${q.target}`;
+    }
+    this.hudLabel.string = s;
   }
 
   // ===== 通用 =====
