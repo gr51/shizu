@@ -512,18 +512,20 @@ export class Renderer {
     ctx.ellipse(p.x, p.y + 16, 14, 5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    // 进化皮肤（待机时显示路线形态）；攻击/走路复用基础动作帧
+    // 统一形象（用户反馈：AI 分次生成的 idle/walk 帧是两个角色，观感割裂）——
+    // 全状态只用同一张基础像（皮肤优先），动感改由程序化表达：
+    //   移动 = 跑步颠步（bob）+ 前倾；待机 = 呼吸起伏；攻击 = 向前突刺
     const skinBase = run.skin ? `units/player_${run.skin}.png` : 'units/player.png';
     let rel = 'units/player.png';
-    if (p.state === 'attack') {
-      // 攻击动画：attackCd 初段=抬手(atk0)，中段=劈砍(atk1)，末段=收招(atk2)
-      const prog = 1 - Math.max(0, p.attackCd) / 0.333;
-      const f = prog < 0.35 ? 0 : prog < 0.7 ? 1 : 2;
-      rel = `units/player_atk${f}.png`;
-    } else if (p.state === 'walk') rel = `units/player_walk${Math.floor(p.anim) % 4}.png`;
-    else rel = skinBase;
-    const ok = this.blitSprite(rel, p.x, p.y, 46, p.hitFlash > 0, p.facing, 1, true)
-      || this.blitSprite('units/player.png', p.x, p.y, 46, p.hitFlash > 0, p.facing, 1, true);
+    if (run.skin) rel = skinBase;
+    const moving = p.state === 'walk';
+    const bob = moving ? Math.abs(Math.sin(p.anim * 1.6)) * 3.5 : Math.sin(p.anim * 0.5) * 1.2;
+    const lunge = p.state === 'attack' ? p.facing * 7 : 0;
+    const lean = moving ? p.facing * 0.06 : 0;
+    const y = p.y - bob;
+    const ok = this.blitSprite(rel, p.x + lunge, y, 46, p.hitFlash > 0, p.facing, 1, true)
+      || this.blitSprite('units/player.png', p.x + lunge, y, 46, p.hitFlash > 0, p.facing, 1, true);
+    void ok;
     if (!ok) this.dot(p.x, p.y, p.r, PAL.playerDot);
   }
 

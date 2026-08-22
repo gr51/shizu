@@ -166,7 +166,23 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     });
   }
 
+  let frameErrCount = 0;
   function frame(now) {
+    try {
+      frameBody(now);
+    } catch (err) {
+      // 韧性：单帧异常降级为限流日志，绝不杀死 RAF 循环——
+      // 循环一死页面就是硬冻结（用户实测：击杀精英后网页卡死）。
+      // 根因仍会以 console.error 暴露给 shots/排查工具。
+      frameErrCount++;
+      if (frameErrCount <= 5 || frameErrCount % 300 === 0) {
+        console.error(`[battleScreen] 帧异常 #${frameErrCount}:`, err);
+      }
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function frameBody(now) {
     const real = Math.min((now - last) / 1000, 0.05);
     last = now;
 
@@ -221,7 +237,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       }
     }
 
-    raf = requestAnimationFrame(frame);
+    // RAF 续约由外层 frame() 的韧性包装负责（单帧异常不再杀死循环）
   }
   raf = requestAnimationFrame(frame);
 
