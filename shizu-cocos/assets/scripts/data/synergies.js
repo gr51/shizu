@@ -81,6 +81,36 @@ export const SYNERGIES = [
     need: ['attr_execute', 'attr_aspd'],
     eff: { killCdRefund: 0.03 },
   },
+  // —— backlog：技能/机制局共鸣（此前 10 条 need 全只认 attr_* id，技能局触发率 ≈ 0）——
+  // need 引用技能段位 id 和机制强化 id，让技能通道的构筑也有「凑套」时刻
+  {
+    id: 'syn_overload_chain',
+    name: '共鸣·过载雷链',
+    desc: '雷链过载与多跳同时在手：弹射伤害 +30%',
+    need: ['chain_overload', 'chain_jump'],
+    eff: { aoe: 0.3 },
+  },
+  {
+    id: 'syn_toxic_cloud',
+    name: '共鸣·毒云弥漫',
+    desc: '毒云与尸爆范围同时在手：DoT 伤害 +25%',
+    need: ['corpse_cloud', 'corpse_radius'],
+    eff: { dotMul: 0.25 },
+  },
+  {
+    id: 'syn_blast_salvo',
+    name: '共鸣·爆破齐射',
+    desc: '爆破弹头与多发齐射同时在手：导弹伤害 +30%',
+    need: ['missile_blast', 'missile_count'],
+    eff: { dmgPct: 0.30 },
+  },
+  {
+    id: 'syn_stagger_pierce',
+    name: '共鸣·震慑贯穿',
+    desc: '震慑与贯穿同时在手：对被减速的敌人伤害 +20%',
+    need: ['stomp_knock', 'multi_pierce'],
+    eff: { execute: 0.20 },
+  },
 ];
 
 /**
