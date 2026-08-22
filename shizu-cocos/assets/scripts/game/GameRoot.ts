@@ -279,11 +279,23 @@ export class GameRoot extends Component {
 
   // ===== 开裂缝 =====
 
+  /** 入口：无暂存位面时重摇并清空配置；已有则直接渲染信息屏（保留配置） */
   private openRift(): void {
-    const plane = rollPlane(this.save, this.uiRng);
-    this.riftPlane = plane;
-    this.riftPicked = [];
-    this.riftWeapon = null;
+    if (!this.riftPlane) {
+      this.riftPlane = rollPlane(this.save, this.uiRng);
+      this.riftPicked = [];
+      this.riftWeapon = null;
+    }
+    this.renderRiftInfo(this.riftPlane);
+  }
+
+  /** 换一道裂缝：重摇位面并清空配置（与「确认返回」不同——后者必须保留配置） */
+  private rerollRift(): void {
+    this.riftPlane = null;
+    this.openRift();
+  }
+
+  private renderRiftInfo(plane: any): void {
     const pre = previewPlane(plane, this.save);
     const D = dungeonDifficulty(computePower(this.save.player), this.save.player.difficultyLevel) * this.save.player.dynFactor;
 
@@ -318,6 +330,7 @@ export class GameRoot extends Component {
           onClick: () => {
             const picked = this.riftPicked;
             const weapon = this.riftWeapon;
+            this.riftPlane = null;
             this.riftPicked = [];
             this.riftWeapon = null;
             this.startRun(plane, picked, { weaponLoadout: weapon });
@@ -329,13 +342,14 @@ export class GameRoot extends Component {
               onClick: () => {
                 const picked = this.riftPicked;
                 const weapon = this.riftWeapon;
+                this.riftPlane = null;
                 this.riftPicked = [];
                 this.riftWeapon = null;
                 this.startRun(plane, picked, { endless: true, weaponLoadout: weapon });
               },
             }]
           : []),
-        { text: '换一道裂缝', onClick: () => this.openRift() },
+        { text: '换一道裂缝', onClick: () => this.rerollRift() },
         { text: '再想想', onClick: () => {} },
       ],
     });
