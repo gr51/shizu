@@ -456,6 +456,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .pick-btn.k-skill { border-left-color: var(--gold); }
 .pick-btn.k-mech  { border-left-color: var(--r-purple); }
 .pick-btn.k-attr  { border-left-color: var(--gene); }
+/* 类型底色渐变：左缘色条向右淡出，三选一卡片一眼可辨类型 */
+.pick-btn.k-skill { background: linear-gradient(90deg, rgba(107,77,42,.28), #141a20 46%); }
+.pick-btn.k-mech  { background: linear-gradient(90deg, rgba(90,60,120,.25), #141a20 46%); }
+.pick-btn.k-attr  { background: linear-gradient(90deg, rgba(40,80,105,.24), #141a20 46%); }
+.pick-btn.k-skill:hover, .pick-btn.k-mech:hover, .pick-btn.k-attr:hover { background-position: 0 0; filter: brightness(1.18); }
 
 .pick-head { display: block; margin: 0; }
 .pick-head b { font-size: 15px; }
