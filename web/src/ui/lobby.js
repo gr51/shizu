@@ -243,15 +243,31 @@ function openAchievements(ctx) {
   const { save } = ctx;
   const flags = save.stats.achievementFlags ?? {};
   const claimed = ACHIEVEMENTS.filter((a) => flags[a.id]).length;
+  // 进度提示（未达成时显示「还差多少」）
+  const progressHint = (id) => {
+    const st = save.stats ?? {};
+    const runs = save.player.totalRuns ?? 0;
+    const relics = save.inventory?.relics?.length ?? 0;
+    const locks = Object.values(save.player.geneLocks ?? {}).filter((v) => v > 0).length;
+    if (id === 'stage5') return `当前最佳 S${st.bestStage ?? 0}`;
+    if (id === 'veteran') return `已开裂缝 ${runs}/20 次`;
+    if (id === 'ten_relics') return `已收集 ${relics}/10 个传承`;
+    if (id === 'three_routes') return `已激活 ${locks}/3 条路线`;
+    if (id === 'synergy_master') return `单局最高共鸣 ${st.synergiesThisRun ?? 0}/3`;
+    if (id === 'abyss_walker') return `深渊最深层 ${st.deepestAbyss ?? 0}/3`;
+    return '';
+  };
   const rows = ACHIEVEMENTS.map((a) => {
     const done = flags[a.id];
     let met = false;
     try { met = a.check(save); } catch { /* check 可能抛 */ }
     const icon = done ? '✅' : met ? '★ 可领取' : '○';
+    const hint = done ? '' : progressHint(a.id);
     const cls = done ? 'gold' : met ? '' : 'small';
     return `<div class="ach-row${done ? ' done' : ''}">`
       + `<span>${icon}</span>`
       + `<div class="ach-body"><b>${a.name}</b><div class="small">${a.desc}</div>`
+      + (hint ? `<div class="small sealed">进度：${hint}</div>` : '')
       + `<div class="small ${done ? 'gold' : 'sealed'}">${a.reward}</div></div></div>`;
   }).join('');
   view.showModal({
