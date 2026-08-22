@@ -590,6 +590,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 /* ===== 装备星级：金色微光 ===== */
 .gear-stars { margin-left: 4px; font-size: 12px; color: #e8c46a; text-shadow: 0 0 4px rgba(232,196,106,.4); }
 .slot.empty { opacity: .5; }
+
+/* ===== 锻造槽位卡网格 ===== */
+.forge-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.forge-slots .diff-card { margin: 0; }
 .sq-bar { display: inline-block; width: 60px; height: 5px; margin-right: 6px;
   background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; vertical-align: middle; }
 .sq-fill { display: block; height: 100%; background: var(--gold, #d8a3d8);

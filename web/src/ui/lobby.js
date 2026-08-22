@@ -372,45 +372,47 @@ export function openBag(ctx) {
 function openForge(ctx, slot = 'claw') {
   const { save, rng } = ctx;
   const p = save.player;
-  const slotRows = GEAR_SLOT_IDS.map((id) => {
+  // 锻造 v2：内联卡片交互——槽位卡（点选切换）+ 价目卡（内联锻造按钮），替代 9 键按钮墙
+  const renderSlotCards = () => GEAR_SLOT_IDS.map((id) => {
     const on = id === slot;
     const worn = p.gear[id];
-    return `<div class="diff-row${on ? ' gold' : ''}">${on ? '▶ ' : '· '}${GEAR_SLOTS[id].name}`
-      + `<span class="small">　当前：${worn ? `<span class="r-${worn.rarity}">${worn.name}</span>${'★'.repeat(worn.star)}` : '空'}</span></div>`;
+    return `<div class="diff-card pickable${on ? ' gold' : ''}" data-slot="${id}" role="button" tabindex="0">`
+      + `<div class="diff-head"><b>${GEAR_SLOTS[id].name}</b>${on ? '<span class="gold">✓</span>' : ''}</div>`
+      + `<div class="small">当前：${worn`
+      + ` ? `<span class="r-${worn.rarity}">${worn.name}</span><span class="gear-stars">${'★'.repeat(worn.star)}</span>``
+      + ` : '<span class="sealed">空</span>'}</div></div>`;
   }).join('');
-  const priceRows = Object.keys(FORGE_COST).map((r) => {
+  const renderPriceCards = () => Object.keys(FORGE_COST).map((r) => {
     const cost = forgeCost(r);
     const ok = (p.gearEssence ?? 0) >= cost;
-    return `<div class="diff-row"><span class="r-${r}">${GEAR_RARITY[r].name}</span>`
-      + `<span class="small${ok ? ' gold' : ''}">${cost} 精华${ok ? '' : '（不足）'}</span></div>`;
+    return `<div class="shop-item${ok ? '' : ' poor'}">`
+      + `<div class="shop-info"><b class="r-${r}">${GEAR_RARITY[r].name}装备</b>`
+      + `<div class="small">随机 ${GEAR_RARITY[r].affixCount} 条词缀</div></div>`
+      + `<div class="shop-buy"><span class="shop-price ${ok ? 'gold' : 'sealed'}">${cost} ✨</span>`
+      + `<button class="shop-btn" data-forge="${r}" ${ok ? '' : 'disabled'}>锻造</button></div></div>`;
   }).join('');
 
   view.showModal({
     title: `精华锻造 · ${GEAR_SLOTS[slot].name}`,
-    body: `<p class="small">装备精华：<b class="gold">${p.gearEssence ?? 0}</b>　`
+    body: `<p class="small">装备精华：<b class="gold">${p.gearEssence ?? 0}</b> ✨　`
       + '分解垫子换取<b>指定槽位</b>的装备，抽不到核心部位也能自己造。</p>'
-      + `<h4 class="gold" style="margin-top:10px">选择槽位</h4>${slotRows}`
-      + `<h4 class="gold" style="margin-top:10px">价目</h4>${priceRows}`,
-    buttons: [
-      ...Object.keys(FORGE_COST).map((r) => ({
-        text: `锻造 ${GEAR_RARITY[r].name}（${forgeCost(r)}）`,
-        style: (p.gearEssence ?? 0) >= forgeCost(r) ? 'primary' : '',
-        disabled: (p.gearEssence ?? 0) < forgeCost(r),
-        onClick: () => {
-          const res = forgeGear(save, slot, r, rng);
-          if (res.ok) {
-            ctx.repo.persist(save);
-            view.closeModal();
-            openForge(ctx, slot);
-          }
-        },
-      })),
-      ...GEAR_SLOT_IDS.filter((id) => id !== slot).map((id) => ({
-        text: `换到 ${GEAR_SLOTS[id].name}`,
-        onClick: () => { view.closeModal(); openForge(ctx, id); },
-      })),
-      { text: '返回背包', onClick: () => { view.closeModal(); openBag(ctx); } },
-    ],
+      + `<h4 class="gold" style="margin:10px 0 6px">目标槽位（点击切换）</h4><div class="forge-slots">${renderSlotCards()}</div>`
+      + `<h4 class="gold" style="margin:10px 0 6px">锻造价目</h4><div class="shop-list">${renderPriceCards()}</div>`,
+    buttons: [{ text: '返回背包', onClick: () => { view.closeModal(); openBag(ctx); } }],
+    onMount(root) {
+      for (const el of root.querySelectorAll('[data-slot]')) {
+        el.addEventListener('click', () => { view.closeModal(); openForge(ctx, el.dataset.slot); });
+      }
+      for (const btn of root.querySelectorAll('[data-forge]')) {
+        btn.addEventListener('click', () => {
+          const res = forgeGear(save, slot, btn.dataset.forge, rng);
+          if (!res.ok) return;
+          ctx.repo.persist(save);
+          view.closeModal();
+          openForge(ctx, slot);
+        });
+      }
+    },
   });
 }
 
