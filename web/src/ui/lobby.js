@@ -146,8 +146,18 @@ function openRift(ctx, picked = [], legend = null, weapon = null) {
   }).join('');
   const weaponRows = weaponPool.map((r) => {
     const on = weapon === r.id;
-    return `<div class="diff-row pickable${on ? ' gold' : ''}" data-weapon="${r.id}" role="button" tabindex="0">`
-      + `${on ? '✔ ' : '☆ '}<b>${r.name}</b>${geneLockLevel(save, r.id) ? `<span class="small">　Lv${geneLockLevel(save, r.id)}</span>` : ''}</div>`;
+    // 流派卡片（backlog 界面丑/交互弱）：皮肤立绘 + 定位 + 机制说明 + 专属强化池，
+    // 替代纯文字行——出征是本作最重要的赛前决策，值得一个真正的操作性界面
+    const mech = ROUTE_MECHANIC[r.id];
+    const info = MECH_INFO[mech] ?? { name: mech, desc: '' };
+    const pool = mechUpgradePool(mech).map((m) => m.name).join(' / ');
+    return `<div class="route-card pickable${on ? ' gold' : ''}" data-weapon="${r.id}" role="button" tabindex="0">`
+      + `<img class="route-portrait" src="../shizu-cocos/assets/art/units/player_${r.id}.png" alt="${r.name}">`
+      + `<div class="route-body"><b>${on ? '✔ ' : ''}${r.name}</b>`
+      + `<span class="small">　${r.role}　·　Lv${geneLockLevel(save, r.id)}</span>`
+      + `<div class="small">机制：<b class="gold">${info.name}</b> —— ${info.desc}</div>`
+      + (pool ? `<div class="small">专属强化：${pool}</div>` : '')
+      + `</div></div>`;
   }).join('');
   const legendRows = legendPool.map((id) => {
     const s = findSkill(id);

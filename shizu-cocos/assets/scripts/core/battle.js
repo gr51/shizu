@@ -438,6 +438,10 @@ export class RealtimeRun extends Run {
           : `【${st.closer.name}】出现`,
         'death',
       );
+      // 剧情节拍（backlog 剧情单薄）：Boss 降临附带机制提示——既是氛围也是可读预警
+      if (st.closer.kind === 'boss' && this.dungeon.plane.bossDesc) {
+        this.emit(`⚔ ${this.dungeon.plane.boss}：${this.dungeon.plane.bossDesc}`, 'wave');
+      }
     }
 
     // 张弛节奏：Boss/精英降临前 4 秒预警，制造压迫感（每阶段一次）

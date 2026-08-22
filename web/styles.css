@@ -524,6 +524,19 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .diff-row.pickable:hover { background: rgba(35, 45, 55, .55); }
 .diff-row.pickable:focus-visible { outline: none; background: rgba(35, 45, 55, .55); border-left-color: var(--gold); }
 .diff-row.pickable.gold { border-left-color: var(--gold); }   /* 选中态：金字 + 金色左缘 */
+
+/* 流派卡片（出征武器选择）：立绘 + 定位 + 机制说明——赛前决策值得真正的操作性界面 */
+.route-card { display: flex; gap: 10px; align-items: flex-start; padding: 8px; margin: 6px 0;
+  border: 1px solid rgba(255,255,255,.08); border-left: 3px solid transparent; border-radius: 4px;
+  background: rgba(20, 26, 32, .45); cursor: pointer; transition: background .12s, border-color .12s; }
+.route-card:hover, .route-card:focus-visible { background: rgba(35, 45, 55, .6); outline: none; }
+.route-card.gold { border-color: var(--gold); border-left-width: 3px; background: rgba(45, 38, 22, .5); }
+.route-card.pickable { cursor: pointer; }
+.route-portrait { width: 52px; height: 52px; flex: 0 0 52px; object-fit: contain;
+  image-rendering: pixelated; background: rgba(0,0,0,.35); border-radius: 3px; }
+.route-body { flex: 1; font-size: 13px; line-height: 1.55; min-width: 0; }
+.route-body .small { color: var(--text-dim, #9aa4af); }
+
 .codex-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 13px; }
 .codex-row.sealed, .diff-row.sealed, .small.sealed { color: var(--sealed); }
 .diff-row.relic { color: var(--relic); }   /* 传承残影淡紫：原内联 #c9b8ff 收编为令牌 */

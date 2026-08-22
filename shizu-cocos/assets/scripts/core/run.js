@@ -302,6 +302,8 @@ export class Run {
       this.addGenes(drop.genes, false);
       for (const g of drop.gear) this.addGear(g);
       this.emit(`噬灭位面之主 <b>${enemy.name}</b>！基因 +${drop.genes}`, 'win');
+      // 剧情收束（backlog 剧情单薄）：以位面诗收尾——胜利的一刻回扣开场意象
+      if (this.dungeon.plane.poem) this.emit(`「${this.dungeon.plane.poem}」`, 'stage');
       // 无尽模式：击破后不结束，续接更深一层（层数即分数，贪多必死）
       if (this.endless) {
         this.pushEndlessLayer();
