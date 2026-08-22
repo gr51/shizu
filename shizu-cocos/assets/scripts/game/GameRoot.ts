@@ -24,6 +24,7 @@ import { ROUTES, ALL_ROUTES, mutexOf } from '../data/routes.js';
 import { planes } from '../data/planes.js';
 import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY } from '../data/attrPool.js';
 import { nestLine } from '../data/lines.js';
+import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../data/nestUpgrades.js';
 
 const { ccclass } = _decorator;
 
@@ -161,10 +162,11 @@ export class GameRoot extends Component {
 
     // —— 操作 ——
     makeButton(s, '⚔  开 启 裂 缝', 245, 210, 460, () => this.openRift(), 'primary', 80);
-    makeButton(s, '🎒 装备背包', 130, 115, 220, () => this.openBag());
-    makeButton(s, '📖 进化图鉴', 360, 115, 220, () => this.openCodex());
-    makeButton(s, '⚙ 难度设置', 130, 35, 220, () => this.openDifficulty());
-    makeButton(s, '🗑 重置存档', 360, 35, 220, () => this.confirmReset(), 'danger');
+    makeButton(s, '🧬 虫巢强化（库存基因）', 245, 115, 460, () => this.openNest());
+    makeButton(s, '🎒 装备背包', 130, 45, 220, () => this.openBag());
+    makeButton(s, '📖 进化图鉴', 360, 45, 220, () => this.openCodex());
+    makeButton(s, '⚙ 难度设置', 130, -25, 220, () => this.openDifficulty());
+    makeButton(s, '🗑 重置存档', 360, -25, 220, () => this.confirmReset(), 'danger');
 
     makeLabel(s, p.totalRuns === 0 ? '首次裂缝固定为「机关城」，用于熟悉基本操作' : '选择一项行动', 0, -222, {
       size: 14, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40,
@@ -184,6 +186,43 @@ export class GameRoot extends Component {
     if (this.save.stats.endlessUnlocked) {
       makeLabel(s, '★ 无尽模式已解锁', 0, -300, { size: 15, color: C.gold, align: Label.HorizontalAlign.CENTER, width: 400 });
     }
+  }
+
+  /** 虫巢强化（局外元进度）：Cocos 侧此前缺失该入口——跨局成长核心循环补全 */
+  private openNest(): void {
+    this.refreshHeader();
+    const s = this.resetScreen();
+    const bank = this.save.inventory.genes ?? 0;
+    makeLabel(s, '虫 巢 强 化', 0, 238, { size: 26, color: C.gold, align: Label.HorizontalAlign.CENTER, bold: true });
+    makeLabel(s, `库存基因：${bank}　每局带回的基因都会入库，失败也算推进`, 0, 208, {
+      size: 15, color: C.gene, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 60,
+    });
+
+    let y = 168;
+    for (const u of NEST_UPGRADES) {
+      const lv = nestLevel(this.save, u.id);
+      const cost = nextCost(this.save, u.id);
+      const maxed = cost === null;
+      makeLabel(s, `${u.name}　Lv${lv}/${u.max}`, -230, y + 8, { size: 16, color: C.gold, width: 300 });
+      makeLabel(s, u.desc, -230, y - 16, { size: 13, color: C.dim, width: 460 });
+      if (maxed) {
+        makeLabel(s, '已满级', 230, y + 4, { size: 14, color: C.gold });
+      } else {
+        const afford = bank >= cost;
+        makeButton(s, `强化（${cost}）`, 230, y - 4, 190, () => {
+          if (buyNestUpgrade(this.save, u.id).ok) {
+            this.repo.persist(this.save);
+            this.openNest();   // 重渲染刷新等级与余额
+          }
+        }, afford ? 'primary' : 'normal');
+        if (!afford) {
+          makeLabel(s, `还差 ${cost - bank}`, 230, y - 34, { size: 12, color: C.dim, width: 190, align: Label.HorizontalAlign.CENTER });
+        }
+      }
+      y -= 62;
+    }
+
+    makeButton(s, '返回虫巢', 0, -240, 220, () => this.renderLobby());
   }
 
   // ===== 开裂缝 =====
