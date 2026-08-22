@@ -75,7 +75,7 @@ export function slotsCard(save) {
   const slots = save.player.skillSlots;
   const rows = SLOT_KEYS.map((k) => {
     const s = slots[k];
-    if (!s) return `<div class="slot empty">${SLOT_LABEL[k]}：空</div>`;
+    if (!s) return `<div class="slot empty">${SLOT_LABEL[k]}：<span class="small">空</span></div>`;
     const name = s.hidden ? `<span class="gold">${s.name} ⟡刻印</span>` : s.name;
     return `<div class="slot">${SLOT_LABEL[k]}：${name}</div>`;
   }).join('');
@@ -84,6 +84,7 @@ export function slotsCard(save) {
 
 export function gearItemHtml(item) {
   const r = GEAR_RARITY[item.rarity];
-  return `<b class="r-${item.rarity}">${item.name}</b>${'★'.repeat(item.star)}`
+  const stars = item.star > 0 ? `<span class="gear-stars">${'★'.repeat(item.star)}</span>` : '';
+  return `<b class="r-${item.rarity}">${item.name}</b>${stars}`
     + `<div class="small">${r.name} · ${item.affixes.map(affixText).join('，')}</div>`;
 }

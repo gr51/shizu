@@ -586,6 +586,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .diff-card:hover, .diff-card:focus-visible { background: rgba(30, 40, 50, .7); outline: none; }
 .diff-card.gold { border-color: var(--gold, #d8a3d8); border-left-width: 3px; background: rgba(45, 38, 22, .4); }
 .diff-head { display: flex; gap: 8px; align-items: baseline; font-size: 14px; margin-bottom: 2px; }
+
+/* ===== 装备星级：金色微光 ===== */
+.gear-stars { margin-left: 4px; font-size: 12px; color: #e8c46a; text-shadow: 0 0 4px rgba(232,196,106,.4); }
+.slot.empty { opacity: .5; }
 .sq-bar { display: inline-block; width: 60px; height: 5px; margin-right: 6px;
   background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; vertical-align: middle; }
 .sq-fill { display: block; height: 100%; background: var(--gold, #d8a3d8);
