@@ -1,6 +1,8 @@
 // ===== ui/view.js · DOM 渲染层（唯一碰 document 的地方）=====
 // core/ 完全不依赖本文件；移植到 Cocos 时整层替换即可。
 
+import { audio } from '../game/audio.js';
+
 const els = {};
 
 export function initView() {
@@ -84,8 +86,12 @@ export function showModal(modal) {
       </div>
     </div>`;
   els.modalRoot.className = 'show';
+  audio.sfx('gene');   // 弹窗开启音：轻提示音（战斗中弹三选一/黑市时与既有 gene 音一致）
   for (const btn of els.modalRoot.querySelectorAll('.modal-btns button')) {
-    btn.addEventListener('click', () => modal.buttons[Number(btn.dataset.i)]?.onClick?.());
+    btn.addEventListener('click', () => {
+      audio.sfx('burst');
+      modal.buttons[Number(btn.dataset.i)]?.onClick?.();
+    });
   }
   modal.onMount?.(els.modalRoot);
 }

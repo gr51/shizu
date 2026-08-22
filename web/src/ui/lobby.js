@@ -1,5 +1,6 @@
 // ===== ui/lobby.js · 虫巢主界面 / 裂缝选择 / 装备背包 / 进化图鉴 =====
 
+import { audio } from '../game/audio.js';
 import { DIFFICULTY_COEF, DIFFICULTY_LABEL, computePower, dungeonDifficulty } from '../../../shizu-cocos/assets/scripts/core/balance.js';
 import { craftGear, enhanceGear, salvageGear, forgeGear, forgeCost, FORGE_COST } from '../../../shizu-cocos/assets/scripts/core/gear.js';
 import { previewPlane, rollPlane } from '../../../shizu-cocos/assets/scripts/core/planePool.js';
@@ -108,6 +109,7 @@ export function openNest(ctx) {
     root.querySelectorAll('[data-nest]').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (!buyNestUpgrade(save, btn.dataset.nest).ok) return;
+        audio.sfx('skill');   // 强化成功音：三连上行音阶，跨局成长的仪式感
         ctx.repo.persist(save);
         root.querySelector('.shop-list').innerHTML = renderCards();
         const bal = root.querySelector('.gene-balance');

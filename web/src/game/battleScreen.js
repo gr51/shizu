@@ -461,6 +461,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     const bindShop = (root) => {
       root.querySelectorAll('[data-shop]').forEach((btn) => {
         btn.addEventListener('click', () => {
+          audio.sfx('crit');   // 购入音：与暴击同款上扬双音，强化「买到」的正反馈
           const idx = Number(btn.dataset.shop);
           run.buyShopItem(idx);
           // 局部刷新：只更新卡片和余额，不重建整个模态
