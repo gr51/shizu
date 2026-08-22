@@ -504,6 +504,9 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       `<div class="diff-row">噬灭 <b class="gold">${r.kills}</b> 只（杂兵 ${r.minionKills}）</div>`,
       `<div class="diff-row">吞噬基因 <b class="gold">${r.genes}</b></div>`,
     ];
+    // 结算分区（backlog 界面丑）：把长列表按「战斗/成长/前瞻」分节，扫读更快
+    const section = (t) => lines.push(`<div class="settle-section">${t}</div>`);
+    section('成长与收获');
     if (r.growth.grants.length) {
       lines.push(`<div class="diff-row">永久成长：${r.growth.grants.map((g) => `${g.label} +${g.pct}%`).join('，')}</div>`);
     }
@@ -538,6 +541,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       lines.push(`<div class="diff-row">装备 ×${r.gear.length}</div>`
         + r.gear.slice(0, 5).map((g) => `<div class="bag-item">${gearItemHtml(g)}</div>`).join(''));
     }
+    section('难度与前瞻');
     lines.push(`<div class="diff-row small">难度进化：${r.dyn.before.toFixed(2)} → <b>${r.dyn.after.toFixed(2)}</b></div>`);
     // 结算激励：与历史最佳对比，明确「这局离突破还差多少」
     lines.push(r.newBest

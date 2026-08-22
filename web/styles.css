@@ -594,6 +594,15 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 /* ===== 锻造槽位卡网格 ===== */
 .forge-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
 .forge-slots .diff-card { margin: 0; }
+
+/* ===== 结算页分区标题 ===== */
+.settle-section { margin: 12px 0 4px; padding: 4px 0 3px; font-size: 12px; letter-spacing: 3px;
+  color: var(--gold, #d8a3d8); border-bottom: 1px dashed rgba(216,163,216,.25); }
+.settle-section:first-child { margin-top: 4px; }
+
+/* ===== 大厅卡片标题统一样式 ===== */
+.card h4 { margin: 0 0 8px; font-size: 13px; letter-spacing: 2px; color: var(--gold, #d8a3d8);
+  border-bottom: 1px solid rgba(216,163,216,.18); padding-bottom: 5px; font-weight: normal; }
 .sq-bar { display: inline-block; width: 60px; height: 5px; margin-right: 6px;
   background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; vertical-align: middle; }
 .sq-fill { display: block; height: 100%; background: var(--gold, #d8a3d8);
