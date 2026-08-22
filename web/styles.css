@@ -552,6 +552,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   image-rendering: pixelated; background: rgba(0,0,0,.3); border-radius: 4px; }
 .unlock-body { flex: 1; min-width: 0; line-height: 1.55; }
 
+/* 成就页面：长线目标可视化 */
+.ach-row { display: flex; gap: 8px; align-items: flex-start; padding: 8px 6px;
+  border-bottom: 1px solid rgba(255,255,255,.06); }
+.ach-row.done { opacity: .55; }
+.ach-row > span:first-child { flex-shrink: 0; width: 20px; text-align: center; }
+.ach-body { flex: 1; min-width: 0; font-size: 13px; line-height: 1.5; }
+
+
 
 
 

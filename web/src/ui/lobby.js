@@ -73,6 +73,7 @@ export function renderLobby(ctx) {
     { text: '虫巢强化', icon: ICON('gear'), onClick: () => openNest(ctx) },
     { text: '装备背包', icon: ICON('bag'), onClick: () => openBag(ctx) },
     { text: '进化图鉴', icon: ICON('codex'), onClick: () => openCodex(ctx) },
+    { text: '成就', icon: ICON('codex'), onClick: () => openAchievements(ctx) },
     { text: '难度设置', icon: ICON('gear'), onClick: () => openDifficulty(ctx) },
     { text: '重置存档', style: 'danger', icon: ICON('reset'), onClick: () => confirmReset(ctx) },
   ]);
@@ -234,6 +235,29 @@ function openRift(ctx, picked = [], legend = null, weapon = null) {
         });
       }
     },
+  });
+}
+
+/** 成就页面（backlog #10）：14 条成就的达成状态可视化——长线目标给玩家方向感 */
+function openAchievements(ctx) {
+  const { save } = ctx;
+  const flags = save.stats.achievementFlags ?? {};
+  const claimed = ACHIEVEMENTS.filter((a) => flags[a.id]).length;
+  const rows = ACHIEVEMENTS.map((a) => {
+    const done = flags[a.id];
+    let met = false;
+    try { met = a.check(save); } catch { /* check 可能抛 */ }
+    const icon = done ? '✅' : met ? '★ 可领取' : '○';
+    const cls = done ? 'gold' : met ? '' : 'small';
+    return `<div class="ach-row${done ? ' done' : ''}">`
+      + `<span>${icon}</span>`
+      + `<div class="ach-body"><b>${a.name}</b><div class="small">${a.desc}</div>`
+      + `<div class="small ${done ? 'gold' : 'sealed'}">${a.reward}</div></div></div>`;
+  }).join('');
+  view.showModal({
+    title: `成就 · 已达成 ${claimed}/${ACHIEVEMENTS.length}`,
+    body: `<p class="small gold">★ 标记的成就已满足条件，下次结算时自动领取奖励</p>${rows}`,
+    buttons: [{ text: '关闭', onClick: () => view.closeModal() }],
   });
 }
 
