@@ -24,6 +24,7 @@ import { ROUTES, ALL_ROUTES, mutexOf } from '../data/routes.js';
 import { planes } from '../data/planes.js';
 import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY, RARITY_ORDER } from '../data/attrPool.js';
 import { nestLine } from '../data/lines.js';
+import { relicById } from '../data/relics.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../data/nestUpgrades.js';
 import { ACHIEVEMENTS } from '../data/achievements.js';
 import { RIFT_MODS, aggregateRiftMods } from '../data/riftMods.js';
@@ -934,6 +935,21 @@ export class GameRoot extends Component {
     const collectible = activatableRoutes(this.save);
     if (collectible.length) {
       rows.push({ text: `仍可争取：${collectible.map((r: string) => ROUTES[r].name).join('、')}`, size: 15, color: C.dim });
+    }
+    // 传承残影：名称 + 效果 + 故事（与 web 端图鉴同口径）
+    const EFF_LABEL: Record<string, string> = {
+      atkPct: '攻击', hpPct: '生命', aspdPct: '攻速', crit: '暴击', critDmg: '暴伤',
+      aoe: '清场范围', lifesteal: '吸血', regen: '回血', dmgReduct: '减伤',
+      execute: '斩杀', cooldownPct: '技能冷却缩减',
+    };
+    if (this.save.inventory.relics.length) {
+      rows.push({ text: `传承残影 · ${this.save.inventory.relics.length}`, color: C.gold });
+      for (const id of this.save.inventory.relics) {
+        const r = relicById(id);
+        const effText = Object.entries(r.eff ?? {}).map(([k, v]) => `${EFF_LABEL[k] ?? k} +${Math.round((v as number) * 100)}%`).join('，');
+        rows.push({ text: `${r.name}　${effText || (r.rare ? '稀有' : '')}`, color: '#c9b8ff', size: 15 });
+        if (r.story) rows.push({ text: `　 ${r.story}`, size: 13, color: C.dim });
+      }
     }
     this.modal.show({
       title: '进化图鉴',
