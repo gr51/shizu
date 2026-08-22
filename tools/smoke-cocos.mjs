@@ -115,8 +115,25 @@ check(riftLabels.some((s) => s.includes('机关城')), '首进固定机关城（
 check(riftLabels.some((s) => s.includes('通道')), '裂缝卡展示通道类型');
 check(riftLabels.some((s) => s.includes('首次进入')), '首进不可撤销警告已展示');
 
-enterBtn.simulateClick();
+// —— 裂缝配置流：变异开关 + 透传进局（主动审计回归守护）——
+const cfgBtn = buttonByText(canvas, '变异与出征武器');
+check(!!cfgBtn, '找到「变异与出征武器」入口');
+cfgBtn.simulateClick();
+const collectLabels = () => { const o = []; (function c2(n) { const l = n.getComponent(cc.Label); if (l) o.push(l.string); n.children.forEach(c2); })(canvas); return o; };
+check(collectLabels().some((s) => s.includes('基因倍率')), '配置屏显示基因倍率汇总');
+const hordeBtn = buttonByText(canvas, '叠加 虫潮汹涌');
+check(!!hordeBtn, '配置屏列出可叠加变异');
+hordeBtn.simulateClick();
+check(!!buttonByText(canvas, '取消 虫潮汹涌'), '点击后按钮翻转为「取消」（重渲染后重新查找）');
+const backBtn2 = buttonByText(canvas, '确认，返回裂缝');
+backBtn2.simulateClick();
+check(collectLabels().some((s) => s.includes('撕开裂缝')), '确认后回到裂缝信息屏且配置保留');
+
+const enterBtn2 = buttonByText(canvas, '撕开裂缝');   // 重渲染后旧节点引用失效，必须重找
+check(!!enterBtn2, '配置返回后仍可撕开裂缝');
+enterBtn2.simulateClick();
 check(snap().screen === 'battle', '已进入副本');
+check(root_.run?.dungeon?.mods?.spawnMul === 1.35, `配置的虫潮变异已透传进局（spawnMul=${root_.run?.dungeon?.mods?.spawnMul}）`);
 check(snap().plane === '机关城', `位面 = ${snap().plane}`);
 
 // —— 5. 打完整局（实时：直接驱动组件的 update(dt)，模拟游戏循环）——
