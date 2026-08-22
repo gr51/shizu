@@ -627,7 +627,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   border: 1px solid var(--gold, #d8a3d8); border-radius: 4px;
   background: rgba(45, 38, 22, .35); }
 .unlock-portrait { width: 56px; height: 56px; flex: 0 0 56px; object-fit: contain;
-  image-rendering: pixelated; background: rgba(0,0,0,.3); border-radius: 4px; }
+  image-rendering: pixelated; background: rgba(8,10,12,.5); border-radius: 4px;
+  filter: brightness(1.15) contrast(1.05); }
 .unlock-body { flex: 1; min-width: 0; line-height: 1.55; }
 
 /* 成就页面：长线目标可视化 */
@@ -649,7 +650,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .route-card.gold { border-color: var(--gold); border-left-width: 3px; background: rgba(45, 38, 22, .5); }
 .route-card.pickable { cursor: pointer; }
 .route-portrait { width: 52px; height: 52px; flex: 0 0 52px; object-fit: contain;
-  image-rendering: pixelated; background: rgba(0,0,0,.35); border-radius: 3px; }
+  image-rendering: pixelated; background: rgba(8,10,12,.5); border-radius: 3px;
+  filter: brightness(1.15) contrast(1.05); transition: filter .12s; }
+.route-card:hover .route-portrait { filter: brightness(1.35) contrast(1.1); }
 .route-body { flex: 1; font-size: 13px; line-height: 1.55; min-width: 0; }
 .route-body .small { color: var(--text-dim, #9aa4af); }
 
