@@ -104,6 +104,8 @@ await shot('settle', 900);
 // 上面那局是首周目：位面路线未激活 → 属性通道 → 三选一全是属性（设计如此）。
 // 技能内容只在「匹配位面」才出得来，所以这里预置一份已激活渡劫的存档重新进页面。
 // 用重载而不是接着上一局切位面：结算态下还挂着模态与旧循环，直接 startPlane 会被吞掉。
+// 等落盘完成再读：persist 与结算弹窗是异步先后，读早了会拿到 null。
+await p.waitForFunction(() => !!globalThis.localStorage.getItem('shizu_save'), null, { timeout: 8000 }).catch(() => {});
 await p.evaluate(() => {
   const raw = globalThis.localStorage.getItem('shizu_save');
   const s = JSON.parse(raw);
