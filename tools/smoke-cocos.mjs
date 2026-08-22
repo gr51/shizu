@@ -222,6 +222,33 @@ for (const [key, expect] of [['进化图鉴', '基因锁 · 10 路线'], ['装�
   if (close) close.simulateClick();
 }
 
+// —— 9. 无尽撤离流（主动审计回归守护：新机制必须有运行时验证）——
+console.log('\n[7] 无尽撤离流');
+root_.save.stats.endlessUnlocked = true;
+clickByKeyword2(canvas, '开 启 裂 缝');
+const endlessBtn = buttonByText(canvas, '无尽模式');
+check(!!endlessBtn, '无尽模式入口已出现（解锁后）');
+endlessBtn.simulateClick();
+check(root_.run?.endless === true, `进入无尽局（endless=${root_.run?.endless}）`);
+check(!!buttonByText(canvas, '撤离结算'), '战斗界面显示撤离按钮');
+buttonByText(canvas, '撤离结算').simulateClick();
+check(collectAllLabels(canvas).some((s) => s.includes('撤 离 深 渊')), '撤离确认页弹出');
+buttonByText(canvas, '撤离结算').simulateClick();   // 确认页里的同名确认按钮
+root_.update(1 / 60);   // 驱动一帧：WON → showSettle → finalize 落盘
+check(['settled', 'won'].includes(root_.run.state), `撤离后状态=${root_.run.state}`);
+check((cc.sys.localStorage.getItem('shizu_save') ? JSON.parse(cc.sys.localStorage.getItem('shizu_save')).player.wins : 0) >= 1, '撤离按胜利落盘');
+
+function clickByKeyword2(node, keyword) {
+  const btn = buttonByText(node, keyword);
+  if (!btn) throw new Error(`smoke 找不到按钮：${keyword}`);
+  btn.simulateClick();
+}
+function collectAllLabels(node) {
+  const o = [];
+  (function c3(n) { const l = n.getComponent(cc.Label); if (l && l.string) o.push(l.string); n.children.forEach(c3); })(node);
+  return o;
+}
+
 console.log('\n' + '─'.repeat(56));
 console.log(errors.length ? `✗ ${errors.length} 项失败` : '✓ Cocos 组件层冒烟测试全部通过');
 process.exit(errors.length ? 1 : 0);
