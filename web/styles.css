@@ -532,6 +532,40 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .combo-display { position: absolute; top: 68px; left: 50%; transform: translateX(-50%);
   font-size: 18px; font-weight: bold; color: #ff6b35; text-shadow: 0 0 8px rgba(255,107,53,.5);
   pointer-events: none; letter-spacing: 2px; }
+
+/* ===== 全局滚动条（游戏化深色主题，替代浏览器默认白条）===== */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgba(12, 16, 20, .8); border-radius: 5px; }
+::-webkit-scrollbar-thumb { background: rgba(96, 108, 120, .45); border-radius: 5px; border: 2px solid rgba(12,16,20,.8); }
+::-webkit-scrollbar-thumb:hover { background: rgba(140, 155, 170, .65); }
+::-webkit-scrollbar-corner { background: transparent; }
+* { scrollbar-color: rgba(96,108,120,.45) rgba(12,16,20,.8); scrollbar-width: thin; }
+
+/* ===== 人物属性栏：网格布局替代纯文字堆叠 ===== */
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 6px 0; }
+.stat-cell { display: flex; flex-direction: column; padding: 6px 8px;
+  background: rgba(20, 26, 32, .55); border-radius: 4px; border: 1px solid rgba(255,255,255,.05); }
+.stat-label { font-size: 11px; color: var(--text-dim, #8a94a0); letter-spacing: 1px; }
+.stat-cell b { font-size: 14px; color: var(--gold, #d8a3d8); }
+.perm-bonus { margin-top: 6px; padding: 6px 8px; font-size: 12px;
+  background: rgba(45, 38, 22, .3); border-left: 3px solid var(--gene, #7fe0c3); border-radius: 0 3px 3px 0; }
+
+/* ===== 装备栏卡片化：稀有度左缘色条 + 悬停高亮 ===== */
+.bag-item { position: relative; padding: 8px 10px 8px 14px !important; margin: 6px 0;
+  border: 1px solid rgba(255,255,255,.07) !important; border-left-width: 3px !important;
+  border-radius: 4px !important; background: rgba(18, 24, 30, .5) !important;
+  transition: border-color .12s, background .12s; }
+.bag-item:hover { background: rgba(28, 36, 44, .65) !important; border-color: rgba(255,255,255,.15) !important; }
+.bag-item::before { content: ''; position: absolute; left: -1px; top: -1px; bottom: -1px; width: 3px;
+  border-radius: 4px 0 0 4px; background: var(--rarity-c, #666); }
+.bag-item.r-white::before   { --rarity-c: #9aa4af; }
+.bag-item.r-green::before   { --rarity-c: #6fce6f; }
+.bag-item.r-blue::before    { --rarity-c: #5b9bd8; }
+.bag-item.r-purple::before  { --rarity-c: #a97fd8; }
+.bag-item.r-gold::before    { --rarity-c: #e8c46a; }
+.bag-btns button { padding: 3px 10px; font-size: 11px; cursor: pointer;
+  background: rgba(60,70,80,.6); color: #cdd4da; border: 1px solid rgba(255,255,255,.1); border-radius: 3px; }
+.bag-btns button:hover { background: rgba(80,92,104,.75); border-color: rgba(255,255,255,.25); }
 .sq-bar { display: inline-block; width: 60px; height: 5px; margin-right: 6px;
   background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; vertical-align: middle; }
 .sq-fill { display: block; height: 100%; background: var(--gold, #d8a3d8);

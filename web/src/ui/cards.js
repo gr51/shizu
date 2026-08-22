@@ -25,11 +25,19 @@ export function playerCard(save, run = null) {
     <div class="portrait-row"><img class="portrait" src="../shizu-cocos/assets/art/lobby/icons/portrait.png" alt="巢灵"></div>
     <h4>巢灵 · ${p.nestlingName}</h4>
     <div class="hpbar"><i style="width:${pct}%"></i></div>
-    <p>HP ${Math.round(hp)} / ${Math.round(stats.maxHp)}</p>
-    <p>攻 ${stats.atk.toFixed(1)} · 速 ${stats.speed.toFixed(0)} · 暴击 ${(stats.crit * 100).toFixed(1)}%</p>
-    <p class="small">吸血 ${(stats.lifesteal * 100).toFixed(1)}% · 减伤 ${(stats.dmgReduct * 100).toFixed(1)}% · 回血 ${(stats.regen * 100).toFixed(1)}%/s</p>
-    <p class="small">永久 攻+${p.permAtkPct}% 血+${p.permHpPct}% 速+${p.permSpeedPct}%</p>
-    <p class="small">基因锁 ×${geneLockPowerBonus(p.geneLocks).toFixed(2)} · 装备 ×${gearPowerBonus(p.gear).toFixed(2)}</p>`;
+    <p class="small" style="margin:2px 0 8px">HP ${Math.round(hp)} / ${Math.round(stats.maxHp)}</p>
+    <div class="stat-grid">
+      <div class="stat-cell"><span class="stat-label">攻击</span><b>${stats.atk.toFixed(1)}</b></div>
+      <div class="stat-cell"><span class="stat-label">移速</span><b>${stats.speed.toFixed(0)}</b></div>
+      <div class="stat-cell"><span class="stat-label">暴击</span><b>${(stats.crit * 100).toFixed(1)}%</b></div>
+      <div class="stat-cell"><span class="stat-label">吸血</span><b>${(stats.lifesteal * 100).toFixed(1)}%</b></div>
+      <div class="stat-cell"><span class="stat-label">减伤</span><b>${(stats.dmgReduct * 100).toFixed(1)}%</b></div>
+      <div class="stat-cell"><span class="stat-label">回血</span><b>${(stats.regen * 100).toFixed(1)}/s</b></div>
+    </div>
+    <div class="perm-bonus">
+      <div>永久成长：攻+${p.permAtkPct}%　血+${p.permHpPct}%　速+${p.permSpeedPct}%</div>
+      <div class="small">基因锁 ×${geneLockPowerBonus(p.geneLocks).toFixed(2)} · 装备 ×${gearPowerBonus(p.gear).toFixed(2)}</div>
+    </div>`;
 }
 
 export function geneCard(save, run = null) {
