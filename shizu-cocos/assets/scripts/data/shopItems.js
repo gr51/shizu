@@ -85,6 +85,32 @@ export const SHOP_ITEMS = [
     price: 130,
     apply: (run) => { run.stats.lifesteal += 0.04; },
   },
+  // —— 权衡型商品（backlog 交互弱）：购买变成「用什么换什么」的决策，不是无脑扫货 ——
+  {
+    id: 'shop_rage',
+    name: '狂暴激素',
+    desc: '攻击 +35%，但生命上限 −10%',
+    price: 100,
+    apply: (run) => {
+      run.stats.atk *= 1.35;
+      run.stats.maxHp = Math.max(1, Math.round(run.stats.maxHp * 0.9));
+      run.hp = Math.min(run.hp, run.stats.maxHp);
+    },
+  },
+  {
+    id: 'shop_shield',
+    name: '护盾注入剂',
+    desc: '获得等于 30% 最大生命的护盾',
+    price: 140,
+    apply: (run) => { run.shield = Math.max(run.shield, run.stats.maxHp * 0.3); },
+  },
+  {
+    id: 'shop_swift',
+    name: '迅捷脊椎',
+    desc: '移速 +18%，攻速 +8%',
+    price: 95,
+    apply: (run) => { run.stats.speed *= 1.18; run.stats.aspd *= 1.08; },
+  },
 ];
 
 export function shopItemById(id) {
