@@ -82,7 +82,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
         <div class="hud-hp"><i class="hp-ghost"></i><i></i></div><span data-hp></span>
       </div>
       <div class="hud-mid" data-stage></div>
-      <div class="sidequest" data-quest></div>
+      <div class="sidequest"><span class="sq-bar"><i class="sq-fill"></i></span><span data-quest></span></div>
       <div class="hud-right">
         <b class="gene" data-genes></b> · 噬灭 <b data-kills></b> · 同屏 <span data-screen></span>
         <span class="hud-cd" data-devour></span><span class="hud-cd" data-dodge></span>
@@ -97,6 +97,8 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
       hpGhost: hud.querySelector('.hud-hp .hp-ghost'),   // 残影条：延迟过渡的旧血量，掉血量一眼可读
       hp: hud.querySelector('[data-hp]'),
       stage: hud.querySelector('[data-stage]'),
+      quest: hud.querySelector('[data-quest]'),
+      questFill: hud.querySelector('.sq-fill'),
       quest: hud.querySelector('[data-quest]'),
       genes: hud.querySelector('[data-genes]'),
       kills: hud.querySelector('[data-kills]'),
@@ -282,13 +284,15 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     // 支线协议进度（无限流任务制）：10Hz 同步，完成打勾、超时划叉
     if (H.quest) {
       const q = run.sideQuest;
-      if (!q || run.sideQuestFailed) H.quest.textContent = '';
+      if (!q || run.sideQuestFailed) { H.quest.textContent = ''; if (H.questFill) H.questFill.style.width = '0'; }
       else {
         const prog = run.sideQuestProgress();
         const done = run.isSideQuestDone();
+        const pct = Math.min(100, Math.round((prog / q.target) * 100));
         H.quest.textContent = done
           ? `✅ 支线【${q.name}】达成 +${q.reward}基因`
-          : `支线【${q.name}】${prog}/${q.target}`;
+          : `支线【${q.name}】 ${prog}/${q.target}`;
+        if (H.questFill) H.questFill.style.width = `${Math.min(100, pct)}%`;
         H.quest.className = `sidequest${done ? ' done' : ''}${run.sideQuestFailed ? ' failed' : ''}`;
       }
     }
