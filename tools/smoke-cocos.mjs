@@ -249,6 +249,49 @@ function collectAllLabels(node) {
   return o;
 }
 
+// —— 10. 锻造/合成/强化（主动审计回归守护：三件套全链路）——
+console.log('\n[8] 锻造/合成/强化');
+clickByKeyword2(canvas, '回 巢');
+{
+  const P = root_.save.player;
+  const aff = (k, v) => ({ key: k, value: v });
+  // 合成：3 白 → 1 绿
+  P.gearBag.push(
+    { uid: 'sm1', slot: 'claw', rarity: 'white', star: 0, name: '白一', affixes: [aff('atk', 3)] },
+    { uid: 'sm2', slot: 'claw', rarity: 'white', star: 0, name: '白二', affixes: [aff('atk', 3)] },
+    { uid: 'sm3', slot: 'claw', rarity: 'white', star: 0, name: '白三', affixes: [aff('atk', 3)] },
+  );
+  clickByKeyword2(canvas, '装备背包');
+  clickByKeyword2(canvas, '合成');
+  const wBefore = P.gearBag.filter((g) => g.rarity === 'white').length;
+  clickByKeyword2(canvas, '合成 普通');
+  const wAfter = P.gearBag.filter((g) => g.rarity === 'white').length;
+  check(wAfter === wBefore - 3, `合成消耗 3 件白装（${wBefore}→${wAfter}）`);
+  check(P.gearBag.some((g) => g.rarity === 'green'), '合成产出绿装');
+  clickByKeyword2(canvas, '返回背包');
+  // 锻造：精华 → 指定槽位绿装
+  P.gearEssence = (P.gearEssence ?? 0) + 200;
+  clickByKeyword2(canvas, '精华锻造');
+  clickByKeyword2(canvas, '噬爪');
+  clickByKeyword2(canvas, '锻造 精良');
+  check(P.gearBag.some((g) => g.slot === 'claw' && g.rarity === 'green'), '锻造绿爪入背包（不自动穿戴）');
+  // 强化：装备绿爪 + 3 绿垫 → +1 星
+  const clawGreen = P.gearBag.find((g) => g.slot === 'claw' && g.rarity === 'green');
+  P.gear.claw = clawGreen;
+  P.gearBag.splice(P.gearBag.indexOf(clawGreen), 1);
+  P.gearBag.push(
+    { uid: 'f1', slot: 'claw', rarity: 'green', star: 0, name: '垫A', affixes: [aff('hp', 5)] },
+    { uid: 'f2', slot: 'claw', rarity: 'green', star: 0, name: '垫B', affixes: [aff('hp', 5)] },
+    { uid: 'f3', slot: 'claw', rarity: 'green', star: 0, name: '垫C', affixes: [aff('hp', 5)] },
+  );
+  clickByKeyword2(canvas, '返回背包');
+  clickByKeyword2(canvas, '强化（同槽');
+  const enhBtn = allButtons(canvas).find((b) => buttonText(b).startsWith('强化 '));
+  check(!!enhBtn, '强化屏列出有效目标');
+  enhBtn.simulateClick();
+  check(P.gear.claw.star === 1, `强化 +1 星（实际 ${P.gear.claw.star}）`);
+}
+
 console.log('\n' + '─'.repeat(56));
 console.log(errors.length ? `✗ ${errors.length} 项失败` : '✓ Cocos 组件层冒烟测试全部通过');
 process.exit(errors.length ? 1 : 0);
