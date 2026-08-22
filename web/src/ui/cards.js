@@ -12,7 +12,7 @@ export function metaLine(save, extra = '') {
   return `战力 <b>${computePower(p).toFixed(2)}</b>`
     + ` · 难度 <b>${DIFFICULTY_LABEL[p.difficultyLevel]}</b>`
     + ` · 最佳 <b>阶段 ${save.stats.bestStage ?? 0}/5</b>`
-    + ` · 通关 <b>${p.wins}</b>/${p.totalRuns}`
+    + (p.totalRuns > 0 ? ` · 通关 <b>${p.wins}</b>/${p.totalRuns}` : ' · 尚未出征')
     + (extra ? ` · ${extra}` : '');
 }
 
