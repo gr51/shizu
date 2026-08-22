@@ -18,11 +18,11 @@ import { RunState } from '../core/run.js';
 import { RealtimeRun, ARENA } from '../core/battle.js';
 import { rngFactory } from '../core/rng.js';
 import { activatableRoutes, activatedRoutes, chargeToNextSegment, geneLockLevel, isSealed } from '../core/geneLock.js';
-import { affixText, gearPowerBonus, salvageGear } from '../core/gear.js';
+import { affixText, gearPowerBonus, salvageGear, craftGear, enhanceGear, forgeGear, forgeCost, FORGE_COST } from '../core/gear.js';
 import { SLOT_KEYS, SLOT_LABEL } from '../core/skillSlots.js';
 import { ROUTES, ALL_ROUTES, mutexOf } from '../data/routes.js';
 import { planes } from '../data/planes.js';
-import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY } from '../data/attrPool.js';
+import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY, RARITY_ORDER } from '../data/attrPool.js';
 import { nestLine } from '../data/lines.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../data/nestUpgrades.js';
 import { ACHIEVEMENTS } from '../data/achievements.js';
@@ -720,9 +720,108 @@ export class GameRoot extends Component {
         },
       });
     }
+    // 锻造/合成/强化三入口（与 web 端同口径）：精华与垫子在这里变成确定战力
+    buttons.push({ text: '✨ 精华锻造（指定槽位）', onClick: () => this.openForge() });
+    buttons.push({ text: '⚗ 合成（3 件同稀有度 → 升 1 档）', onClick: () => this.openCraft() });
+    buttons.push({ text: '⭐ 强化（同槽同稀有度 3 件 → +1 星）', onClick: () => this.openEnhance() });
     buttons.push({ text: '关闭', onClick: () => this.renderLobby() });
 
     this.modal.show({ title: '装备背包', rows, buttons });
+  }
+
+  /** 精华锻造 · 第一步：选槽位（两段式流程，避免按钮墙） */
+  private openForge(): void {
+    const p = this.save.player;
+    const rows: ModalRow[] = [
+      { text: `装备精华：${p.gearEssence ?? 0}`, color: C.gold },
+      { text: '选择要锻造的槽位（确定性获取，随机词缀）', color: C.dim, size: 14 },
+    ];
+    const buttons = GEAR_SLOT_IDS.map((id: string) => {
+      const worn = p.gear[id];
+      return {
+        text: `${GEAR_SLOTS[id].name}${worn ? `（现 ${worn.name}）` : '（空）'}`,
+        onClick: () => this.openForgeSlot(id),
+      };
+    });
+    buttons.push({ text: '返回背包', onClick: () => this.openBag() });
+    this.modal.show({ title: '精华锻造 · 选择槽位', rows, buttons });
+  }
+
+  /** 精华锻造 · 第二步：按稀有度锻造（只列可负担档位） */
+  private openForgeSlot(slot: string): void {
+    const p = this.save.player;
+    const rows: ModalRow[] = [
+      { text: `装备精华：${p.gearEssence ?? 0}`, color: C.gold },
+      { text: `目标槽位：${GEAR_SLOTS[slot].name}`, color: C.gene },
+      { text: '价目：', color: C.dim, size: 14 },
+      ...Object.keys(FORGE_COST).map((r: string) => {
+        const cost = forgeCost(r);
+        const ok = (p.gearEssence ?? 0) >= cost;
+        return { text: `${GEAR_RARITY[r].name}　${cost} 精华${ok ? '' : '（不足）'}`, color: ok ? C.gold : C.dim, size: 15 };
+      }),
+    ];
+    const affordable = Object.keys(FORGE_COST).filter((r: string) => (p.gearEssence ?? 0) >= forgeCost(r));
+    const buttons = affordable.map((r: string) => ({
+      text: `锻造 ${GEAR_RARITY[r].name}`,
+      onClick: () => {
+        if (forgeGear(this.save, slot, r, this.uiRng).ok) this.repo.persist(this.save);
+        this.openForgeSlot(slot);
+      },
+    }));
+    buttons.push({ text: '换槽位', onClick: () => this.openForge() });
+    buttons.push({ text: '返回背包', onClick: () => this.openBag() });
+    this.modal.show({ title: `精华锻造 · ${GEAR_SLOTS[slot].name}`, rows, buttons });
+  }
+
+  /** 合成：3 件同稀有度 → 1 件高一档（只列可合成档位） */
+  private openCraft(): void {
+    const bag = this.save.player.gearBag;
+    const rows: ModalRow[] = [{ text: '消耗 3 件同稀有度装备，换 1 件高一档的随机装备。', color: C.dim, size: 14 }];
+    for (const r of RARITY_ORDER.slice(0, -1)) {
+      const n = bag.filter((x: any) => x.rarity === r).length;
+      rows.push({ text: `${GEAR_RARITY[r].name} × ${n}${n >= 3 ? '　✔ 可合成' : '（不足 3 件）'}`, color: n >= 3 ? C.gold : C.dim, size: 15 });
+    }
+    const craftable = RARITY_ORDER.slice(0, -1).filter((r: string) => bag.filter((x: any) => x.rarity === r).length >= 3);
+    const buttons = craftable.map((r: string) => ({
+      text: `合成 ${GEAR_RARITY[r].name} × 3`,
+      onClick: () => {
+        const picks = bag.filter((x: any) => x.rarity === r).slice(0, 3);
+        const made = craftGear(picks, this.uiRng);
+        if (!made) return;
+        for (const g of picks) bag.splice(bag.indexOf(g), 1);
+        bag.push(made);
+        this.repo.persist(this.save);
+        this.openCraft();
+      },
+    }));
+    buttons.push({ text: '返回背包', onClick: () => this.openBag() });
+    this.modal.show({ title: '合成', rows, buttons });
+  }
+
+  /** 强化：已装备 + 背包 3 件同槽同稀有度 → +1 星（只列有效目标） */
+  private openEnhance(): void {
+    const p = this.save.player;
+    const targets = Object.values(p.gear).filter(Boolean).filter((t: any) => {
+      const fodder = p.gearBag.filter((g: any) => g.slot === t.slot && g.rarity === t.rarity);
+      return t.star < 5 && fodder.length >= 3;
+    });
+    const rows: ModalRow[] = [
+      { text: '消耗背包中 3 件同槽位同稀有度装备，为已装备的该件 +1 星（词条 ×1.1/星，上限 5 星）。', color: C.dim, size: 14 },
+      ...targets.map((t: any) => ({ text: `${t.name}${'★'.repeat(t.star)} → ${t.star + 1}★`, color: C.text, size: 15 })),
+    ];
+    if (!targets.length) rows.push({ text: '没有可强化的装备：需要「已装备的某件」+「背包里 3 件同槽位同稀有度」。', color: C.dim, size: 14 });
+    const buttons = targets.map((t: any) => ({
+      text: `强化 ${t.name} → ${t.star + 1} 星`,
+      onClick: () => {
+        const fodder = p.gearBag.filter((g: any) => g.slot === t.slot && g.rarity === t.rarity).slice(0, 3);
+        if (fodder.length < 3 || !enhanceGear(t, fodder)) return;
+        for (const g of fodder) p.gearBag.splice(p.gearBag.indexOf(g), 1);
+        this.repo.persist(this.save);
+        this.openEnhance();
+      },
+    }));
+    buttons.push({ text: '返回背包', onClick: () => this.openBag() });
+    this.modal.show({ title: '强化', rows, buttons });
   }
 
   private openCodex(): void {
