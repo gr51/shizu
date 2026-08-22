@@ -25,6 +25,7 @@ import { planes } from '../data/planes.js';
 import { GEAR_SLOTS, GEAR_SLOT_IDS, GEAR_RARITY } from '../data/attrPool.js';
 import { nestLine } from '../data/lines.js';
 import { NEST_UPGRADES, buyNestUpgrade, nestLevel, nextCost } from '../data/nestUpgrades.js';
+import { ACHIEVEMENTS } from '../data/achievements.js';
 
 const { ccclass } = _decorator;
 
@@ -165,8 +166,9 @@ export class GameRoot extends Component {
     makeButton(s, '🧬 虫巢强化（库存基因）', 245, 115, 460, () => this.openNest());
     makeButton(s, '🎒 装备背包', 130, 45, 220, () => this.openBag());
     makeButton(s, '📖 进化图鉴', 360, 45, 220, () => this.openCodex());
-    makeButton(s, '⚙ 难度设置', 130, -25, 220, () => this.openDifficulty());
-    makeButton(s, '🗑 重置存档', 360, -25, 220, () => this.confirmReset(), 'danger');
+    makeButton(s, '🏅 成就', 130, -25, 220, () => this.openAchievements());
+    makeButton(s, '⚙ 难度设置', 360, -25, 220, () => this.openDifficulty());
+    makeButton(s, '🗑 重置存档', 245, -95, 460, () => this.confirmReset(), 'danger');
 
     makeLabel(s, p.totalRuns === 0 ? '首次裂缝固定为「机关城」，用于熟悉基本操作' : '选择一项行动', 0, -222, {
       size: 14, color: C.dim, align: Label.HorizontalAlign.CENTER, width: DESIGN.width - 40,
@@ -220,6 +222,32 @@ export class GameRoot extends Component {
         }
       }
       y -= 62;
+    }
+
+    makeButton(s, '返回虫巢', 0, -240, 220, () => this.renderLobby());
+  }
+
+  /** 成就页面：14 条成就三态（已达成/可领取/未达成）——与 web 端同口径 */
+  private openAchievements(): void {
+    this.refreshHeader();
+    const s = this.resetScreen();
+    const flags = this.save.stats.achievementFlags ?? {};
+    const claimed = ACHIEVEMENTS.filter((a) => flags[a.id]).length;
+    makeLabel(s, `成 就　${claimed}/${ACHIEVEMENTS.length}`, 0, 238, { size: 26, color: C.gold, align: Label.HorizontalAlign.CENTER, bold: true });
+    makeLabel(s, '★ 标记的成就已满足条件，下次结算时自动领取', 0, 210, {
+      size: 13, color: C.gene, align: Label.HorizontalAlign.CENTER,
+    });
+
+    let y = 172;
+    for (const a of ACHIEVEMENTS) {
+      const done = flags[a.id] === true;
+      let met = false;
+      try { met = a.check(this.save); } catch { /* check 可能抛 */ }
+      const tag = done ? '✅' : met ? '★ 可领取' : '○';
+      makeLabel(s, `${tag} ${a.name}`, -225, y, { size: 15, color: done ? C.gold : C.text, width: 200 });
+      makeLabel(s, a.desc, -20, y, { size: 12, color: C.dim, width: 330 });
+      makeLabel(s, a.reward, -20, y - 22, { size: 11, color: done ? C.gold : '#7a5c62', width: 330 });
+      y -= 52;
     }
 
     makeButton(s, '返回虫巢', 0, -240, 220, () => this.renderLobby());
@@ -565,6 +593,9 @@ export class GameRoot extends Component {
       rows.push({ text: `${ROUTES[c.route].name} 充能：第 ${c.from} 段 → 第 ${c.to} 段（战力 +${((c.to - c.from) * 2).toFixed(0)}%）`, color: C.gene });
     }
     if (r.relics.length) rows.push({ text: `传承 ×${r.relics.length}` });
+    for (const a of r.achievements ?? []) {
+      rows.push({ text: `🏅 成就达成「${a.name}」—— ${a.reward}`, color: C.gold });
+    }
     if (r.legendSkillId) rows.push({ text: `✦ 传说技能：${r.legendSkillId}`, color: C.gold });
     if (r.hiddenSkill) {
       rows.push({ text: `🔥 禁忌显现：${r.hiddenSkill.name}`, color: C.hidden });
