@@ -6,6 +6,8 @@ import { previewPlane, rollPlane } from '../../../shizu-cocos/assets/scripts/cor
 import { activatableRoutes, activatedRoutes, geneLockLevel, isSealed } from '../../../shizu-cocos/assets/scripts/core/geneLock.js';
 import { GEAR_RARITY, RARITY_ORDER, GEAR_SLOTS, GEAR_SLOT_IDS } from '../../../shizu-cocos/assets/scripts/data/attrPool.js';
 import { ALL_ROUTES, ROUTES, mutexOf } from '../../../shizu-cocos/assets/scripts/data/routes.js';
+import { MECH_INFO, ROUTE_MECHANIC, currentRouteMech } from '../../../shizu-cocos/assets/scripts/data/weaponAttack.js';
+import { mechUpgradePool } from '../../../shizu-cocos/assets/scripts/data/mechUpgrades.js';
 import { planes } from '../../../shizu-cocos/assets/scripts/data/planes.js';
 import { nestLine } from '../../../shizu-cocos/assets/scripts/data/lines.js';
 import { RELICS, relicById } from '../../../shizu-cocos/assets/scripts/data/relics.js';
@@ -171,6 +173,20 @@ function openRift(ctx, picked = [], legend = null, weapon = null) {
         ? (ROUTES[weapon]?.name ?? weapon)
         : '自动（按基因锁最高路线）'}</b></div>
       ${weaponPool.length ? weaponRows : '<p class="small">尚未激活任何路线 —— 使用默认巢灵之爪（自动索敌 + 近战冲击）。</p>'}
+      ${(() => {
+        // 流派预览（backlog #10 遗留项）：出征前看清本局机制与专属强化池
+        const previewRoute = weapon
+          ?? [...weaponPool].sort((a, b) => geneLockLevel(save, b.id) - geneLockLevel(save, a.id))[0]?.id
+          ?? null;
+        const mech = previewRoute ? ROUTE_MECHANIC[previewRoute] : null;
+        if (!mech) return '';
+        const info = MECH_INFO[mech] ?? { name: mech, desc: '' };
+        const pool = mechUpgradePool(mech).map((m) => m.name).join(' / ');
+        const routeName = ROUTES[previewRoute]?.name ?? previewRoute;
+        return `
+          <div class="diff-row small">流派机制：<b class="gold">${info.name}</b> —— ${info.desc}</div>
+          ${pool ? `<div class="diff-row small">本局专属强化池：${pool}</div>` : ''}`;
+      })()}
       <h4 class="gold" style="margin-top:12px">裂缝变异 · 风险 ${mods.risk} · 基因 ×${mods.geneMul.toFixed(2)}</h4>
       <p class="small">自选变异：敌人更强，但基因产出更高（倍率封顶 ×2.5）。</p>
       ${modRows}

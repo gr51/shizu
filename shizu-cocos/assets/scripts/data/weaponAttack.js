@@ -75,6 +75,19 @@ export const ROUTE_MECHANIC = {
   gongsheng: 'parasite',
 };
 
+/** 路线机制的中文名与一句话说明（出征流派预览/图鉴共用，backlog #10 遗留项） */
+export const MECH_INFO = {
+  combo:       { name: '连招连击', desc: '连击累积，每数击爆发一次增伤' },
+  chain:       { name: '雷链弹射', desc: '命中后闪电在敌人间弹射' },
+  corpseBlast: { name: '尸爆连锁', desc: '击杀时尸体爆炸波及周围' },
+  missile:     { name: '周期导弹', desc: '每 3 秒锁定最近的敌人齐射' },
+  multishot:   { name: '弹幕翻倍', desc: '攻击弹体数量翻倍' },
+  parasite:    { name: '寄生反水', desc: '击杀小怪概率策反为友军' },
+  reflect:     { name: '金身反击', desc: '受伤时把伤害按比例弹回攻击者' },
+  stomp:       { name: '践踏震荡', desc: '每 4 秒周身践踏震荡一圈' },
+  laser:       { name: '机关激光', desc: '每 5 秒沿面向射出贯穿激光' },
+};
+
 /**
  * 玩家当前路线机制（优先出征路线，否则取基因锁等级最高的路线），无则 null。
  */
