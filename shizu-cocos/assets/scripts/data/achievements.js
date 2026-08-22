@@ -94,6 +94,39 @@ export const ACHIEVEMENTS = [
     check: (s) => (s.player.totalRuns ?? 0) >= 20,
     grant: (s) => { s.inventory.genes = (s.inventory.genes ?? 0) + 800; },
   },
+  // —— backlog #10：行为成就（奖励从「再给一堆数值」改为「改变下局规则的结构性资源」）——
+  {
+    id: 'synergy_master',
+    name: '共鸣大师',
+    desc: '单局触发 3 条共鸣',
+    reward: '下局起每局免费重掷 +1',
+    check: (s) => (s.stats.synergiesThisRun ?? 0) >= 3,
+    grant: (s) => { s.player.bonusFreeReroll = (s.player.bonusFreeReroll ?? 0) + 1; },
+  },
+  {
+    id: 'risk_taker',
+    name: '险中求胜',
+    desc: '带 2 条裂缝变异通关',
+    reward: '下局起每局放逐次数 +1',
+    check: (s) => (s.stats.modsLastVictory ?? 0) >= 2,
+    grant: (s) => { s.player.bonusBanish = (s.player.bonusBanish ?? 0) + 1; },
+  },
+  {
+    id: 'chest_hunter',
+    name: '开箱有喜',
+    desc: '单局开启 2 个宝箱',
+    reward: '库存基因 +500',
+    check: (s) => (s.stats.chestsThisRunMax ?? 0) >= 2,
+    grant: (s) => { s.inventory.genes = (s.inventory.genes ?? 0) + 500; },
+  },
+  {
+    id: 'abyss_walker',
+    name: '深渊行者',
+    desc: '无尽模式抵达深渊第 3 层',
+    reward: '库存基因 +800',
+    check: (s) => (s.stats.deepestAbyss ?? 0) >= 3,
+    grant: (s) => { s.inventory.genes = (s.inventory.genes ?? 0) + 800; },
+  },
 ];
 
 /** 返回已解锁成就 id 集合 */

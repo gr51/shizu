@@ -102,7 +102,12 @@ export class Run {
     if (this.nest.atkPct) this.stats.atk *= 1 + this.nest.atkPct;
     if (this.nest.suckRadius) this.stats.suckRadius = (this.stats.suckRadius ?? 1) * (1 + this.nest.suckRadius);
     this.reviveLeft = this.nest.revive > 0 ? 1 : 0;   // 残命：每局一次
-    this.freeRerollLeft = this.nest.freeReroll ?? 0;
+    // 成就「结构性奖励」（backlog #10）：行为成就发放的下局加成——
+    // 免费重掷/放逐次数是局内决策资源，比再给一堆基因更有「换玩法」的牵引力
+    this.freeRerollLeft = (this.nest.freeReroll ?? 0) + (save.player.bonusFreeReroll ?? 0);
+    this.bonusBanish = save.player.bonusBanish ?? 0;
+    this.synergiesFiredCount = 0;   // 本局触发共鸣数（行为成就「共鸣大师」）
+    this.chestsOpened = 0;          // 本局开启宝箱数（行为成就「开箱有喜」）
 
     // 传承残影：收集到的强者基因作为永久被动，开局装载（收集才有回报）
     this.relicEff = aggregateRelicEff(save.inventory?.relics);
@@ -453,6 +458,7 @@ export class Run {
   openChest() {
     if (this.state !== RunState.FIGHTING) return false;
     this.openChoice('🧰 宝箱开启', { rare: 4, legend: 8, base: 0.25, feature: 0.5 });
+    this.chestsOpened = (this.chestsOpened ?? 0) + 1;   // 行为成就「开箱有喜」计数
     this.emit('🧰 宝箱开启！稀有选项出现率大幅提升', 'win');
     return true;
   }
@@ -500,8 +506,10 @@ export class Run {
     return true;
   }
 
-  /** 剩余放逐次数（基础 2 次 + 巢髓·断绝，稀缺才有决策价值） */
-  get banishLeft() { return Math.max(0, BANISH_PER_RUN + (this.nest?.banish ?? 0) - this.banishUsed); }
+  /** 剩余放逐次数（基础 2 次 + 巢髓·断绝 + 成就「险中求胜」奖励，稀缺才有决策价值） */
+  get banishLeft() {
+    return Math.max(0, BANISH_PER_RUN + (this.nest?.banish ?? 0) + (this.bonusBanish ?? 0) - this.banishUsed);
+  }
 
   /**
    * 构筑共鸣：记录本次获得的 id，若与已有选项凑成套则一次性给永久强化。
@@ -512,6 +520,7 @@ export class Run {
     this.ownedPicks.add(pickedId);
     for (const syn of newlyFiredSynergies(this.ownedPicks, this.firedSynergies)) {
       this.firedSynergies.add(syn.id);
+      this.synergiesFiredCount = (this.synergiesFiredCount ?? 0) + 1;   // 行为成就「共鸣大师」计数
       const e = syn.eff ?? {};
       if (e.critDmg) this.stats.critDmg = (this.stats.critDmg ?? 0) + e.critDmg;
       if (e.thornMul) this.stats.thorn = (this.stats.thorn ?? 0) * (1 + e.thornMul);
@@ -761,6 +770,13 @@ export class Run {
       save.stats.endlessUnlocked = true;
       firstClear = true;
     }
+
+    // 行为成就数据（backlog #10）：把本局的「行为事实」写进存档，供成就 check 读取——
+    // 触发了几条共鸣 / 带几条变异通关 / 开了几个宝箱 / 深渊走到第几层
+    save.stats.synergiesThisRun = Math.max(save.stats.synergiesThisRun ?? 0, this.synergiesFiredCount ?? 0);
+    save.stats.chestsThisRunMax = Math.max(save.stats.chestsThisRunMax ?? 0, this.chestsOpened ?? 0);
+    if (victory) save.stats.modsLastVictory = Math.max(save.stats.modsLastVictory ?? 0, (this.dungeon.mods?.length ?? 0));
+    if (this.endlessLayer) save.stats.deepestAbyss = Math.max(save.stats.deepestAbyss ?? 0, this.endlessLayer);
 
     // 里程碑奖励：达成但未领取的成就一次性发放（必须在落盘前，且在所有进度更新之后）
     const achievements = claimAchievements(save);
