@@ -488,14 +488,17 @@ export class Renderer {
     }
   }
 
-  /** 玩家武器弹体（剑=剑气/枪=子弹/雷=雷电…，朝速度方向翻转） */
+  /** 玩家武器弹体（剑=剑气/枪=子弹/雷=雷电…，朝速度方向翻转）。高等级武器弹体更大更亮 */
   drawPlayerShots(run) {
     for (const s of run.playerShots ?? []) {
       const facing = s.vx < 0 ? -1 : 1;
       const a = Math.min(1, s.life / 0.15);
       const sprite = s.sprite ?? 'sword_qi';
-      const ok = this.blitSprite(`effects/${sprite}.png`, s.x, s.y, 22, false, facing, a);
-      if (!ok) this.dot(s.x, s.y, 5, PAL.shotDot);
+      const tier = s.tier ?? 0;
+      const size = 22 + tier * 6;             // 进化档位 → 弹体尺寸
+      const alpha = Math.min(1, a + tier * 0.15); // 进化档位 → 更不透明
+      const ok = this.blitSprite(`effects/${sprite}.png`, s.x, s.y, size, false, facing, alpha);
+      if (!ok) this.dot(s.x, s.y, 5 + tier * 2, PAL.shotDot);
     }
   }
 

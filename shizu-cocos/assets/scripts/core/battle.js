@@ -1137,6 +1137,7 @@ export class RealtimeRun extends Run {
         vx: Math.cos(ang) * 540, vy: Math.sin(ang) * 540,
         life: Math.max(0.18, Math.min(0.4, dd / 540)),
         sprite: this.weapon.projectile,
+        tier: Math.floor(this.geneStep / 6),   // 进化档位：渲染层据此缩放弹体
       });
     }
     // 侠客_5「剑气」（backlog #1 还债）：每次攻击追加一道攻×rangedMul 的剑气伤害，
