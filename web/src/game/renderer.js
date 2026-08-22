@@ -298,7 +298,7 @@ export class Renderer {
     // 朝向玩家（dx 符号决定左右翻转）
     const facing = player && player.x < e.x ? -1 : 1;
     // 按目标高度缩放，跨关卡散图尺寸不同也能统一体型
-    const targetH = kind === 'boss' ? 95 : kind === 'elite' ? 60 : 34;
+    const targetH = kind === 'boss' ? 108 : kind === 'elite' ? 70 : 42;   // 美术可读性：34px 下 AI 资产细节被压成色块，整体放大一档（纯表现层）
     const y = e.y;   // 不加颠簸，走路全靠 4 帧拼接（颠簸会「一跳一跳」）
     const base = e.sprite || this.spriteBase(kind, e.variant, e.id);
     // 特殊敌人可读性：脚下光环区分（自爆红 / 坦克灰蓝 / 伏击金 / 精英橙 / Boss 紫）
@@ -456,10 +456,10 @@ export class Renderer {
   drawDeaths(run) {
     for (const d of run.deaths) {
       const base = d.sprite || this.spriteBase(d.kind, d.variant, d.id);
-      const targetW = d.kind === 'minion' ? 30 : d.kind === 'elite' ? 50 : 70;
+      const targetW = d.kind === 'minion' ? 38 : d.kind === 'elite' ? 58 : 82;
       const a = Math.max(0, 1 - d.t / 0.5);
       this.blitSpriteW(`units/${base}_death.png`, d.x, d.y, targetW, false, d.facing, a)
-        || this.blitSprite(`units/${base}_walk0.png`, d.x, d.y, d.kind === 'minion' ? 34 : d.kind === 'elite' ? 60 : 95, false, d.facing, a, true);
+        || this.blitSprite(`units/${base}_walk0.png`, d.x, d.y, d.kind === 'minion' ? 40 : d.kind === 'elite' ? 66 : 104, false, d.facing, a, true);
       // 死亡爆闪：借现成的 hit.png 在倒地头几帧叠一下 —— 匀速淡出没有
       // 「击杀峰值」，割草最爽的一拍不该是视觉上的平局（零新资产）。
       if (d.t < 0.06) this.blitSprite('effects/hit.png', d.x, d.y, targetW * 1.3, false, 1, 0.8);

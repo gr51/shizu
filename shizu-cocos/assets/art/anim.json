@@ -66,7 +66,7 @@
     },
     {
       "file": "art/anim/player_idle.png",
-      "frameWidth": 49,
+      "frameWidth": 51,
       "frameHeight": 48,
       "frames": 1,
       "fps": 1,
@@ -74,7 +74,7 @@
     },
     {
       "file": "art/anim/player_walk.png",
-      "frameWidth": 51,
+      "frameWidth": 55.5,
       "frameHeight": 48,
       "frames": 4,
       "fps": 8,
@@ -82,7 +82,7 @@
     },
     {
       "file": "art/anim/player_attack.png",
-      "frameWidth": 49,
+      "frameWidth": 51,
       "frameHeight": 48,
       "frames": 1,
       "fps": 1,
@@ -90,7 +90,7 @@
     },
     {
       "file": "art/anim/player_hit.png",
-      "frameWidth": 49,
+      "frameWidth": 51,
       "frameHeight": 48,
       "frames": 1,
       "fps": 1,
