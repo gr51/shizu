@@ -85,35 +85,44 @@ export function renderLobby(ctx) {
 
 export function openNest(ctx) {
   const { save } = ctx;
-  const bank = save.inventory.genes ?? 0;
-  const rows = NEST_UPGRADES.map((u) => {
-    const lv = nestLevel(save, u.id);
-    const cost = nextCost(save, u.id);
-    const state = cost === null ? '<span class="gold">已满级</span>' : `${cost} 基因`;
-    return `<div class="diff-row"><b>${u.name}</b> <span class="small">Lv${lv}/${u.max}</span>`
-      + `<div class="small">${u.desc}　${state}</div></div>`;
-  }).join('');
+  // 虫巢强化 v2：内联强化卡片（与黑市 v2 同款交互）——替代「文字行+按钮墙」
+  const renderCards = () => {
+    const bank = save.inventory.genes ?? 0;
+    return NEST_UPGRADES.map((u) => {
+      const lv = nestLevel(save, u.id);
+      const cost = nextCost(save, u.id);
+      const maxed = cost === null;
+      const afford = !maxed && bank >= cost;
+      return `<div class="shop-item${maxed ? ' bought' : ''}${!afford && !maxed ? ' poor' : ''}">`
+        + `<div class="shop-info"><b>${u.name}</b> <span class="small">Lv${lv}/${u.max}</span>`
+        + `<div class="small">${u.desc}</div></div>`
+        + `<div class="shop-buy">`
+        + (maxed
+          ? '<span class="small sealed">已满级</span>'
+          : `<span class="shop-price ${afford ? 'gold' : 'sealed'}">${cost} 🧬</span>`
+            + `<button class="shop-btn" data-nest="${u.id}" ${afford ? '' : 'disabled'}>强化</button>`)
+        + `</div></div>`;
+    }).join('');
+  };
+  const bindNest = (root) => {
+    root.querySelectorAll('[data-nest]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!buyNestUpgrade(save, btn.dataset.nest).ok) return;
+        ctx.repo.persist(save);
+        root.querySelector('.shop-list').innerHTML = renderCards();
+        const bal = root.querySelector('.gene-balance');
+        if (bal) bal.textContent = save.inventory.genes ?? 0;
+        bindNest(root);
+      });
+    });
+  };
 
   view.showModal({
     title: '虫巢强化',
-    body: `<p class="small">库存基因：<b class="gold">${bank}</b>　每局带回的基因都会入库，失败也算推进。</p>${rows}`,
-    buttons: [
-      ...NEST_UPGRADES.filter((u) => nextCost(save, u.id) !== null).map((u) => ({
-        text: `${u.name}（${nextCost(save, u.id)}）`,
-        style: bank >= nextCost(save, u.id) ? 'primary' : '',
-        disabled: bank < nextCost(save, u.id),
-        onClick: () => {
-          const res = buyNestUpgrade(save, u.id);
-          if (res.ok) {
-            ctx.repo.persist(save);
-            view.closeModal();
-            renderLobby(ctx);
-            openNest(ctx);
-          }
-        },
-      })),
-      { text: '返回', onClick: () => { view.closeModal(); renderLobby(ctx); } },
-    ],
+    body: `<p class="small">库存基因：<b class="gold gene-balance">${save.inventory.genes ?? 0}</b> 🧬　每局带回的基因都会入库，失败也算推进。</p>`
+      + `<div class="shop-list">${renderCards()}</div>`,
+    buttons: [{ text: '返回', onClick: () => { view.closeModal(); renderLobby(ctx); } }],
+    onMount: bindNest,
   });
 }
 
@@ -142,8 +151,10 @@ function openRift(ctx, picked = [], legend = null, weapon = null) {
   // （沿用原按钮的做法），ctx._riftPlane 缓存保证重开的还是同一道裂缝。
   const modRows = RIFT_MODS.map((m) => {
     const on = picked.includes(m.id);
+    // 风险等级色点：1 绿 / 2 黄 / 3 红——扫一眼就知道这条变异有多危险
+    const riskDot = `<span class="risk-dot rk-${m.risk}" title="风险 ${m.risk}"></span>`;
     return `<div class="diff-row pickable${on ? ' gold' : ''}" data-mod="${m.id}" role="button" tabindex="0">`
-      + `${on ? '✔ ' : '· '}<b>${m.name}</b><div class="small">${m.desc}</div></div>`;
+      + `${riskDot}${on ? '✔ ' : ''}<b>${m.name}</b><div class="small">${m.desc}</div></div>`;
   }).join('');
   const weaponRows = weaponPool.map((r) => {
     const on = weapon === r.id;
