@@ -522,7 +522,8 @@ export class GameRoot extends Component {
       }
     }
     for (const c of r.charges) {
-      rows.push({ text: `${ROUTES[c.route].name} 充能：第 ${c.from} 段 → 第 ${c.to} 段`, color: C.gene });
+      // 升段收益说明（与 web 端同口径）：每段战力 +2%
+      rows.push({ text: `${ROUTES[c.route].name} 充能：第 ${c.from} 段 → 第 ${c.to} 段（战力 +${((c.to - c.from) * 2).toFixed(0)}%）`, color: C.gene });
     }
     if (r.relics.length) rows.push({ text: `传承 ×${r.relics.length}` });
     if (r.legendSkillId) rows.push({ text: `✦ 传说技能：${r.legendSkillId}`, color: C.gold });
