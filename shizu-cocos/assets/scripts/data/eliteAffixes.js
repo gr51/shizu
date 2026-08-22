@@ -61,6 +61,13 @@ export const ELITE_AFFIXES = [
     desc: '周围杂兵受到的伤害减半（先杀光环或拉开距离）',
     eff: { auraRadius: 180, auraMul: 0.5 },
   },
+  {
+    id: 'splitting',
+    name: '分裂',
+    color: '#7fd47f',
+    desc: '死亡时分裂为两只小体（先杀或一次爆发带走）',
+    eff: { splitOnDeath: 2 },
+  },
 ];
 
 /** 按 rng 抽一条精英词缀；chance 未命中则返回 null（不是每只都带）

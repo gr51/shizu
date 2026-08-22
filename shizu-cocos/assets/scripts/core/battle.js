@@ -1486,6 +1486,21 @@ export class RealtimeRun extends Run {
       this.emit('💥 爆裂精英炸开一圈弹幕！', 'death');
       this.emitFx('burst', e.x, e.y);
     }
+    // 分裂词缀：精英死亡分裂为两只小体——「先杀」变成「杀完还得清小怪」
+    const splitCount = e.affix?.eff.splitOnDeath ?? 0;
+    if (splitCount > 0 && e.kind === 'elite' && this.enemies.length < MAX_ONSCREEN - splitCount) {
+      for (let i = 0; i < splitCount; i++) {
+        this.spawnEnemy({
+          kind: 'minion', name: `${e.name}·裂体`,
+          hp: Math.max(1, Math.round(e.maxHp * 0.25)), maxHp: Math.max(1, Math.round(e.maxHp * 0.25)),
+          atk: e.atk * 0.6,
+          x: e.x + (i === 0 ? -18 : 18), y: e.y + (this.rng() * 20 - 10),
+          r: Math.max(8, (e.r ?? 14) * 0.6), speed: (e.speed ?? 60) * 1.3,
+          sprite: e.sprite, variant: e.variant,
+        }, false);
+      }
+      this.emit(`🟢 ${e.name} 分裂成了 ${splitCount} 只小体！`, 'death');
+    }
     // 急袭挑战：最后一只标记怪死亡时结算基因雨奖励（标记先清，避免尸爆递归重复发奖）
     const eventTag = e.eventTag;
     e.eventTag = null;
