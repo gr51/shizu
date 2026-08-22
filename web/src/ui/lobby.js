@@ -382,11 +382,12 @@ function openForge(ctx, slot = 'claw') {
   const renderSlotCards = () => GEAR_SLOT_IDS.map((id) => {
     const on = id === slot;
     const worn = p.gear[id];
+    const cur = worn
+      ? `<span class="r-${worn.rarity}">${worn.name}</span><span class="gear-stars">${'★'.repeat(worn.star)}</span>`
+      : '<span class="sealed">空</span>';
     return `<div class="diff-card pickable${on ? ' gold' : ''}" data-slot="${id}" role="button" tabindex="0">`
       + `<div class="diff-head"><b>${GEAR_SLOTS[id].name}</b>${on ? '<span class="gold">✓</span>' : ''}</div>`
-      + `<div class="small">当前：${worn`
-      + ` ? `<span class="r-${worn.rarity}">${worn.name}</span><span class="gear-stars">${'★'.repeat(worn.star)}</span>``
-      + ` : '<span class="sealed">空</span>'}</div></div>`;
+      + `<div class="small">当前：${cur}</div></div>`;
   }).join('');
   const renderPriceCards = () => Object.keys(FORGE_COST).map((r) => {
     const cost = forgeCost(r);
