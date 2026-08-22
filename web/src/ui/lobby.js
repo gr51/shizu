@@ -312,6 +312,10 @@ function openDifficulty(ctx) {
         root.querySelector('.diff-list').innerHTML = renderCards();
         bindDiff(root);
       });
+      // 键盘可达：Enter / 空格 触发（与三选一卡片同一套约定）
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el.click(); }
+      });
     });
   };
   view.showModal({
@@ -404,6 +408,10 @@ function openForge(ctx, slot = 'claw') {
     onMount(root) {
       for (const el of root.querySelectorAll('[data-slot]')) {
         el.addEventListener('click', () => { view.closeModal(); openForge(ctx, el.dataset.slot); });
+        // 键盘可达：Enter / 空格 触发
+        el.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el.click(); }
+        });
       }
       for (const btn of root.querySelectorAll('[data-forge]')) {
         btn.addEventListener('click', () => {
