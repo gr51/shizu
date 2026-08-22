@@ -58,6 +58,23 @@ export const NEST_UPGRADES = [
     cost: () => 900,
     eff: { revive: 1 },
   },
+  // —— backlog #8：规则型强化（改变开局规则，而非叠数值）——
+  {
+    id: 'nest_shop',
+    name: '巢髓·商路',
+    desc: '每级黑市商品 +1（选择面更宽）',
+    max: 2,
+    cost: (lv) => 260 + lv * 260,
+    eff: { shopExtra: 1 },
+  },
+  {
+    id: 'nest_entry',
+    name: '巢髓·先祖',
+    desc: '解锁后每局开局自带「寒噬之息」（攻击附带冰霜减速）',
+    max: 1,
+    cost: () => 600,
+    eff: { entryAttr: 1 },
+  },
 ];
 
 export function nestUpgradeById(id) {
@@ -80,7 +97,7 @@ export function nextCost(save, id) {
 
 /** 汇总所有已购升级的效果（供开局装载） */
 export function aggregateNestEff(save) {
-  const out = { hpPct: 0, atkPct: 0, freeReroll: 0, banish: 0, suckRadius: 0, revive: 0 };
+  const out = { hpPct: 0, atkPct: 0, freeReroll: 0, banish: 0, suckRadius: 0, revive: 0, shopExtra: 0, entryAttr: 0 };
   for (const u of NEST_UPGRADES) {
     const lv = nestLevel(save, u.id);
     if (lv <= 0) continue;

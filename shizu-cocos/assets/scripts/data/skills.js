@@ -86,7 +86,7 @@ export const skills = [
   { route: 'jijia', lv: 3, id: 'jijia_3', name: '护盾',     kind: 'passive', desc: '周期护盾吸收伤害', val: '每 20s / 吸收 攻×2', eff: { shieldMul: 2, shieldEvery: 20 } },
   { route: 'jijia', lv: 4, id: 'jijia_4', name: '锁定',     kind: 'passive', desc: '暴击率提升', val: '+10%', eff: { crit: 0.10 } },
   { route: 'jijia', lv: 5, id: 'jijia_5', name: '导弹',     kind: 'passive', desc: '周期导弹齐射', val: '每 10s / 攻×1.5', eff: { missileMul: 1.5, missileEvery: 10 } },
-  { route: 'jijia', lv: 6, id: 'jijia_6', name: '高达合体', kind: 'active', cd: 90, desc: '变身巨型机甲', val: '8s / 全属性 +50%', eff: { allStatsPct: 0.50, duration: 8 } },
+  { route: 'jijia', lv: 6, id: 'jijia_6', name: '高达合体', kind: 'active', cd: 90, desc: '变身巨型机甲', val: '8s / 全属性 +50%', eff: { allStatsPct: 0.50, duration: 8, form: 1 } },
 
   // ——— 钢铁组 · 巨化 ———
   { route: 'juhua', lv: 1, id: 'juhua_1', name: '长臂',     kind: 'passive', desc: '攻击范围提升', val: '+20%', eff: { range: 0.20 } },
@@ -94,7 +94,7 @@ export const skills = [
   { route: 'juhua', lv: 3, id: 'juhua_3', name: '震地',     kind: 'passive', desc: '攻击附带范围震击', val: '攻×0.6', eff: { splashMul: 0.6 } },
   { route: 'juhua', lv: 4, id: 'juhua_4', name: '踏碎',     kind: 'passive', desc: '对精英增伤', val: '+20%', eff: { vsEliteDmgPct: 0.20 } },
   { route: 'juhua', lv: 5, id: 'juhua_5', name: '顶天',     kind: 'passive', desc: '体型 + 减伤提升', val: '+30% / -10%', eff: { size: 0.30, dmgReduct: 0.10 } },
-  { route: 'juhua', lv: 6, id: 'juhua_6', name: '顶天立地', kind: 'active', cd: 90, desc: '巨神形态', val: '10s / 生命 +100% / 全屏攻击', eff: { hpPct: 1.0, aoe: 1, duration: 10 } },
+  { route: 'juhua', lv: 6, id: 'juhua_6', name: '顶天立地', kind: 'active', cd: 90, desc: '巨神形态', val: '10s / 生命 +100% / 全屏攻击', eff: { hpPct: 1.0, aoe: 1, duration: 10, form: 1 } },
 ];
 
 /** 某路线的 6 段技能（按段位升序） */

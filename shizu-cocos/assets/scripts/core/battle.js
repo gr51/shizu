@@ -1365,6 +1365,30 @@ export class RealtimeRun extends Run {
   castSkill(skill) {
     const p = this.player;
     const e = skill.eff ?? {};
+
+    // —— 终极形态技（form 标记：高达合体 / 顶天立地）——
+    // 变身用既有狂暴与护盾系统按时长兑现，不再永久改写属性（曾致双计/常驻 +100% 生命）
+    if (e.form && e.duration) {
+      if (e.allStatsPct) {
+        p.berserk = Math.max(p.berserk, e.duration);   // 攻击增幅走既有狂暴
+        this.shield = Math.max(this.shield, this.stats.maxHp * e.allStatsPct * 0.75);   // 机甲装甲
+        this.emit('🤖 高达合体！', 'win');
+      }
+      if (e.hpPct && e.aoe) {
+        // 「生命 +100%」以护盾兑现；「全屏攻击」对全场敌人造成攻 ×2.5
+        this.shield = Math.max(this.shield, this.stats.maxHp * e.hpPct * 0.9);
+        for (const en of [...this.enemies]) {
+          en.hp -= this.stats.atk * 2.5;
+          en.hitFlash = 0.15;
+          if (en.hp <= 0) this.killEnemy(en);
+          if (this.state !== RunState.FIGHTING) return;
+        }
+        this.emit('🏔 顶天立地！', 'win');
+      }
+      this.emitFx('surge', p.x, p.y);
+      return;
+    }
+
     const mul = e.aoeMul ?? e.burstMul ?? e.trapMul ?? e.missileMul ?? 0;
 
     if (mul > 0) {

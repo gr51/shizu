@@ -12,6 +12,7 @@
 import { activateRoute, chargeGeneLock } from './geneLock.js';
 import { adjustDynamicFactor, applyPermGrowth, calcDamage, combatStats } from './balance.js';
 import { applyAttrOption, rollUpgradeOptions } from './upgrade.js';
+import { GENERIC_ATTR_POOL } from '../data/attrPool.js';
 import { applyHiddenSkill, engravedSkills, learnSkill } from './skillSlots.js';
 import { rollBossDrop, rollKillDrop } from './drop.js';
 import { buildEndlessStage, ENDLESS_GENE_PER_LAYER } from './dungeon.js';
@@ -169,6 +170,16 @@ export class Run {
     // 传说技能（Lv6 终极技收藏）：开局选一个带进本局，收藏才有战斗价值
     this.equipLegendLoadout();
 
+    // 巢髓·先祖（backlog #8 规则型强化）：开局自带「寒噬之息」——
+    // 固定词条而非随机：确定性让「下一局起点不同」变成可规划的策略
+    if (this.nest.entryAttr > 0) {
+      const entry = GENERIC_ATTR_POOL.find((a) => a.id === 'attr_chill');
+      if (entry) {
+        applyAttrOption(this.stats, entry);
+        this.emit('🧬 巢髓·先祖：开局自带「寒噬之息」', 'gene');
+      }
+    }
+
     this.emit(`裂缝开启 —— 【${dungeon.plane.name}】${dungeon.plane.theme}`, 'stage');
     this.emit(
       dungeon.channel === 'skill'
@@ -204,7 +215,9 @@ export class Run {
         if (skill.lv > lv) continue;
         if (this.learnedSkills.has(skill.id)) continue;   // 隐藏刻印已覆盖同名能力
         this.learnedSkills.add(skill.id);                 // 已生效 → 不再进三选一池
-        this.applySkillEff(skill, dutyCycle(skill));
+        // 形态技（form 标记的终极变身，如高达合体/顶天立地）：效果在施放时按时长兑现，
+        // 不在此处永久改写属性——否则「8s 变身」会变成常驻 +50%，与施放效果双计
+        if (!skill.eff?.form) this.applySkillEff(skill, dutyCycle(skill));
         loaded.push(skill);
       }
     }
@@ -327,7 +340,7 @@ export class Run {
    */
   openShop() {
     this.pendingShop = false;
-    const items = rollShop(this.rng, this.stageNo);
+    const items = rollShop(this.rng, this.stageNo, 3 + (this.nest.shopExtra ?? 0));
     if (!items.length) return false;
     this.shopItems = items;
     this.shopBought = new Set();
@@ -585,7 +598,8 @@ export class Run {
       this.emit(`无法装载 ${skill.name}：${res.reason}`, 'info');
     } else {
       this.learnedSkills.add(skill.id);
-      this.applySkillEff(skill);
+      // 形态技（form 标记）：施放时兑现，不永久改写属性（避免与施放效果双计）
+      if (!skill.eff?.form) this.applySkillEff(skill);
       const tail = res.replaced ? `（替换了 ${res.replaced.name}）` : '';
       this.emit(`习得 <b>${skill.name}</b> · 第${skill.lv}段${tail}`, 'learn');
     }
