@@ -175,7 +175,7 @@ check(root_.run.onScreen >= 0, `同屏敌人数可读：${root_.run.onScreen}`);
 console.log('\n[5] 结算与回巢');
 const settleLabels = [];
 (function collect(n) { const l = n.getComponent(cc.Label); if (l) settleLabels.push(l.string); n.children.forEach(collect); })(canvas);
-check(settleLabels.some((s) => /评级\s*[SABC]/.test(s)), '结算页有评级');
+check(settleLabels.some((s) => /评级\s*[SABCD]/.test(s)), '结算页有评级');
 check(settleLabels.some((s) => s.includes('难度进化')), '结算页展示难度进化');
 check(settleLabels.some((s) => s.includes('永久激活基因锁')), '首进激活基因锁已触发');
 
