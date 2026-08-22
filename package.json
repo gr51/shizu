@@ -15,6 +15,7 @@
     "art": "node tools/gen-pixel-assets.mjs",
     "art:preview": "node tools/preview-pixel.mjs",
     "play": "node tools/play.mjs",
+    "play:flows": "node tools/play-flows.mjs",
     "probe": "node tools/probe-battle.mjs",
     "playtest": "node tools/playtest.mjs",
     "shots": "node tools/shots.mjs",
