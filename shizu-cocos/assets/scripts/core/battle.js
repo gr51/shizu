@@ -1455,7 +1455,12 @@ export class RealtimeRun extends Run {
     if (this.comboCount > 0 && this.comboCount % 10 === 0) {
       const bonus = Math.min(50, this.comboCount);
       this.save.inventory.genes = (this.save.inventory.genes ?? 0) + bonus;
-      this.emit(`🔥 ${this.comboCount} 连击！基因 +${bonus}`, 'win');
+      const flavor = this.comboCount >= 50 ? '噬灭诸天'
+        : this.comboCount >= 40 ? '万魔披靡'
+        : this.comboCount >= 30 ? '势不可挡'
+        : this.comboCount >= 20 ? '锐不可当'
+        : '割草如割韭菜';
+      this.emit(`🔥 ${this.comboCount} 连击 · ${flavor}！基因 +${bonus}`, 'win');
     }
 
     this.emitFx('burst', e.x, e.y);
