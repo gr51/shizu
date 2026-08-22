@@ -835,20 +835,54 @@ export class Run {
       engraveResult,
       activations,
       charges,
-      growth,
-      dyn,
-      firstClear,
       achievements,
-      grade: gradeRun(victory, this.stageNo, this.kills),
     };
+    // 完成度评价（无限流式）：多因子评级 + 按评级发放结算基因加成
+    const gradeExtras = {
+      sideQuestDone: this.sideQuest ? this.isSideQuestDone() : false,
+      modsCount: (this.dungeon.mods?.length ?? 0),
+      endlessLayer: this.endlessLayer ?? 0,
+    };
+    this.result.grade = gradeRun(victory, this.stageNo, this.kills, gradeExtras);
+    const gradeBonus = gradeBonusGenes(this.result.grade);
+    if (gradeBonus > 0) {
+      save.inventory.genes = (save.inventory.genes ?? 0) + gradeBonus;
+      this.result.gradeBonusGenes = gradeBonus;
+      this.emit(`🏅 完成度评价 ${this.result.grade}：基因加成 +${gradeBonus}`, 'win');
+    }
     return this.result;
   }
 }
 
-/** 结算评级 S/A/B/C（整体策划 6.1 结算页），割草下按击杀量给 S */
-export function gradeRun(victory, stageReached, kills) {
-  if (victory && kills >= 900) return 'S';
-  if (victory) return 'A';
-  if (stageReached >= 4) return 'B';
-  return 'C';
+/**
+ * 结算完成度评价（无限流式）：多因子计分——主线胜负、抵达深度、噬灭量、
+ * 支线协议完成、变异风险承担、深渊层数。分数映射 S+/S/A/B/C/D 评级。
+ * @returns {string} 评级字母
+ */
+export function gradeRun(victory, stageReached, kills, extras = {}) {
+  let score = 0;
+  if (victory) score += 3;
+  if (stageReached >= 5) score += 1;
+  if (kills >= 900) score += 1;
+  // 支线协议完成——无限流任务制的核心奖励权重
+  if (extras.sideQuestDone) score += 2;
+  // 高风险高回报：带 ≥2 变异通关
+  if ((extras.modsCount ?? 0) >= 2) score += 1;
+  // 无尽深渊第 3 层以上
+  if ((extras.endlessLayer ?? 0) >= 3) score += 2;
+
+  if (score >= 7) return 'S+';
+  if (score >= 6) return 'S';
+  if (score >= 4) return 'A';
+  if (score >= 3) return 'B';
+  if (score >= 1) return 'C';
+  return 'D';
+}
+
+/** 按评级发放结算基因加成（S+ 600 / S 400 / A 200，其余无） */
+export function gradeBonusGenes(grade) {
+  if (grade === 'S+') return 600;
+  if (grade === 'S') return 400;
+  if (grade === 'A') return 200;
+  return 0;
 }

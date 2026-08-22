@@ -394,7 +394,9 @@ test('局外货币：结算时本局基因入库', () => {
   // 同口径隔离：支线协议奖励也标记为不发放（新收入源单独有自己的测试）
   if (run.sideQuest) run.sideQuestFailed = true;
   run.finalize(r);
-  assert.equal(save.inventory.genes, 100 + earned, '本局基因应入库供虫巢消费');
+  // 完成度评级加成也是新收入源（S+/S/A 有额外基因），一并计入期望
+  const gradeBonus = run.result?.gradeBonusGenes ?? 0;
+  assert.equal(save.inventory.genes, 100 + earned + gradeBonus, '本局基因应入库供虫巢消费');
 });
 
 // ===== 裂缝变异：高风险高回报 =====
