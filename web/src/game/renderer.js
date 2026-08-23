@@ -443,6 +443,57 @@ export class Renderer {
     });
   }
 
+  /**
+   * 变体专属的挥击弧。
+   *
+   * 接触攻击在核心层对所有小怪是同一条路径（0.3s 抬手 → 同一套伤害公式），
+   * 表现上又只有武侠那批有专属刀光贴图，其余位面全部回退到同一张 slash.png ——
+   * 于是玩家看到的「攻击」确实一模一样。这里按变体给出可分辨的挥击形状：
+   *   walker  短促窄弧，轻
+   *   charger 大开大合的宽弧，冲撞感
+   *   tank    厚重短弧 + 地面尘环
+   *   spitter 不近战，画个枪口而不是挥砍
+   * 纯表现层，不碰伤害与节奏（CONTACT_DPS_SCALE 是标定过的）。
+   * hasSprite=true 时说明已经有专属刀光贴图，弧只做很淡的补强，不打架。
+   */
+  drawSwipe(e, facing, prog, hasSprite) {
+    const SPEC = {
+      walker: { span: 1.0, r: 1.15, w: 3, color: PAL.danger },
+      charger: { span: 1.9, r: 1.55, w: 5, color: PAL.bomber },
+      tank: { span: 0.8, r: 1.30, w: 7, color: PAL.tank },
+      bomber: { span: 1.2, r: 1.10, w: 3, color: PAL.fuse },
+      spitter: null,   // 远程另有弹体，不画挥砍
+    };
+    const spec = SPEC[e.variant] ?? (e.kind === 'minion' ? SPEC.walker : { span: 1.6, r: 1.5, w: 6, color: PAL.elite });
+    if (!spec) return;
+
+    const ctx = this.ctx;
+    // 挥击只在「劈砍」那一段出现：抬手期不画，收招期淡出
+    const k = (prog - 0.3) / 0.55;
+    if (k <= 0 || k >= 1) return;
+    const radius = e.r * spec.r + 14;
+    const mid = facing > 0 ? 0 : Math.PI;
+    const sweep = spec.span * (0.35 + k * 0.65);
+
+    ctx.save();
+    ctx.globalAlpha = (hasSprite ? 0.35 : 0.9) * (1 - k);
+    ctx.strokeStyle = spec.color;
+    ctx.lineWidth = spec.w;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, radius, mid - sweep / 2, mid + sweep / 2);
+    ctx.stroke();
+    if (e.variant === 'tank') {
+      // 重装：落点再补一圈压扁的尘环，读起来「沉」
+      ctx.globalAlpha = 0.5 * (1 - k);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(e.x, e.y + e.r * 0.5, radius * (0.6 + k * 0.5), radius * 0.28, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   drawDamageNums(run) {
     const ctx = this.ctx;
     ctx.save();
@@ -563,8 +614,12 @@ export class Renderer {
         || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
         || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true);
       // 刀光特效（优先专属，回退通用）
-      this.blitSprite(`effects/${base}_slash.png`, e.x + facing * 16, e.y, targetH * 0.75, false, facing)
+      const slashOk = this.blitSprite(`effects/${base}_slash.png`, e.x + facing * 16, e.y, targetH * 0.75, false, facing)
         || this.blitSprite('effects/slash.png', e.x + facing * 16, e.y, targetH * 0.75, false, facing);
+      // 变体各自的挥击弧：只有武侠那批有专属刀光贴图，其余位面所有小怪
+      // 一律回退到同一张 slash.png —— 玩家看到的「攻击」因此长得完全一样。
+      // 这里按变体画不同的弧（角度/半径/粗细/颜色），不新增资产也不动数值。
+      this.drawSwipe(e, facing, prog, slashOk);
     } else {
       // 走路动画：4 帧循环（e.anim 每秒 +8）+ 轻微上下颠簸
       const walkF = Math.floor(e.anim) % 4;
