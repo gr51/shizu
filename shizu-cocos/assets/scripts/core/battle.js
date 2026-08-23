@@ -1624,6 +1624,9 @@ export class RealtimeRun extends Run {
     const killBurst = this.stats.killBurst ?? 0;
     if (killBurst > 0 && e.kind === 'minion' && !fromBurst) {
       const kbR = 40;
+      // 蚀爆体是个真实的连锁爆炸，此前完全不发特效 ——
+      // 玩家只看到敌人成片莫名其妙地死，读不出「是我的爆炸在连锁」
+      this.emitFx('killBurst', e.x, e.y);
       for (const o of [...this.enemies]) {
         if (o === e || o.dead || o.kind === 'boss') continue;
         if (Math.hypot(o.x - e.x, o.y - e.y) < kbR) {

@@ -33,6 +33,7 @@ const PROC_FX = {
   spore: 0.50,       // 共生巢：孢子迸散
   swordQi: 0.28,     // 武侠：剑气纵横
   titanStep: 0.55,   // 巨神：巨神踏步
+  killBurst: 0.26,   // 蚀爆体：击杀连锁爆炸
 };
 
 /**
@@ -228,6 +229,9 @@ export class Renderer {
     ctx.fillStyle = this._vignette;
     ctx.fillRect(0, 0, ARENA.w, ARENA.h);
     ctx.restore();
+
+    // drawEnemy 拿不到 run，这里先把减速表挂上（每帧一次，不复制）
+    this._slows = run.elementalSlows ?? null;
 
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {
@@ -562,6 +566,16 @@ export class Renderer {
           }
           break;
         }
+        case 'killBurst': {
+          // 半径与核心层的 kbR=40 对齐，玩家才能学会「靠拢的怪会被连锁带走」
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = PAL.fuse;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 8 + k * 34, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
         case 'titanStep': {
           // 巨神：巨大而缓慢的踏地环 + 外圈余波
           ctx.globalAlpha = fade;
@@ -670,6 +684,36 @@ export class Renderer {
       : kind === 'boss' ? PAL.boss
       : kind === 'elite' ? PAL.elite
       : RING[e.variant] ?? null);
+    // 冰霜减速：核心层把被减速的敌人写进 run.elementalSlows，但渲染层从来没读过 ——
+    // 被冻住的怪和正常怪长得一模一样，玩家看不出自己的冰霜流派在生效。
+    // 画一圈霜色弧 + 脚下寒气，减速越重弧越满。
+    const chillAmt = this._slows?.get(e.id) ?? 0;
+    if (chillAmt > 0) {
+      // 画在**脚下**，与变体光环同一套视觉语言。
+      // 先前按碰撞半径 e.r(≈12) 画在身上，而贴图有 34px 高 ——
+      // 弧整个被贴图盖住，16 个被减速的敌人里只有边缘恰好露出的那一个看得见。
+      const ctx = this.ctx;
+      const k = Math.min(1, chillAmt / 0.6);
+      ctx.save();
+      ctx.globalAlpha = 0.35 + k * 0.5;
+      ctx.strokeStyle = '#9fd8ee';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(e.x, e.y + e.r * 0.45, e.r * 1.35, e.r * 0.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // 结霜的针状放射：一眼读出「这只被冻着」，而不只是多了一个圈
+      ctx.globalAlpha = 0.3 + k * 0.45;
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const r0 = e.r * 1.35, r1 = r0 + 5;
+        ctx.beginPath();
+        ctx.moveTo(e.x + Math.cos(a) * r0, e.y + e.r * 0.45 + Math.sin(a) * e.r * 0.5);
+        ctx.lineTo(e.x + Math.cos(a) * r1, e.y + e.r * 0.45 + Math.sin(a) * (e.r * 0.5 + 2));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     if (ringColor) {
       const ctx = this.ctx;
       ctx.save();
