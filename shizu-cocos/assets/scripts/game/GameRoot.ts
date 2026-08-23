@@ -748,6 +748,20 @@ export class GameRoot extends Component {
   }
 
   private showSettle(): void {
+    // 防死锁保护网：结算任何一步抛异常，都必须给出「回巢」出口
+    try {
+      this.renderSettleInner();
+    } catch (err) {
+      console.error('[settle] 结算渲染异常', err);
+      this.modal.show({
+        title: '结算出现异常',
+        rows: [{ text: `结算数据生成失败：${String(err?.message ?? err)}`, color: C.danger, size: 14 }],
+        buttons: [{ text: '回 巢', onClick: () => { this.run = null; this.renderLobby(); } }],
+      });
+    }
+  }
+
+  private renderSettleInner(): void {
     const r = this.run.finalize(this.repo);
     const rows: ModalRow[] = [
       { text: `评级 ${r.grade}　抵达阶段 ${r.stageReached}/5`, color: C.gold, size: 19 },

@@ -500,6 +500,21 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     cancelAnimationFrame(raf);
     cleanup();
     audio.stopBgm();
+    // 防死锁保护网：finalize/渲染任何一步抛异常，都必须给出「回巢」出口——
+    // 否则状态已锁 SETTLED 而弹窗没画出来，玩家永远停在最后一帧（=彻底卡死）
+    try {
+      renderSettleInner();
+    } catch (err) {
+      console.error('[settle] 结算渲染异常', err);
+      view.showModal({
+        title: '结算出现异常',
+        body: `<p>结算数据生成失败，本局奖励可能不完整。</p><p class="small sealed">${String(err?.message ?? err)}</p>`,
+        buttons: [{ text: '回 巢', style: 'primary', onClick: () => { view.closeModal(); ctx.toLobby(); } }],
+      });
+    }
+  }
+
+  function renderSettleInner() {
     const r = run.finalize(ctx.repo);
     const mm = Math.floor(r.survivedSec / 60);
     const ss = String(r.survivedSec % 60).padStart(2, '0');
