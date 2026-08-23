@@ -234,6 +234,8 @@ export class Renderer {
 
     // drawEnemy 拿不到 run，这里先把减速表挂上（每帧一次，不复制）
     this._slows = run.elementalSlows ?? null;
+    // 中毒态集合：DoT 作用中的敌人 id（渲染层画持续毒蚀标识用）
+    this._dotIds = new Set((run.dots ?? []).map((d) => d.eid));
 
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {
@@ -812,6 +814,25 @@ export class Renderer {
         ctx.lineTo(e.x + Math.cos(a) * r1, e.y + e.r * 0.45 + Math.sin(a) * (e.r * 0.5 + 2));
         ctx.stroke();
       }
+      ctx.restore();
+    }
+    // 中毒态：脚下绿色滴液圈 + 头顶上浮毒泡——「毒在生效」的持续标识
+    if (this._dotIds?.has(e.id)) {
+      const ctx = this.ctx;
+      const tt = run.time ?? 0;
+      const bob = (tt * 1.8 + e.id) % 1;   // 每只怪错相位的上浮泡
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.strokeStyle = '#8fe89f';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(e.x, e.y + e.r * 0.45, e.r * 1.2, e.r * 0.42, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.55 - bob * 0.35;
+      ctx.fillStyle = '#a8f0a0';
+      ctx.beginPath();
+      ctx.arc(e.x + Math.sin((e.id + tt) * 3) * 4, e.y - e.r * 0.6 - bob * 14, 2.2 - bob, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
     if (ringColor) {
