@@ -20,6 +20,7 @@ import { findSkill } from '../data/skills.js';
 import { findHiddenSkill } from '../data/hiddenSkills.js';
 import { currentWeapon, currentSkin, currentRouteMech } from '../data/weaponAttack.js';
 import { rollEliteAffix } from '../data/eliteAffixes.js';
+import { rollCrisis } from '../data/crises.js';
 
 /** 相机视野尺寸（逻辑坐标）：不是边界，而是「屏幕上能看见多大」。世界无限，玩家自由移动。 */
 export const ARENA = { w: 960, h: 560 };
@@ -151,6 +152,20 @@ export const FUSE_RANGE = 64;
 export const FUSE_TIME = 0.85;
 export const FUSE_BLAST_RADIUS = 62;
 
+/**
+ * 危机事件（data/crises.js）。整个系统此前**零引用** —— 3 条危机连同预警文案、
+ * 时长、设计约束全都写好了，从来没有接进战斗循环。
+ * 按其文件头的规格接：S2~S4 期间周期触发，预警 2s → 生效 6~8s → 解除。
+ */
+export const CRISIS_STAGE_MIN = 2;
+export const CRISIS_STAGE_MAX = 4;
+export const CRISIS_INTERVAL = 38;   // 触发间隔（秒）
+export const CRISIS_WARN = 2;        // 预警时长：够读完一行字并做出反应
+export const CRISIS_FRENZY_MUL = 1.35;   // 狂暴化：敌人移速倍率
+export const CRISIS_SWARM_MUL = 2.2;     // 虫巢震荡：刷怪率倍率
+export const CRISIS_METEOR_EVERY = 1.1;  // 陨石雨：每隔多久砸一发
+export const CRISIS_METEOR_R = 70;       // 陨石命中半径（预警圈同尺寸）
+
 /** 敌人时间坡的强度上限（防止「打不动 → 阶段不推进 → 敌人更厚」的死局） */
 export const TIME_SCALE_MAX = 6;
 
@@ -212,6 +227,8 @@ export class RealtimeRun extends Run {
     this.hits = [];           // 特效请求（渲染层消费后清空）
     this.time = 0;            // 本局已过秒数（父类 elapsed 同步）
     this.spawnCarry = 0;
+    this.crisis = null;        // { def, warnT, activeT, beatT } —— 当前危机
+    this.crisisTimer = 0;      // 距下次危机的计时
     this.surgeDone = 0;
     this.closerSpawned = false;
     this.stageElapsed = 0;
@@ -359,6 +376,7 @@ export class RealtimeRun extends Run {
     this.updateOrbs(dt);
     this.statusTick(dt);
     this.mechanicsTick(dt);
+    this.crisisTick(dt);
     this.miniRushTick(dt);
     this.ambushTick(dt);
     this.chestTick(dt);
@@ -444,11 +462,72 @@ export class RealtimeRun extends Run {
     p.anim += dt * (moving ? 10 : 6);
   }
 
+  /** 虫巢震荡生效期间的刷怪率倍率（其余时候为 1） */
+  get crisisSpawnMul() {
+    return this.crisis?.activeT > 0 && this.crisis.def.id === 'crisis_swarm' ? CRISIS_SWARM_MUL : 1;
+  }
+
+  /** 狂暴化生效期间的敌人移速倍率 */
+  get crisisSpeedMul() {
+    return this.crisis?.activeT > 0 && this.crisis.def.id === 'crisis_frenzy' ? CRISIS_FRENZY_MUL : 1;
+  }
+
+  /**
+   * 危机事件：S2~S4 每隔一段时间来一次，预警 → 生效 → 解除。
+   *
+   * 按 data/crises.js 的设计约束实现：危机是**环境效果**，不额外堆一份直接伤害
+   * （伤害来源已经够多了），它改变的是节奏；预警必须说清发生了什么、该怎么办。
+   * 陨石雨是唯一会掉血的，但只砸在预警圈里 —— 兑现「远离红色预警圈」那句话。
+   */
+  crisisTick(dt) {
+    const c = this.crisis;
+    if (c) {
+      if (c.warnT > 0) {
+        c.warnT -= dt;
+        if (c.warnT <= 0) this.emit(`${c.def.name} 开始了`, 'death');
+        return;
+      }
+      c.activeT -= dt;
+      if (c.def.id === 'crisis_meteor') {
+        c.beatT -= dt;
+        if (c.beatT <= 0) {
+          c.beatT = CRISIS_METEOR_EVERY;
+          const p = this.player;
+          const x = p.x + (this.rng() * 2 - 1) * 320;
+          const y = p.y + (this.rng() * 2 - 1) * 260;
+          this.emitFx('meteor', x, y);
+          if (Math.hypot(x - p.x, y - p.y) < CRISIS_METEOR_R) this.hurtPlayer(4 * this.dungeon.D, 0.5);
+          for (const e of [...this.enemies]) {
+            if (Math.hypot(e.x - x, e.y - y) > CRISIS_METEOR_R) continue;
+            e.hp -= 8 * this.dungeon.D;   // 敌我通吃：危机是环境，不站队
+            e.hitFlash = 0.15;
+            if (e.hp <= 0) this.killEnemy(e);
+            if (this.state !== RunState.FIGHTING) return;
+          }
+        }
+      }
+      if (c.activeT <= 0) {
+        this.emit(`${c.def.name} 平息了`, 'info');
+        this.crisis = null;
+        this.crisisTimer = 0;
+      }
+      return;
+    }
+    // 只在「考验期」出现：S1 是教学，S5 已经是位面之主的主场
+    if (this.stageNo < CRISIS_STAGE_MIN || this.stageNo > CRISIS_STAGE_MAX) return;
+    this.crisisTimer += dt;
+    if (this.crisisTimer < CRISIS_INTERVAL) return;
+    const def = rollCrisis(this.rng);
+    this.crisis = { def, warnT: CRISIS_WARN, activeT: def.duration, beatT: 0 };
+    this.emit(def.warn, 'death');
+    this.emitFx('surge', this.player.x, this.player.y);
+  }
+
   /** 按 dungeon 时间轴刷怪（持续流 + 涌潮 + 阶段收尾单位） */
   spawnTick(dt) {
     const st = this.stage;
 
-    this.spawnCarry += st.spawnRate * this.diffSpawnMul * dt;
+    this.spawnCarry += st.spawnRate * this.diffSpawnMul * this.crisisSpawnMul * dt;
     let n = Math.floor(this.spawnCarry);
     this.spawnCarry -= n;
 
@@ -635,6 +714,7 @@ export class RealtimeRun extends Run {
 
   updateEnemies(dt) {
     const p = this.player;
+    const crisisSpd = this.crisisSpeedMul;   // 狂暴化：全体敌人提速
     for (const e of this.enemies) {
       const prevAttackT = e.attackT;
       e.hitFlash = Math.max(0, e.hitFlash - dt);
@@ -672,8 +752,10 @@ export class RealtimeRun extends Run {
         }
       }
 
-      // 元素减速（魔法·冰霜）：被冻住的敌人移动变慢
-      const slowMul = this.elementalSlows.has(e.id) ? 0.55 : 1;
+      // 元素减速（魔法·冰霜）：被冻住的敌人移动变慢。
+      // 危机「狂暴化」的提速折进同一个系数 —— 移动点有五处，
+      // 分别去乘会漏（冲刺、远程走位、践踏靠近各是一处）。
+      const slowMul = (this.elementalSlows.has(e.id) ? 0.55 : 1) * crisisSpd;
 
       if (e.variant === 'spitter') {
         // 远程：停在射程边缘，逼玩家主动上前，不能龟在安全圈里

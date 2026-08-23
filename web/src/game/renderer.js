@@ -34,6 +34,7 @@ const PROC_FX = {
   swordQi: 0.28,     // 武侠：剑气纵横
   titanStep: 0.55,   // 巨神：巨神踏步
   killBurst: 0.26,   // 蚀爆体：击杀连锁爆炸
+  meteor: 0.5,       // 危机·陨石雨：落点冲击
 };
 
 /**
@@ -564,6 +565,22 @@ export class Renderer {
             else { ctx.moveTo(f.x, f.y - half); ctx.lineTo(f.x, f.y + half); }
             ctx.stroke();
           }
+          break;
+        }
+        case 'meteor': {
+          // 危机·陨石雨：红色冲击圈，半径与核心层 CRISIS_METEOR_R=70 对齐，
+          // 兑现预警文案里那句「远离红色预警圈」
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = '#e0653c';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 70 * (0.35 + k * 0.65), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = fade * 0.5;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 70, 0, Math.PI * 2);
+          ctx.stroke();
           break;
         }
         case 'killBurst': {
