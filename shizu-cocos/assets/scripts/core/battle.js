@@ -1940,6 +1940,7 @@ export class RealtimeRun extends Run {
       }
       case 'mirrorLaser': {
         // 奇巧迷宫：镜面双向 —— 横竖各来一道，与机关城的单向激光区分开
+        this.emit('【镜面激光】横竖双绝，走位避开', 'death');
         for (const horiz of [true, false]) {
           const line = horiz ? (p.y + (this.rng() * 2 - 1) * 130) : (p.x + (this.rng() * 2 - 1) * 130);
           this.emitFx('laser', horiz ? p.x : line, horiz ? line : p.y, { horiz });
@@ -1976,6 +1977,7 @@ export class RealtimeRun extends Run {
       }
       case 'spore': {
         // 共生巢：孢子迸散 —— 两团孢子在身边炸开，逼你换位
+        this.emit('【孢子迸散】毒孢在身边炸开，快换位', 'death');
         for (let i = 0; i < 2; i++) {
           const x = p.x + (this.rng() * 2 - 1) * 200;
           const y = p.y + (this.rng() * 2 - 1) * 200;
