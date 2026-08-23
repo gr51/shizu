@@ -1204,6 +1204,9 @@ export class RealtimeRun extends Run {
           const jumpDmg = dmg * chainDmg * Math.pow(decay, j);
           nb.hp -= jumpDmg;
           nb.hitFlash = 0.12;
+          // 链式闪电视觉：上一跳目标 → 新目标的一道锯齿线。
+          // 此前只有伤害数字没有闪电，玩家看不出「弹射」发生了
+          this.emitFx('chainZap', (last.x + nb.x) / 2, (last.y + nb.y) / 2, { x1: last.x, y1: last.y, x2: nb.x, y2: nb.y });
           this.damageNums.push({ x: nb.x, y: nb.y - 24, v: Math.round(jumpDmg), crit: false, life: 0.9 });
           if (nb.hp <= 0) this.killEnemy(nb);
           last = nb;

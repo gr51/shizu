@@ -34,6 +34,7 @@ const PROC_FX = {
   swordQi: 0.28,     // 武侠：剑气纵横
   titanStep: 0.55,   // 巨神：巨神踏步
   killBurst: 0.26,   // 蚀爆体：击杀连锁爆炸
+  chainZap: 0.14,    // 渡劫·雷链弹射：跳与跳之间的锯齿闪电
   meteor: 0.5,       // 危机·陨石雨：落点冲击
 };
 
@@ -591,6 +592,34 @@ export class Renderer {
           ctx.beginPath();
           ctx.arc(f.x, f.y, 8 + k * 34, 0, Math.PI * 2);
           ctx.stroke();
+          break;
+        }
+        case 'chainZap': {
+          // 渡劫·雷链弹射：两跳目标之间的锯齿闪电——「弹射」必须看得见
+          const o = f.opts ?? {};
+          if (o.x1 == null) break;
+          const segs = 4;
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = '#bfe3ff';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(o.x1, o.y1);
+          for (let s2 = 1; s2 < segs; s2++) {
+            const t = s2 / segs;
+            const mx = o.x1 + (o.x2 - o.x1) * t;
+            const my = o.y1 + (o.y2 - o.y1) * t;
+            // 垂直偏移做锯齿；中段最歪，两端钉死在目标身上
+            const off = Math.sin(t * Math.PI) * 10 * ((s2 % 2) ? 1 : -1);
+            ctx.lineTo(mx + off, my + off * 0.6);
+          }
+          ctx.lineTo(o.x2, o.y2);
+          ctx.stroke();
+          // 命中点小闪
+          ctx.globalAlpha = fade * 0.8;
+          ctx.fillStyle = '#eaf6ff';
+          ctx.beginPath();
+          ctx.arc(o.x2, o.y2, 4 + k * 5, 0, Math.PI * 2);
+          ctx.fill();
           break;
         }
         case 'titanStep': {
