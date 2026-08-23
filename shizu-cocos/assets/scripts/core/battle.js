@@ -20,7 +20,8 @@ import { findSkill } from '../data/skills.js';
 import { findHiddenSkill } from '../data/hiddenSkills.js';
 import { currentWeapon, currentSkin, currentRouteMech } from '../data/weaponAttack.js';
 import { rollEliteAffix } from '../data/eliteAffixes.js';
-import { rollCrisis } from '../data/crises.js';
+import { CRISES } from '../data/crises.js';
+import { getPlaneModule } from '../data/planeModules.js';
 
 /** 相机视野尺寸（逻辑坐标）：不是边界，而是「屏幕上能看见多大」。世界无限，玩家自由移动。 */
 export const ARENA = { w: 960, h: 560 };
@@ -482,7 +483,11 @@ export class RealtimeRun extends Run {
     if (this.stageNo < CRISIS_STAGE_MIN || this.stageNo > CRISIS_STAGE_MAX) return;
     this.crisisTimer += dt;
     if (this.crisisTimer < CRISIS_INTERVAL) return;
-    const def = rollCrisis(this.rng);
+    // 位面插件切面：只从该位面允许的危机子集里抽（空集 = 该位面无危机）
+    const allowed = getPlaneModule(this.dungeon.plane.id)?.crises ?? null;
+    const pool = allowed === null ? CRISES : CRISES.filter((c) => allowed.includes(c.id));
+    if (pool.length === 0) { this.crisisTimer = CRISIS_INTERVAL; return; }
+    const def = pool[Math.floor(this.rng() * pool.length)];
     this.crisis = { def, warnT: CRISIS_WARN, activeT: def.duration, beatT: 0 };
     this.emit(def.warn, 'death');
     this.emitFx('surge', this.player.x, this.player.y);

@@ -87,8 +87,35 @@ export function getPlaneModule(id) {
     },
     /** 技能切面：本位面通关激活的路线（= 可学技能的来源路线） */
     skillRoutes: plane.routes ?? [],
+    /** 音频切面：BGM 调性键（audio.startBgm 按 id 换和声层）；ambience 为可选环境音层标记 */
+    audio: { bgm: id, ambience: AMBIENCE_BY_PLANE[id] ?? null },
+    /** 危机切面：本位面允许触发的危机子集（教学/主题不合的可剔除） */
+    crises: CRISES_BY_PLANE[id] ?? null,   // null = 全部允许
+    /** 掉落切面：传承残影加权池——位面主题 relic 在此加成 */
+    drops: DROPS_BY_PLANE[id] ?? null,
   };
 }
+
+/** 各位面环境音层（web audio.js 的 BGM 强度层之外的氛围标记；Cocos 接入音频时同源消费） */
+export const AMBIENCE_BY_PLANE = {
+  jiguan: 'steam', aofa: 'arcane', qiqiao: 'musicbox', dujie: 'storm',
+  gongde: 'choir', shihai: 'moan', gongshengchao: 'hive', wuxia: 'wind',
+  shanhai: 'rumble', jijia: 'engine', jushen: 'quake', zhutian: 'void',
+};
+
+/** 各位面允许的危机子集（null = 全部；机关城为教学位面禁用危机） */
+export const CRISES_BY_PLANE = {
+  jiguan: [],
+  dujie: ['crisis_meteor'],              // 渡劫位面只出天雷类危机（主题一致）
+  gongde: ['crisis_meteor', 'crisis_swarm'],
+  shihai: ['crisis_swarm', 'crisis_frenzy'],
+};
+
+/** 位面主题掉落倾向：匹配 relic 的权重加成倍率（其余 relic 基础权重不变） */
+export const DROPS_BY_PLANE = {
+  jiguan:  {},                          // 机关城无专属 relic，均匀池
+  dujie:   { lei_shi_zhi_xin: 2.0 },    // 示例：雷狮之心在渡劫位面双倍权重
+};
 
 /** 全部位面模块（按 codex 排序） */
 export function listPlaneModules() {
