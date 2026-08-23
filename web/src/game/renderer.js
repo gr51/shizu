@@ -146,14 +146,25 @@ export class Renderer {
     // 用径向渐晕代替均匀压暗：中心（玩家所在）留亮，四周压深。
     // 均匀压暗压不住无缝地砖的重复感，整片地面读起来像壁纸；
     // 渐晕既打散了规律网格，又把视线收回玩家身上。
-    const cx = camX + ARENA.w / 2;
-    const cy = camY + ARENA.h / 2;
-    const vig = ctx.createRadialGradient(cx, cy, ARENA.h * 0.16, cx, cy, ARENA.w * 0.62);
-    vig.addColorStop(0, 'rgba(8, 11, 16, 0.10)');
-    vig.addColorStop(0.55, 'rgba(8, 11, 16, 0.34)');
-    vig.addColorStop(1, 'rgba(5, 7, 10, 0.72)');
-    ctx.fillStyle = vig;
-    ctx.fillRect(camX, camY, ARENA.w, ARENA.h);
+    //
+    // 渐变在**竞技场局部坐标**里形状恒定，只是整体随相机平移 —— 所以建一次就够。
+    // 这里原本每帧 createRadialGradient + 3 次 addColorStop：60fps 下每秒白造
+    // 60 个渐变对象，纯粹是 CPU 与 GC 的无谓开销（用户实测反馈过卡顿）。
+    if (!this._vignette) {
+      const g = ctx.createRadialGradient(
+        ARENA.w / 2, ARENA.h / 2, ARENA.h * 0.16,
+        ARENA.w / 2, ARENA.h / 2, ARENA.w * 0.62,
+      );
+      g.addColorStop(0, 'rgba(8, 11, 16, 0.10)');
+      g.addColorStop(0.55, 'rgba(8, 11, 16, 0.34)');
+      g.addColorStop(1, 'rgba(5, 7, 10, 0.72)');
+      this._vignette = g;
+    }
+    ctx.save();
+    ctx.translate(camX, camY);       // 局部坐标 → 世界坐标
+    ctx.fillStyle = this._vignette;
+    ctx.fillRect(0, 0, ARENA.w, ARENA.h);
+    ctx.restore();
 
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {

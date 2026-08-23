@@ -48,13 +48,6 @@ await shot('modal-confirm');
 // 「第一个按钮」不再保证是开始键
 await p.click('#modalRoot .modal-btns button:has-text("撕开裂缝")');
 await p.waitForSelector('#gameCanvas', { timeout: 10000 });
-// DEBUG
-console.log('DEBUG post-start:', JSON.stringify(await p.evaluate(() => ({
-  state: globalThis.__shizu.run?.state,
-  time: globalThis.__shizu.run?.time,
-  modalShow: document.querySelector('#modalRoot')?.classList.contains('show'),
-  modalTitle: document.querySelector('#modalRoot .modal-title')?.textContent ?? null,
-}))));
 await p.waitForFunction(() => (globalThis.__shizu.run?.time ?? 0) > 0.2, null, { timeout: 20000 });
 await shot('battle-start', 800);
 
@@ -102,19 +95,17 @@ await shot('settle', 900);
 
 // —— 技能通道的三选一 ——
 // 上面那局是首周目：位面路线未激活 → 属性通道 → 三选一全是属性（设计如此）。
-// 技能内容只在「匹配位面」才出得来，所以这里预置一份已激活渡劫的存档重新进页面。
+// 技能内容只在「匹配位面」才出得来，所以这里重载页面拿干净状态，再改内存里的存档。
 // 用重载而不是接着上一局切位面：结算态下还挂着模态与旧循环，直接 startPlane 会被吞掉。
-// 等落盘完成再读：persist 与结算弹窗是异步先后，读早了会拿到 null。
-await p.waitForFunction(() => !!globalThis.localStorage.getItem('shizu_save'), null, { timeout: 8000 }).catch(() => {});
-await p.evaluate(() => {
-  const raw = globalThis.localStorage.getItem('shizu_save');
-  const s = JSON.parse(raw);
-  s.player.totalRuns = 5;
-  s.player.geneLocks.dujie = 3;   // 渡劫解锁到第 3 段 → 三选一应给第 4-5 段
-  globalThis.localStorage.setItem('shizu_save', JSON.stringify(s));
-});
+// 不碰 localStorage —— 上一局没走到结算时它是空的，JSON.parse(null) 会把整个截图流程崩掉；
+// 而 startBattle 读的本来就是 ctx.save，改内存足够。
 await p.reload({ waitUntil: 'networkidle' });
 await p.waitForFunction(() => !!globalThis.__shizu, null, { timeout: 8000 });
+await p.evaluate(() => {
+  const s = globalThis.__shizu.ctx.save;
+  s.player.totalRuns = 5;
+  s.player.geneLocks.dujie = 3;   // 渡劫解锁到第 3 段 → 三选一应给第 4-5 段
+});
 await p.evaluate(() => globalThis.__shizu.startPlane('dujie'));
 await p.waitForFunction(() => (globalThis.__shizu.run?.time ?? 0) > 0.2, null, { timeout: 20000 });
 
@@ -185,6 +176,35 @@ for (const [what, field, name] of [
       return `state=${r.state} 同屏=${r.enemies.length} ${JSON.stringify(n)}`;
     }).catch(() => '取不到');
     console.log(`  ⚠ 没抓到${what} —— ${diag}`);
+  }
+}
+
+// —— 各位面战场巡检 ——
+// 上面的流程只走过 jiguan 和 dujie 两个位面，另外 10 个位面的战场从来没被看过一眼。
+// 「地板其实是一张角色立绘」这类问题恰恰是逐位面独立的：一个位面坏了，
+// 其余 11 个照样正常，跑一遍主流程什么也发现不了。
+// 默认抽查换过图/有风险的几个，可用 SHOTS_PLANES=a,b,c 覆盖；SHOTS_PLANES=all 全扫。
+const ALL_PLANES = ['jiguan', 'aofa', 'qiqiao', 'dujie', 'gongde', 'shihai',
+  'gongshengchao', 'wuxia', 'shanhai', 'jijia', 'jushen', 'zhutian'];
+const envPlanes = process.env.SHOTS_PLANES;
+const sample = envPlanes === 'all' ? ALL_PLANES
+  : envPlanes ? envPlanes.split(',').map((s) => s.trim()).filter(Boolean)
+  : ['gongde', 'aofa', 'gongshengchao'];
+
+if (sample.length) {
+  console.log(`\n各位面战场巡检（${sample.length} 个）：`);
+  for (const id of sample) {
+    try {
+      await p.evaluate(() => globalThis.__shizu.setTimeScale(1));
+      await p.evaluate((pid) => globalThis.__shizu.startPlane(pid), id);
+      await p.waitForFunction(() => (globalThis.__shizu.run?.time ?? 0) > 0.2, null, { timeout: 20000 });
+      if (await p.isVisible('#modalRoot.show').catch(() => false)) await advanceModal();
+      await p.evaluate(() => globalThis.__shizu.setTimeScale(3));
+      await p.keyboard.down('KeyD'); await p.waitForTimeout(1200); await p.keyboard.up('KeyD');
+      await shot(`plane-${id}`, 300);
+    } catch (e) {
+      console.log(`  ⚠ ${id} 巡检失败：${String(e).split('\n')[0]}`);
+    }
   }
 }
 
