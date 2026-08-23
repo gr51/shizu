@@ -659,37 +659,83 @@ export class Renderer {
    */
   drawSwipe(e, facing, prog, hasSprite) {
     const SPEC = {
-      walker: { span: 1.0, r: 1.15, w: 3, color: PAL.danger },
-      charger: { span: 1.9, r: 1.55, w: 5, color: PAL.bomber },
-      tank: { span: 0.8, r: 1.30, w: 7, color: PAL.tank },
-      bomber: { span: 1.2, r: 1.10, w: 3, color: PAL.fuse },
+      walker:  { span: 1.0, r: 1.15, w: 3, color: PAL.danger,  style: 'arc' },
+      charger: { span: 1.9, r: 1.55, w: 5, color: PAL.bomber,  style: 'arc2' },  // 主弧 + 残影副弧：大开大合的冲撞感
+      tank:    { span: 0.8, r: 1.30, w: 7, color: PAL.tank,    style: 'arc' },   // + 地面尘环：厚重
+      bomber:  { span: 1.2, r: 1.10, w: 3, color: PAL.fuse,    style: 'thrust' }, // 自爆怪：直刺不是挥砍
       spitter: null,   // 远程另有弹体，不画挥砍
     };
-    const spec = SPEC[e.variant] ?? (e.kind === 'minion' ? SPEC.walker : { span: 1.6, r: 1.5, w: 6, color: PAL.elite });
+    const spec = SPEC[e.variant] ?? (e.kind === 'minion' ? SPEC.walker : { span: 1.6, r: 1.5, w: 6, color: PAL.elite, style: 'arc' });
     if (!spec) return;
 
     const ctx = this.ctx;
     // 挥击只在「劈砍」那一段出现：抬手期不画，收招期淡出
     const k = (prog - 0.3) / 0.55;
     if (k <= 0 || k >= 1) return;
+    const ease = k * k * (3 - 2 * k);   // smoothstep：起手慢-中段快-收招慢
     const radius = e.r * spec.r + 14;
     const mid = facing > 0 ? 0 : Math.PI;
-    const sweep = spec.span * (0.35 + k * 0.65);
+    const alpha = (hasSprite ? 0.35 : 0.9) * (1 - k);
 
     ctx.save();
-    ctx.globalAlpha = (hasSprite ? 0.35 : 0.9) * (1 - k);
-    ctx.strokeStyle = spec.color;
-    ctx.lineWidth = spec.w;
     ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.arc(e.x, e.y, radius, mid - sweep / 2, mid + sweep / 2);
-    ctx.stroke();
+    ctx.strokeStyle = spec.color;
+
+    if (spec.style === 'thrust') {
+      // 直刺：一条短线从身侧刺向面前，随进度伸出再收回——与挥砍弧完全不同的剪影
+      const reach = radius * (0.45 + Math.sin(ease * Math.PI) * 0.95);
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = spec.w + 1;
+      ctx.beginPath();
+      ctx.moveTo(e.x + facing * e.r * 0.4, e.y - 4);
+      ctx.lineTo(e.x + facing * reach, e.y - 4);
+      ctx.stroke();
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.fillStyle = spec.color;
+      ctx.beginPath();
+      ctx.arc(e.x + facing * reach, e.y - 4, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // 挥扫：弧心角随进度从一侧真实扫到另一侧——「抡过去」而不是原地亮一下
+      const sweep = spec.span * (0.35 + ease * 0.65);
+      const c = mid - facing * spec.span * 0.5 + facing * ease * spec.span;
+      const half = spec.span * 0.22;
+      const drawArc = (w, a2, bright) => {
+        ctx.globalAlpha = a2;
+        ctx.lineWidth = w;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, radius, c - half, c + half);
+        ctx.stroke();
+        if (bright) {
+          // 白色亮芯：宽弧打底 + 细亮芯，饱和度直接拉满
+          ctx.globalAlpha = a2 * 0.85;
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = Math.max(1, w * 0.4);
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, radius, c - half, c + half);
+          ctx.stroke();
+          ctx.strokeStyle = spec.color;
+        }
+      };
+      if (spec.style === 'arc2' && k > 0.25) {
+        // charger 残影副弧：滞后主弧 0.25，读出「大动作」的拖影
+        const k2 = Math.max(0, k - 0.25);
+        const e2 = k2 * k2 * (3 - 2 * k2);
+        const c2 = mid - facing * spec.span * 0.5 + facing * e2 * spec.span;
+        ctx.globalAlpha = alpha * 0.45;
+        ctx.lineWidth = spec.w * 0.6;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, radius * 0.92, c2 - half, c2 + half);
+        ctx.stroke();
+      }
+      drawArc(spec.w, alpha, !hasSprite);
+    }
     if (e.variant === 'tank') {
       // 重装：落点再补一圈压扁的尘环，读起来「沉」
       ctx.globalAlpha = 0.5 * (1 - k);
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(e.x, e.y + e.r * 0.5, radius * (0.6 + k * 0.5), radius * 0.28, 0, 0, Math.PI * 2);
+      ctx.ellipse(e.x, e.y + e.r * 0.5, radius * (0.6 + ease * 0.5), radius * 0.28, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
