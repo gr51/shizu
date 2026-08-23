@@ -255,6 +255,9 @@ export class Renderer {
     // —— 死亡帧（尸体淡出）——
     this.drawDeaths(run);
 
+    // —— 友军灵体（寄生反水/召唤）：在敌人之上、玩家之下 ——
+    this.drawMechAllies(run);
+
     // —— 玩家 ——
     this.drawPlayer(run);
 
@@ -1052,6 +1055,35 @@ export class Renderer {
       const alpha = Math.min(1, a + tier * 0.15); // 进化档位 → 更不透明
       const ok = this.blitSprite(`effects/${sprite}.png`, s.x, s.y, size, false, facing, alpha);
       if (!ok) this.dot(s.x, s.y, 5 + tier * 2, PAL.shotDot);
+    }
+  }
+
+  /** 友军灵体（寄生反水/召唤单位）：青绿阵营色与敌对阵营区分——此前帮玩家打怪的盟友是隐形的 */
+  drawMechAllies(run) {
+    const ctx = this.ctx;
+    for (const a of run.mechAllies ?? []) {
+      const lifeK = Math.max(0, Math.min(1, a.life / 5));
+      const bob = Math.sin((a.anim ?? 0) * 1.4) * 2.5;
+      ctx.save();
+      // 底光：友军青绿，与敌人的红/橙阵营色一眼区分
+      ctx.globalAlpha = 0.25 + lifeK * 0.3;
+      ctx.fillStyle = '#7fe0c3';
+      ctx.beginPath();
+      ctx.arc(a.x, a.y + 6, 9, 0, Math.PI * 2);
+      ctx.fill();
+      // 本体：漂浮小灵体，寿命越少越透明（快消散的可读信号）
+      ctx.globalAlpha = 0.55 + lifeK * 0.45;
+      ctx.fillStyle = '#a8f0dc';
+      ctx.beginPath();
+      ctx.arc(a.x, a.y + bob, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+      // 双眼：给它一点「活物」感
+      ctx.fillStyle = '#12303a';
+      ctx.beginPath();
+      ctx.arc(a.x - 2.2, a.y + bob - 1, 1.2, 0, Math.PI * 2);
+      ctx.arc(a.x + 2.2, a.y + bob - 1, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
