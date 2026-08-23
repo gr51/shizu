@@ -1573,6 +1573,10 @@ export class RealtimeRun extends Run {
         : this.comboCount >= 20 ? '锐不可当'
         : '割草如割韭菜';
       this.emit(`🔥 ${this.comboCount} 连击 · ${flavor}！基因 +${bonus}`, 'win');
+      // 里程碑庆祝：全屏基因雨特效 + 玩家脚下 surge——爽感峰值要有视觉峰值配套
+      // （不加 hitStop：高频庆祝的微停顿会累积拖慢刷怪节奏，破坏「成海」密度）
+      this.emitFx('gene', this.player.x, this.player.y);
+      this.emitFx('surge', this.player.x, this.player.y);
     }
 
     this.emitFx('burst', e.x, e.y);
