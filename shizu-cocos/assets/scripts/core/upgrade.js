@@ -109,9 +109,33 @@ export function rollUpgradeOptions(dungeon, save, runState, rng, opts = {}) {
   }
 
   const skills = skillPool(dungeon.channelRoutes, save, runState.learnedSkills).filter(keep);
-  const picked = weightedPickMany([...skills, ...mechPool], CHOICE_COUNT, weightOf, rng);
+  // 技能通道里三类选项必须共存。
+  //
+  // 这里原本只在「skills + mech 凑不满 3 个」时才拿属性补位，而那个条件永远不成立，
+  // 于是技能通道局的属性选项恒为 0。更糟的是强化池每个流派只有 2~3 条 ——
+  // 一整局十几次升级，反复看到的就是同样那两三个强化。
+  // 实测 16 局成长线：中期「技能 3 / 强化 18 / 属性 0」，
+  // 路线满段后退化成「技能 0 / 强化 24 / 属性 0」。三类从不共存，
+  // 每次升级面对的都是同质的三个东西 —— 这正是「内容没意思」的机制来源。
+  //
+  // 按**类别配额**混合，而不是把三个池直接倒在一起：
+  // 属性池 16 条权重和 436，强化池 2~3 条权重和 88，直接混会被属性淹没（实测 19:5）。
+  // 配额法先定各类占比、再在类内按原有稀有度权重抽，与池子大小无关，
+  // 加内容时也不会悄悄改变手感。
+  const CATEGORY_SHARE = { skill: 0.40, mech: 0.30, attr: 0.30 };
+  const groups = [
+    ['skill', skills], ['mech', mechPool], ['attr', attrs],
+  ].filter(([, pool]) => pool.length > 0);
+  const shareSum = groups.reduce((s, [k]) => s + CATEGORY_SHARE[k], 0) || 1;
+  const norm = new Map();
+  for (const [k, pool] of groups) {
+    const raw = pool.reduce((s, x) => s + weightOf(x), 0) || 1;
+    norm.set(k, (CATEGORY_SHARE[k] / shareSum) / raw);   // 把该类总权重压到目标占比
+  }
+  const mixedWeight = (x) => weightOf(x) * (norm.get(x.kind) ?? 1);
+  const picked = weightedPickMany(groups.flatMap(([, pool]) => pool), CHOICE_COUNT, mixedWeight, rng);
   if (picked.length < CHOICE_COUNT) {
-    // 技能池枯竭 → 用通用属性补位（属性非路线专属，不违反红线 3）
+    // 三类合起来仍不足 3 个（极端情况：几乎全被放逐）→ 用剩下的属性兜底
     const fill = weightedPickMany(
       attrs.filter((a) => !picked.some((x) => x.id === a.id)),
       CHOICE_COUNT - picked.length,
