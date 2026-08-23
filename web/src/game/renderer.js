@@ -28,6 +28,11 @@ const PROC_FX = {
   dodge: 0.22,       // 闪避翻滚
   shield: 0.40,      // 护盾
   skill: 0.26,       // 主动技释放
+  lotus: 0.55,       // 功德：金光普照
+  corpseTide: 0.45,  // 尸海：尸潮拱地
+  spore: 0.50,       // 共生巢：孢子迸散
+  swordQi: 0.28,     // 武侠：剑气纵横
+  titanStep: 0.55,   // 巨神：巨神踏步
 };
 
 const PAL = {
@@ -433,6 +438,82 @@ export class Renderer {
           ctx.lineWidth = 3;
           ctx.beginPath();
           ctx.arc(f.x, f.y, 16 + k * 44, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
+        case 'lotus': {
+          // 功德：三重金环由内向外绽开，暖色 = 利玩家的事件（与告警红/橙区分）
+          ctx.globalAlpha = fade * 0.9;
+          ctx.strokeStyle = PAL.gold;
+          for (let i = 0; i < 3; i++) {
+            const rr = 40 + k * 300 - i * 46;
+            if (rr <= 0) continue;
+            ctx.lineWidth = 3 - i;
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, rr, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          break;
+        }
+        case 'corpseTide': {
+          // 尸海：地面隆起 —— 压扁的土环 + 几根冒出的尖刺
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = '#7d8f5a';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.ellipse(f.x, f.y, 18 + k * 46, (18 + k * 46) * 0.4, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          for (let i = 0; i < 4; i++) {
+            const a = (i / 4) * Math.PI * 2 + f.x;
+            const h = 16 * (1 - Math.abs(k - 0.4) * 2);
+            if (h <= 0) continue;
+            ctx.beginPath();
+            ctx.moveTo(f.x + Math.cos(a) * 20, f.y + Math.sin(a) * 8);
+            ctx.lineTo(f.x + Math.cos(a) * 20, f.y + Math.sin(a) * 8 - h);
+            ctx.stroke();
+          }
+          break;
+        }
+        case 'spore': {
+          // 共生巢：一团慢慢散开的孢子点云
+          ctx.globalAlpha = fade * 0.85;
+          ctx.fillStyle = '#c98fd0';
+          for (let i = 0; i < 10; i++) {
+            const a = (i / 10) * Math.PI * 2 + f.x * 0.7;
+            const rr = (14 + k * 70) * (0.6 + ((i * 37) % 40) / 100);
+            ctx.beginPath();
+            ctx.arc(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr * 0.7, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          break;
+        }
+        case 'swordQi': {
+          // 武侠：一线破空 —— 比激光更细更利，墨白色
+          const horiz = f.data?.horiz ?? true;
+          const half = ARENA.w;
+          ctx.globalAlpha = fade;
+          for (const [w, c] of [[9, 'rgba(230,240,255,0.20)'], [3, '#eaf2ff'], [1, '#ffffff']]) {
+            ctx.strokeStyle = c;
+            ctx.lineWidth = w;
+            ctx.beginPath();
+            if (horiz) { ctx.moveTo(f.x - half, f.y); ctx.lineTo(f.x + half, f.y); }
+            else { ctx.moveTo(f.x, f.y - half); ctx.lineTo(f.x, f.y + half); }
+            ctx.stroke();
+          }
+          break;
+        }
+        case 'titanStep': {
+          // 巨神：巨大而缓慢的踏地环 + 外圈余波
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = '#9a8f7a';
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.ellipse(f.x, f.y, 30 + k * 170, (30 + k * 170) * 0.42, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = fade * 0.4;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.ellipse(f.x, f.y, 30 + k * 240, (30 + k * 240) * 0.42, 0, 0, Math.PI * 2);
           ctx.stroke();
           break;
         }

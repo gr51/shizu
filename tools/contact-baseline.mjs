@@ -1,10 +1,16 @@
-// 接触伤害基线对照：改「小怪攻击」这类平衡项之前先跑一遍存下来，改完再跑同样的种子比。
-// 关键是**同种子**：割草单局方差极大，不固定种子的前后对比毫无意义。
+// 平衡基线对照：改数值/机制之前先跑一遍存下来，改完再跑一遍比。
+// 割草单局方差极大，不固定种子的前后对比毫无意义。
 //
 // 用法：
 //   node tools/contact-baseline.mjs > .tmp/baseline.txt     # 改动前
 //   node tools/contact-baseline.mjs > .tmp/after.txt        # 改动后
 //   diff .tmp/baseline.txt .tmp/after.txt
+//   SEEDS=20 node tools/contact-baseline.mjs                # 加大样本
+//
+// ⚠ 同种子对照**只在改动不消耗 rng 时成立**。
+// 一旦新增了会调 this.rng() 的逻辑（比如给位面加一个招牌事件），
+// 整条随机流就会错位，同一种子之后的所有抽取全变 —— 逐局 diff 立刻失去意义，
+// 只能看聚合指标，而且要把样本加大到能压住噪声（20 局里 3 胜 vs 5 胜说明不了任何事）。
 
 import { createMemoryStorage, createSaveRepo } from '../shizu-cocos/assets/scripts/core/save.js';
 import { generateDungeon } from '../shizu-cocos/assets/scripts/core/dungeon.js';
@@ -14,7 +20,8 @@ import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
 import { botAct, pickOption } from '../tests/helpers.mjs';
 
 const PLANES = ['aofa', 'shihai', 'shanhai', 'jiguan'];
-const SEEDS = [1, 2, 3, 4, 5];
+const SEED_N = Number(process.env.SEEDS ?? 5);
+const SEEDS = Array.from({ length: SEED_N }, (_, i) => i + 1);
 const DT = 1 / 60;
 
 function run1(planeId, seed) {

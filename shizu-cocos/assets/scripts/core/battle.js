@@ -157,18 +157,25 @@ export const TIME_SCALE_MAX = 6;
 // ===== 位面主题机制（关卡策划二章 / planes.js 的 theme 列）=====
 // 每个位面一种独特机制，数据驱动，都挂在 battle 主循环 / 击杀回调上。
 export const PLANE_MECHANICS = {
-  jiguan:       { type: 'laser',        interval: 12 },        // 机关城：激光横扫
-  aofa:         { type: 'bulletHell',   interval: 10, count: 3 }, // 奥法：弹幕法阵
-  qiqiao:       { type: 'laser',        interval: 10 },        // 奇巧迷宫：镜面激光
-  dujie:        { type: 'lightning',    interval: 10 },        // 渡劫：随机落雷
-  gongde:       { type: 'armor',        factor: 0.3 },        // 功德：金身减伤
-  shihai:       { type: 'corpseBlast',  radius: 55, mul: 1.3 }, // 尸海：尸爆连锁
-  gongshengchao:{ type: 'parasite',     chance: 0.12, duration: 5 }, // 共生：寄生反水
-  wuxia:        { type: 'combo',        mul: 1.2 },           // 武侠：连招增伤
-  shanhai:      { type: 'stomp',        interval: 18, radius: 100 }, // 山海：巨型践踏
-  jijia:        { type: 'missile',      interval: 14 },        // 机甲：炮台导弹
-  jushen:       { type: 'stomp',        interval: 16, radius: 100 }, // 巨神：震地
-  zhutian:      { type: 'mix',          interval: 10 },        // 诸天之心：全机制融合
+  // type      = 常驻规则（被动减伤 / 击杀触发 / 伤害乘区），没有周期表现
+  // signature = 该位面的**周期性招牌事件**：玩家一眼认出「我在哪个位面」靠的是它
+  //
+  // 此前 12 个位面里有 4 个（功德/尸海/共生巢/武侠）只有 type 没有 signature ——
+  // 它们的机制全是隐形被动，玩家在这些位面里从头到尾什么都不会发生，
+  // 位面之间自然只剩背景色不同。另有 2 对重复（机关城=奇巧=激光、山海=巨神=践踏）。
+  // 现在 12 个各不相同。
+  jiguan:       { type: 'laser',        interval: 12 },                        // 机关城：激光横扫
+  aofa:         { type: 'bulletHell',   interval: 10, count: 3 },              // 奥法：弹幕法阵
+  qiqiao:       { type: 'mirrorLaser',  interval: 11 },                        // 奇巧迷宫：镜面双向激光（与机关城的单向区分）
+  dujie:        { type: 'lightning',    interval: 10 },                        // 渡劫：随机落雷
+  gongde:       { type: 'armor',        factor: 0.3, signature: 'lotus',    interval: 13 }, // 功德：金身减伤 + 金光普照
+  shihai:       { type: 'corpseBlast',  radius: 55, mul: 1.3, signature: 'corpseTide', interval: 11 }, // 尸海：尸爆连锁 + 尸潮拱地
+  gongshengchao:{ type: 'parasite',     chance: 0.12, duration: 5, signature: 'spore', interval: 12 }, // 共生：寄生反水 + 孢子迸散
+  wuxia:        { type: 'combo',        mul: 1.2, signature: 'swordQi', interval: 12 },     // 武侠：连招增伤 + 剑气纵横
+  shanhai:      { type: 'stomp',        interval: 18, radius: 100 },           // 山海：巨型践踏
+  jijia:        { type: 'missile',      interval: 14 },                        // 机甲：炮台导弹
+  jushen:       { type: 'titanStep',    interval: 15, radius: 150 },           // 巨神：巨神踏步（比山海更大更慢）
+  zhutian:      { type: 'mix',          interval: 10 },                        // 诸天之心：全机制融合
 };
 
 
@@ -1850,25 +1857,29 @@ export class RealtimeRun extends Run {
     this.updateMechAllies(dt);
     this.updateMechProjectiles(dt);
 
-    // 挂在击杀/接触上的机制不走周期计时
-    if (['armor', 'corpseBlast', 'parasite', 'combo'].includes(m.type)) return;
+    // 挂在击杀/接触上的常驻规则本身不走周期；但若配了 signature（招牌事件），
+    // 仍然按 interval 释放它 —— 否则这些位面从头到尾没有任何可见事件。
+    const periodic = m.signature ?? (['armor', 'corpseBlast', 'parasite', 'combo'].includes(m.type) ? null : m.type);
+    if (!periodic) return;
 
     // 位面机制随阶段收紧（backlog #5）：S1 教学期不启用；S2 起频率按表加速，
     // S5 达 2 倍——位面身份参与阶段曲线，「考验」阶段开始有位面自己的声音。
     const MECH_STAGE_ACCEL = [1, 1.15, 1.3, 1.6, 2];
     const accel = MECH_STAGE_ACCEL[Math.min(this.stageNo - 1, MECH_STAGE_ACCEL.length - 1)];
 
-    if (m.type === 'mix') {
+    if (periodic === 'mix') {
       if (this.mechTimer < m.interval / accel) return;
       this.mechTimer = 0;
-      const picks = ['lightning', 'bulletHell', 'missile', 'laser', 'stomp'];
+      // 诸天之心 = 全机制融合，新加的招牌事件也要进池，否则「融合」名不副实
+      const picks = ['lightning', 'bulletHell', 'missile', 'laser', 'stomp',
+        'mirrorLaser', 'corpseTide', 'spore', 'swordQi', 'titanStep'];
       this.castMech(picks[Math.floor(this.rng() * picks.length)]);
       return;
     }
 
     if (this.mechTimer < m.interval / accel) return;
     this.mechTimer = 0;
-    this.castMech(m.type);
+    this.castMech(periodic);
   }
 
   castMech(type) {
@@ -1925,6 +1936,78 @@ export class RealtimeRun extends Run {
         const y = p.y + (this.rng() * 2 - 1) * 250;
         this.emitFx('stomp', x, y);
         if (Math.hypot(x - p.x, y - p.y) < (this.mech.radius ?? 100)) this.hurtPlayer(5 * this.dungeon.D, 0.4);
+        break;
+      }
+      case 'mirrorLaser': {
+        // 奇巧迷宫：镜面双向 —— 横竖各来一道，与机关城的单向激光区分开
+        for (const horiz of [true, false]) {
+          const line = horiz ? (p.y + (this.rng() * 2 - 1) * 130) : (p.x + (this.rng() * 2 - 1) * 130);
+          this.emitFx('laser', horiz ? p.x : line, horiz ? line : p.y, { horiz });
+          if (horiz ? Math.abs(p.y - line) < 20 : Math.abs(p.x - line) < 20) {
+            this.hurtPlayer(3 * this.dungeon.D);
+          }
+        }
+        break;
+      }
+      case 'lotus': {
+        // 功德圣境：金光普照 —— 这个位面的身份是「护持」，招牌事件也该是利玩家的，
+        // 与它的金身减伤同源。范围清扫，不伤自己。
+        this.emitFx('lotus', p.x, p.y);
+        this.emit('【金光普照】莲华绽放，涤荡周身', 'wave');
+        for (const e of [...this.enemies]) {
+          if (Math.hypot(e.x - p.x, e.y - p.y) > 300) continue;
+          e.hp -= 10 * this.dungeon.D;
+          e.hitFlash = 0.15;
+          if (e.hp <= 0) this.killEnemy(e);
+          if (this.state !== RunState.FIGHTING) return;
+        }
+        break;
+      }
+      case 'corpseTide': {
+        // 尸海末世：尸潮拱地 —— 三处地面同时隆起，站错地方就吃一下
+        this.emit('【尸潮】地面隆起', 'death');
+        for (let i = 0; i < 3; i++) {
+          const x = p.x + (this.rng() * 2 - 1) * 260;
+          const y = p.y + (this.rng() * 2 - 1) * 260;
+          this.emitFx('corpseTide', x, y);
+          if (Math.hypot(x - p.x, y - p.y) < 60) this.hurtPlayer(3 * this.dungeon.D);
+        }
+        break;
+      }
+      case 'spore': {
+        // 共生巢：孢子迸散 —— 两团孢子在身边炸开，逼你换位
+        for (let i = 0; i < 2; i++) {
+          const x = p.x + (this.rng() * 2 - 1) * 200;
+          const y = p.y + (this.rng() * 2 - 1) * 200;
+          this.emitFx('spore', x, y);
+          if (Math.hypot(x - p.x, y - p.y) < 80) this.hurtPlayer(3 * this.dungeon.D, 0.5);
+        }
+        break;
+      }
+      case 'swordQi': {
+        // 武侠江湖：剑气纵横 —— 一道过场剑气，敌我同吃（这个位面的规矩）
+        const horiz = this.rng() < 0.5;
+        const line = horiz ? (p.y + (this.rng() * 2 - 1) * 150) : (p.x + (this.rng() * 2 - 1) * 150);
+        this.emitFx('swordQi', horiz ? p.x : line, horiz ? line : p.y, { horiz });
+        this.emit('【剑气纵横】一线破空', 'wave');
+        for (const e of [...this.enemies]) {
+          const off = horiz ? Math.abs(e.y - line) : Math.abs(e.x - line);
+          if (off > 26) continue;
+          e.hp -= 14 * this.dungeon.D;
+          e.hitFlash = 0.15;
+          if (e.hp <= 0) this.killEnemy(e);
+          if (this.state !== RunState.FIGHTING) return;
+        }
+        if ((horiz ? Math.abs(p.y - line) : Math.abs(p.x - line)) < 18) this.hurtPlayer(3 * this.dungeon.D);
+        break;
+      }
+      case 'titanStep': {
+        // 巨神界：巨神踏步 —— 比山海的践踏更大更慢，落点也更远
+        const x = p.x + (this.rng() * 2 - 1) * 300;
+        const y = p.y + (this.rng() * 2 - 1) * 300;
+        this.emitFx('titanStep', x, y);
+        this.emit('【巨神踏步】大地为之一沉', 'death');
+        if (Math.hypot(x - p.x, y - p.y) < (this.mech.radius ?? 150)) this.hurtPlayer(6 * this.dungeon.D, 0.5);
         break;
       }
       default: break;

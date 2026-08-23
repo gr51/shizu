@@ -136,13 +136,11 @@ if (await p.evaluate(() => globalThis.__shizu.run?.state) === 'choosing') {
 // 行为写了但玩家读不到，等于没写。抬手只有 0.45s，所以放慢时间再轮询。
 // 用机关城：它的变体按权重表抽，tank/bomber 都刷得出来；
 // 武侠位面的变体是按 sprite 硬派的，自爆怪几乎只从涌潮里出。
-await p.evaluate(() => {
-  const s = JSON.parse(globalThis.localStorage.getItem('shizu_save'));
-  s.player.totalRuns = 5;
-  globalThis.localStorage.setItem('shizu_save', JSON.stringify(s));
-});
+// 同上：不碰 localStorage，重载后直接改内存里的 ctx.save。
+// 上一局没走到结算时 localStorage 里没有存档，JSON.parse(null) 会崩掉整个流程。
 await p.reload({ waitUntil: 'networkidle' });
 await p.waitForFunction(() => !!globalThis.__shizu, null, { timeout: 8000 });
+await p.evaluate(() => { globalThis.__shizu.ctx.save.player.totalRuns = 5; });
 await p.evaluate(() => globalThis.__shizu.startPlane('jiguan'));
 await p.waitForFunction(() => (globalThis.__shizu.run?.time ?? 0) > 0.2, null, { timeout: 20000 });
 if (await p.isVisible('#modalRoot.show').catch(() => false)) {
@@ -216,9 +214,15 @@ console.log('\n位面机制表现：');
 await p.evaluate(() => globalThis.__shizu.setTimeScale(0.25));
 for (const [type, label] of [
   ['lightning', '落雷（渡劫）'],
-  ['laser', '激光横扫（机关城/奇巧）'],
-  ['stomp', '巨型践踏（山海/巨神）'],
+  ['laser', '激光横扫（机关城）'],
+  ['mirrorLaser', '镜面双向激光（奇巧）'],
+  ['stomp', '巨型践踏（山海）'],
+  ['titanStep', '巨神踏步（巨神界）'],
   ['bulletHell', '弹幕法阵（奥法）'],
+  ['lotus', '金光普照（功德）'],
+  ['corpseTide', '尸潮拱地（尸海）'],
+  ['spore', '孢子迸散（共生巢）'],
+  ['swordQi', '剑气纵横（武侠）'],
 ]) {
   const ok = await p.evaluate((t) => {
     const r = globalThis.__shizu.run;
