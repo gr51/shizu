@@ -87,6 +87,7 @@ export class Audio {
       case 'elite':        this.tone(600, 0.12, 'square', 0.12); this.tone(600, 0.12, 'square', 0.12, null, 0.16); break;
       case 'boss':         this.tone(80, 0.8, 'sawtooth', 0.22, 40); this.noise(0.7, 0.15, 250, 'lowpass'); break;
       case 'bossdie':      this.tone(392, 0.5, 'square', 0.14); this.tone(523, 0.5, 'square', 0.14, null, 0.1); this.tone(659, 0.7, 'square', 0.14, null, 0.2); break;
+      case 'shield':       this.tone(600, 0.12, 'sine', 0.08); this.tone(900, 0.16, 'sine', 0.07, null, 0.06); break;   // 护盾展开：柔和双音上浮
       // —— 位面招牌事件 / 新机制（与 emitFx 类型一一对应）——
       case 'lotus':        this.tone(523, 0.3, 'sine', 0.1); this.tone(784, 0.35, 'sine', 0.09, null, 0.12); break;   // 金光普照：温暖的五度上行
       case 'corpseTide':   this.noise(0.4, 0.16, 220, 'lowpass'); this.tone(75, 0.35, 'sawtooth', 0.14, 50); break;    // 尸潮：低频隆隆
@@ -127,7 +128,8 @@ export class Audio {
         case 'boss': once('boss'); break;
         case 'titanStep': once('stomp'); break;    // 踏步复用既有重踩声（更重的位面版后续再分化）
         case 'swordQi': once('sword_hit'); break;  // 剑气破空 = 既有剑击声
-        default: break;
+        case 'killBurst': once('crit'); break;     // 蚀爆连锁：短促爆裂复用暴击音
+        case 'shield': once('shield'); break;
       }
     }
   }
