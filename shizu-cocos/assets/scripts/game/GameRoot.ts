@@ -100,7 +100,7 @@ export class GameRoot extends Component {
     const ss = String(Math.floor(run.time % 60)).padStart(2, '0');
     let s =
       `HP ${Math.max(0, Math.round(run.hp))}/${Math.round(run.stats.maxHp)}　⏱ ${mm}:${ss}`
-      + `　阶段 ${run.stageNo}/5　基因 ${run.genes}　噬灭 ${run.kills}　同屏 ${run.onScreen}`;
+      + `　阶段 ${run.stageNo}/5　基因 ${run.genes}　噬灭 ${run.kills}　同屏 ${run.visibleCount}`;
     // 支线协议进度（无限流任务制）：与 web 端 HUD 同口径
     const q = run.sideQuest;
     if (q && !run.sideQuestFailed) {

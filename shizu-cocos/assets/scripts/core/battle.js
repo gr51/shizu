@@ -272,7 +272,24 @@ export class RealtimeRun extends Run {
     return 1 + Math.floor(this.geneStep / 6) + (this.routeMech === 'multishot' ? 1 + (this.mechLvl.count ?? 0) : 0);
   }
 
+  /**
+   * 存活敌人总数（含视野外的）。刷怪上限 MAX_ONSCREEN 与 horde 测试都按这个量走。
+   * ⚠ 名字叫 onScreen 但它**不是**「屏幕上看得见几个」——真要那个数用 visibleCount。
+   */
   get onScreen() { return this.enemies.length; }
+  /**
+   * 真正落在相机视野（ARENA）内的敌人数 —— HUD 上「同屏」二字该显示的就是它。
+   * 实测两者差得远：存活 23 只时视野内只有 10 只（43%），
+   * 因为敌人是在视野外一圈刷出来再走进来的。
+   */
+  get visibleCount() {
+    const p = this.player;
+    let n = 0;
+    for (const e of this.enemies) {
+      if (!e.dead && Math.abs(e.x - p.x) <= ARENA.w / 2 && Math.abs(e.y - p.y) <= ARENA.h / 2) n += 1;
+    }
+    return n;
+  }
   /** 当前急袭挑战剩余目标数（HUD 可读性） */
   get miniRushRemaining() { return this.enemies.filter((e) => !e.dead && e.eventTag === 'miniRush').length; }
 

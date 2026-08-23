@@ -53,7 +53,7 @@ export function geneCard(save, run = null) {
   const sealed = save.player.sealedRoutes.length
     ? `<p class="small sealed">已封印：${save.player.sealedRoutes.map((r) => ROUTES[r].name).join('、')}</p>`
     : '';
-  const runLine = run ? `<p>本局基因 <b class="gold">${run.genes}</b> · 击杀 <b>${run.kills}</b> · 同屏 ${run.onScreen}</p>` : '';
+  const runLine = run ? `<p>本局基因 <b class="gold">${run.genes}</b> · 击杀 <b>${run.kills}</b> · 同屏 ${run.visibleCount}</p>` : '';
   return `<h4>基因锁</h4>${runLine}${rows}${sealed}`;
 }
 

@@ -24,6 +24,7 @@ function autoRun(planeId, seed, patch = {}) {
   const run = new RealtimeRun(save, d, seed * 13 + 5);
   let guard = 0;
   let peakOnScreen = 0;
+  let peakVisible = 0;
   while (run.state !== RunState.WON && run.state !== RunState.LOST && guard < 60 * 60 * 20) {
     if (run.state === RunState.CHOOSING) { run.choose(0); continue; }
     if (run.state === RunState.SLOT_CONFLICT) { run.resolveSlotConflict(run.pendingSkill.options[0]); continue; }
@@ -33,11 +34,12 @@ function autoRun(planeId, seed, patch = {}) {
     run.update(DT, { mx: Math.cos(a), my: Math.sin(a) });
     run.drainEffects();
     peakOnScreen = Math.max(peakOnScreen, run.onScreen);
+    peakVisible = Math.max(peakVisible, run.visibleCount);
     guard += 1;
   }
   return {
     kills: run.kills, minionKills: run.minionKills, seconds: run.time,
-    stage: run.stageNo, won: run.state === RunState.WON, genes: run.genes, peakOnScreen,
+    stage: run.stageNo, won: run.state === RunState.WON, genes: run.genes, peakOnScreen, peakVisible,
   };
 }
 
@@ -52,6 +54,7 @@ function sample(planeId, n = 6) {
     genes: avg((r) => r.genes),
     winRate: runs.filter((r) => r.won).length / runs.length,
     peakOnScreen: Math.max(...runs.map((r) => r.peakOnScreen)),
+    peakVisible: Math.max(...runs.map((r) => r.peakVisible)),
     get killsPerMinute() { return this.kills / this.minutes; },
   };
 }
@@ -143,7 +146,22 @@ test('杂兵同屏受 60 上限约束（整体策划 9.3）；阶段收尾单位
   for (const id of ['aofa', 'shihai', 'shanhai']) {
     const peak = sample(id, 3).peakOnScreen;
     assert.ok(peak <= MAX_ONSCREEN + 3, `${id} 同屏 ${peak} 超出上限（收尾单位最多 +3）`);
-    assert.ok(peak >= 30, `${id} 同屏峰值仅 ${peak} —— 怪潮压力不足，不是割草`);
+    assert.ok(peak >= 30, `${id} 存活峰值仅 ${peak} —— 怪潮压力不足，不是割草`);
+  }
+});
+
+// 上面那条量的是**存活总数**（含视野外正在走进来的），而它想表达的
+// 「怪潮压力」其实是玩家**屏幕上看得见几个**。两者不是一回事：
+// 敌人在视野外一圈刷出再走进来，整局平均只有 ~40% 落在视野内。
+// 峰值时刻倒是健康的（实测 46~49 / 存活 60），但这条性质此前没有任何守护 ——
+// 万一有人把刷怪半径推远、或把视野改小，存活峰值照样达标而屏幕会空掉。
+test('峰值时屏幕上真的看得见成群杂兵（不是只有存活总数好看）', () => {
+  for (const id of ['aofa', 'shihai', 'shanhai']) {
+    const s = sample(id, 3);
+    assert.ok(
+      s.peakVisible >= 30,
+      `${id} 视野内峰值仅 ${s.peakVisible}（存活峰值 ${s.peakOnScreen}）—— 屏幕上不成海`,
+    );
   }
 });
 

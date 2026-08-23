@@ -299,7 +299,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     }
     H.genes.textContent = `基因 ${run.genes}`;
     H.kills.textContent = run.kills;
-    H.screen.textContent = run.onScreen;
+    H.screen.textContent = run.visibleCount;   // 标签是「同屏」，就得是视野内的数
     // 击杀连击可视化：连击数 ≥3 时显示，1.5s 无击杀自动隐藏
     if (H.combo) {
       const combo = run.comboCount ?? 0;
