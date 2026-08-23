@@ -973,14 +973,14 @@ export class Renderer {
     }
   }
 
-  /** 远程弹幕（小怪吐出的飞镖/箭/Boss剑气） */
+  /** 远程弹幕（小怪吐出的飞镖/箭/Boss剑气）+ 位面机制弹（弹幕法阵/机甲导弹）*/
   drawShots(run) {
+    const ctx = this.ctx;
     for (const s of run.shots ?? []) {
       const facing = s.vx < 0 ? -1 : 1;
       const sprite = s.sprite ?? 'projectile';
       // 来路拖尾：反速度方向一条暖色短线 —— 敌方弹体是玩家主要死因，
       // 14px 的静止单帧在暗色地板上读不出飞行轨迹，躲弹变成猜弹。
-      const ctx = this.ctx;
       ctx.save();
       ctx.strokeStyle = PAL.shotTrail;
       ctx.lineWidth = 2;
@@ -992,6 +992,52 @@ export class Renderer {
       // 14 → 18：致命的东西不该是场上最小的元素
       const ok = this.blitSprite(`effects/${sprite}.png`, s.x, s.y, 18, false, facing);
       if (!ok) this.dot(s.x, s.y, 4, PAL.gene);
+    }
+    // 位面机制弹（此前从未被渲染——玩家被看不见的导弹打死）：
+    // missile 追踪飞行 → 橙红弹体 + 长烟尾；hell 弹幕 → 紫色法阵珠
+    for (const pr of run.mechProjectiles ?? []) {
+      const speed = Math.hypot(pr.vx || 0, pr.vy || 0);
+      if (pr.kind === 'missile') {
+        ctx.save();
+        // 烟尾：反速度方向渐细三段
+        ctx.strokeStyle = 'rgba(255,140,90,.55)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(pr.x - (pr.vx || 0) * 0.14, pr.y - (pr.vy || 0) * 0.14);
+        ctx.lineTo(pr.x - (pr.vx || -190) * 0.02, pr.y - (pr.vy || 0) * 0.02);
+        ctx.stroke();
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pr.x - (pr.vx || 0) * 0.26, pr.y - (pr.vy || 0) * 0.26);
+        ctx.lineTo(pr.x - (pr.vx || 0) * 0.14, pr.y - (pr.vy || 0) * 0.14);
+        ctx.stroke();
+        // 弹体：亮橙核心
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ffb066';
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff3e0';
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else {
+        // hell 弹幕珠：紫罗兰圆珠 + 微光晕（速度可能为 0 的悬浮珠也可见）
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = '#a97fd8';
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, (pr.r ?? 8) * 0.85, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#d8b8f8';
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, (pr.r ?? 8) * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
   }
 
