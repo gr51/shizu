@@ -45,7 +45,7 @@ export const PLANES = [
     minionB: 'arcane runestone golem, carved purple stone with glowing runes, floating rune ring around it, short squat body',
     elite: 'arcane elemental mentor, purple robe spirit, triple floating rune rings, glowing staff, hovering',
     boss: 'arcane archmage king, grand purple robe, glowing rune circles orbiting, starry aura, floating crown, menacing spellcaster',
-    floor: 'seamless arcane rune stone floor, purple glowing rune tiles, magical circle patterns, top-down view',
+    floor: 'worn arcane stone floor densely inscribed with many small runes and fine chisel marks, faint glow evenly scattered, no large magic circle, muted dark indigo and slate',
     bg: 'floating wizard tower interior, purple runes and starry sky through windows, floating books, atmospheric, no characters',
   },
   {
@@ -72,7 +72,7 @@ export const PLANES = [
     minionB: 'praying lotus spirit, floating lotus flower with tiny golden face, soft halo, floating petals',
     elite: 'golden vajra guardian, armored golden monk statue, glowing halo, golden staff weapon',
     boss: 'golden buddha giant, colossal golden buddha statue, radiant halo, calm menacing face, lotus throne, divine aura',
-    floor: 'seamless golden temple floor, lotus tile patterns, warm golden glow, top-down view',
+    floor: 'weathered golden temple stone floor, dense small lotus-petal carvings repeated evenly across the whole surface, fine cracks and worn gilding, uniform allover pattern with no large medallion or focal bloom, muted dark gold and warm brown',
     bg: 'buddhist golden temple hall, lotus ponds, floating golden light, sacred atmosphere, no characters',
   },
   {
@@ -90,7 +90,7 @@ export const PLANES = [
     minionB: 'hive incubator pod, pulsating organic sac, glowing pink core, spore vents, rooted',
     elite: 'symbiotic queen guardian, elegant pink-purple insectoid, glowing crown, tendril wings, hovering',
     boss: 'all-mother, colossal organic hive queen, pulsating pink flesh, spore clouds, tendril arms, motherly menacing',
-    floor: 'seamless organic hive floor, pink-purple flesh tiles, spore patches, bioluminescent, top-down view',
+    floor: 'organic hive floor of dense small membrane cells and fine veins, damp fleshy texture spread evenly edge to edge, subtle spore specks, no large central pod, muted dark purple-mauve',
     bg: 'biological hive interior, pulsating organic walls, pink-purple spores, bioluminescent glow, atmospheric, no characters',
   },
   {
