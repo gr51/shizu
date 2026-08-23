@@ -82,32 +82,21 @@ export const MINION_VARIANTS = {
 /** 变体没配时的接触攻击默认值（精英 / Boss 走这套） */
 export const DEFAULT_ATK_WINDUP = 0.3;
 
-/** 每阶段刷的小怪 sprite（每阶段一对，5 阶段各不同） */
-export const MINION_SPRITE_BY_STAGE = {
-  jiguan: [['jixie_xie', 'lu_kuilei'], ['jixie_xie', 'paotai_ji'], ['lu_kuilei', 'paotai_ji'], ['jixie_xie', 'lu_kuilei'], ['paotai_ji', 'jixie_xie']],
-  wuxia: [['maozei', 'jiutu'], ['shanzei', 'biaoshi'], ['quanshi', 'gunseng'], ['anqi', 'gongshou'], ['hanfei', 'shashou']],
-  aofa: [['yuan_jingling', 'huo_bing'], ['huo_bing', 'bing_yuansu'], ['bing_yuansu', 'aoshu_shicong'], ['aoshu_shicong', 'huo_yao'], ['huo_yao', 'yuan_jingling']],
-  qiqiao: [['jiguan_shou', 'fashu_jiguan'], ['fashu_jiguan', 'jing_ling'], ['jing_ling', 'chilun_shou'], ['chilun_shou', 'jiguan_qishi'], ['jiguan_qishi', 'jiguan_shou']],
-  dujie: [['lei_jing', 'jianxiu_kuilei'], ['jianxiu_kuilei', 'lei_shou'], ['lei_shou', 'tianlei_zi'], ['tianlei_zi', 'leijie_kuilei'], ['leijie_kuilei', 'lei_jing']],
-  gongde: [['jinlian_shicong', 'luohan_wuseng'], ['luohan_wuseng', 'jinlian_wushi'], ['jinlian_wushi', 'chifan_seng'], ['chifan_seng', 'jinjia_lishi'], ['jinjia_lishi', 'jinlian_shicong']],
-  shihai: [['sangshi', 'bianyi_quan'], ['bianyi_quan', 'bianyi_shi'], ['bianyi_shi', 'shi_wu'], ['shi_wu', 'fenghe_guai'], ['fenghe_guai', 'sangshi']],
-  gongshengchao: [['jishengchong', 'fuhua_chong'], ['fuhua_chong', 'jisheng_zhu'], ['jisheng_zhu', 'fuhua_muti'], ['fuhua_muti', 'gongsheng_jushou'], ['gongsheng_jushou', 'jishengchong']],
-  shanhai: [['huangshou', 'jujiao_shou'], ['jujiao_shou', 'huo_shou'], ['huo_shou', 'bing_shou'], ['bing_shou', 'shanyue_shou'], ['shanyue_shou', 'huangshou']],
-  jijia: [['shaojie', 'zizou_pao'], ['zizou_pao', 'wuren_ji'], ['wuren_ji', 'zhongzhuang_jijia'], ['zhongzhuang_jijia', 'guidao_paotai'], ['guidao_paotai', 'shaojie']],
-  jushen: [['ju_ying', 'shi_juren'], ['shi_juren', 'shuang_juren'], ['shuang_juren', 'duyan_juren'], ['duyan_juren', 'shanling_juren'], ['shanling_juren', 'ju_ying']],
-  zhutian: [['weimian_canying', 'ziwo_jingxiang'], ['ziwo_jingxiang', 'benghuai_suipian'], ['benghuai_suipian', 'weimian_jingxiang'], ['weimian_jingxiang', 'xukong_jiti'], ['xukong_jiti', 'weimian_canying']],
-};
 
-/** Boss sprite 映射（位面 → boss 名） */
-export const BOSS_BY_PLANE = {
-  jiguan: 'boss_jiguan',
-  wuxia: 'jiansheng', aofa: 'aofa_boss', qiqiao: 'qiqiao_boss', dujie: 'dujie_boss',
-  gongde: 'gongde_boss', shihai: 'shihai_boss', gongshengchao: 'gongshengchao_boss',
-  shanhai: 'shanhai_boss', jijia: 'jijia_boss', jushen: 'jushen_boss', zhutian: 'zhutian_boss',
+// —— 位面可插拔配置：数据与门面在 data/planeModules.js，这里导入并 re-export ——
+// （旧测试/工具仍从 battle.js 取这些表，保持兼容；新增系统请改走 planeModules）
+import {
+  MINION_SPRITE_BY_STAGE,
+  BOSS_BY_PLANE,
+  RANGED_SPRITES,
+  PLANE_MECHANICS,
+} from '../data/planeModules.js';
+export {
+  MINION_SPRITE_BY_STAGE,
+  BOSS_BY_PLANE,
+  RANGED_SPRITES,
+  PLANE_MECHANICS,
 };
-
-/** 远程小怪散集：这些 sprite 用远程弹体，其余一律近战 */
-export const RANGED_SPRITES = new Set(['anqi', 'gongshou', 'yuan_jingling', 'huo_bing', 'bing_yuansu', 'aoshu_shicong', 'fashu_jiguan', 'jing_ling', 'lei_jing', 'tianlei_zi', 'shi_wu', 'wuren_ji', 'guidao_paotai', 'shaojie', 'zizou_pao', 'benghuai_suipian', 'weimian_canying', 'xukong_jiti', 'paotai_ji']);
 
 /** 远程小怪的射击参数 */
 export const SPIT_RANGE = 300;
@@ -168,30 +157,6 @@ export const CRISIS_METEOR_R = 70;       // 陨石命中半径（预警圈同尺
 
 /** 敌人时间坡的强度上限（防止「打不动 → 阶段不推进 → 敌人更厚」的死局） */
 export const TIME_SCALE_MAX = 6;
-
-// ===== 位面主题机制（关卡策划二章 / planes.js 的 theme 列）=====
-// 每个位面一种独特机制，数据驱动，都挂在 battle 主循环 / 击杀回调上。
-export const PLANE_MECHANICS = {
-  // type      = 常驻规则（被动减伤 / 击杀触发 / 伤害乘区），没有周期表现
-  // signature = 该位面的**周期性招牌事件**：玩家一眼认出「我在哪个位面」靠的是它
-  //
-  // 此前 12 个位面里有 4 个（功德/尸海/共生巢/武侠）只有 type 没有 signature ——
-  // 它们的机制全是隐形被动，玩家在这些位面里从头到尾什么都不会发生，
-  // 位面之间自然只剩背景色不同。另有 2 对重复（机关城=奇巧=激光、山海=巨神=践踏）。
-  // 现在 12 个各不相同。
-  jiguan:       { type: 'laser',        interval: 12 },                        // 机关城：激光横扫
-  aofa:         { type: 'bulletHell',   interval: 10, count: 3 },              // 奥法：弹幕法阵
-  qiqiao:       { type: 'mirrorLaser',  interval: 11 },                        // 奇巧迷宫：镜面双向激光（与机关城的单向区分）
-  dujie:        { type: 'lightning',    interval: 10 },                        // 渡劫：随机落雷
-  gongde:       { type: 'armor',        factor: 0.3, signature: 'lotus',    interval: 13 }, // 功德：金身减伤 + 金光普照
-  shihai:       { type: 'corpseBlast',  radius: 55, mul: 1.3, signature: 'corpseTide', interval: 11 }, // 尸海：尸爆连锁 + 尸潮拱地
-  gongshengchao:{ type: 'parasite',     chance: 0.12, duration: 5, signature: 'spore', interval: 12 }, // 共生：寄生反水 + 孢子迸散
-  wuxia:        { type: 'combo',        mul: 1.2, signature: 'swordQi', interval: 12 },     // 武侠：连招增伤 + 剑气纵横
-  shanhai:      { type: 'stomp',        interval: 18, radius: 100 },           // 山海：巨型践踏
-  jijia:        { type: 'missile',      interval: 14 },                        // 机甲：炮台导弹
-  jushen:       { type: 'titanStep',    interval: 15, radius: 150 },           // 巨神：巨神踏步（比山海更大更慢）
-  zhutian:      { type: 'mix',          interval: 10 },                        // 诸天之心：全机制融合
-};
 
 
 export class RealtimeRun extends Run {
