@@ -608,7 +608,7 @@ export class Renderer {
     }
     if (e.attackT > 0) {
       // 攻击动画：attackT 0.3→0，按进度切 起手→劈砍→收招（小怪/精英/Boss 通用）
-      const prog = 1 - e.attackT / 0.3;
+      const prog = 1 - e.attackT / (e.atkWindup ?? 0.3);   // 抬手时长按变体，写死 0.3 会让重装的动画提前播完
       const f = prog < 0.35 ? 'atk0' : prog < 0.7 ? 'atk1' : 'atk2';
       ok = this.blitSprite(`units/${base}_${f}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
         || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)

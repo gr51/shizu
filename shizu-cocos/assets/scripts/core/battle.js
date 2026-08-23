@@ -62,14 +62,24 @@ export const CONTACT_DPS_SCALE = 1.1;
  *   walker  基础追击，构成怪海本体
  *   charger 高速冲撞，能穿过清场圈贴到脸上
  *   spitter 远程吐射，站在射程外打你 —— 逼玩家主动近身，不能龟在原地
+ *
+ * atkWindup / atkMul 是**接触攻击的手感纹理**：抬手时长与单次伤害倍率。
+ * 此前所有小怪共用 0.3s 抬手 + 同一套伤害公式，变体差异全在「怎么接近你」，
+ * 而不在「怎么打你」—— 玩家的直观感受就是「所有小怪的攻击都一样」。
+ * 两个数按「单体 DPS ≈ 中性」配：mul / windup 都落在 3.33 附近，
+ * 所以这是纹理改动、不是强度改动 —— 重装抬手长但一下重（看得见、走得开），
+ * 冲撞啄得快而轻。改这两个数必须重跑 tools/contact-baseline.mjs 做同种子对照。
  */
 export const MINION_VARIANTS = {
-  walker: { speedMul: 1.0, weight: 54, hpMul: 1 },
-  charger: { speedMul: 1.9, weight: 22, hpMul: 0.75 },
-  spitter: { speedMul: 0.55, weight: 10, hpMul: 0.85, ranged: true },
-  tank: { speedMul: 0.55, weight: 8, hpMul: 1.6, slam: true },  // 重装：慢而硬，贴近就践踏（AOE+踉跄）
-  bomber: { speedMul: 1.6, weight: 6, hpMul: 0.5, bomber: true }, // 自爆：快而脆，死了炸你
+  walker: { speedMul: 1.0, weight: 54, hpMul: 1, atkWindup: 0.30, atkMul: 1.00 },
+  charger: { speedMul: 1.9, weight: 22, hpMul: 0.75, atkWindup: 0.24, atkMul: 0.80 },
+  spitter: { speedMul: 0.55, weight: 10, hpMul: 0.85, ranged: true, atkWindup: 0.30, atkMul: 1.00 },
+  tank: { speedMul: 0.55, weight: 8, hpMul: 1.6, slam: true, atkWindup: 0.55, atkMul: 1.85 },  // 重装：慢而硬，贴近就践踏（AOE+踉跄）
+  bomber: { speedMul: 1.6, weight: 6, hpMul: 0.5, bomber: true, atkWindup: 0.30, atkMul: 1.00 }, // 自爆：快而脆，死了炸你
 };
+
+/** 变体没配时的接触攻击默认值（精英 / Boss 走这套） */
+export const DEFAULT_ATK_WINDUP = 0.3;
 
 /** 每阶段刷的小怪 sprite（每阶段一对，5 阶段各不同） */
 export const MINION_SPRITE_BY_STAGE = {
@@ -540,6 +550,9 @@ export class RealtimeRun extends Run {
       r: isBig ? (tpl.kind === 'boss' ? 40 : 24) : 12,
       speed: (isBig ? (tpl.kind === 'boss' ? 135 : 150) : 95 + this.rng() * 25)
         * (v?.speedMul ?? 1) * stageSpeed * affixSpeed * (this.dungeon.mods?.enemySpeedMul ?? 1),
+      // 接触攻击的手感纹理（见 MINION_VARIANTS 注释）；精英/Boss 走默认值
+      atkWindup: v?.atkWindup ?? DEFAULT_ATK_WINDUP,
+      atkMul: v?.atkMul ?? 1,
       spitCd: v?.ranged ? this.rng() * SPIT_CD : 0,
       // 冲撞怪：蓄力 → 锁定方向直线冲刺 → 收招。没有这套状态机的话，
       // charger 与 walker 的差别只有 speedMul，「冲撞形态」名不副实。
@@ -720,7 +733,7 @@ export class RealtimeRun extends Run {
       // 接触攻击：抬手预警 0.3s（attackT 走完才结算伤害，给足躲闪窗口）
       if (prevAttackT > 0 && e.attackT <= 0 && d < p.r + e.r + 8 && p.invuln <= 0) {
         const bigMul = e.kind === 'boss' ? 5.0 : e.kind === 'elite' ? 3.5 : 1;
-        let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * bigMul * (1 - this.stats.dmgReduct));
+        let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * bigMul * (e.atkMul ?? 1) * (1 - this.stats.dmgReduct));
         if (this.mech?.type === 'combo') dmg *= this.mech.mul;   // 武侠：连招增伤
         this.hp -= dmg;
         p.invuln = INVULN_ON_HIT;
@@ -740,7 +753,7 @@ export class RealtimeRun extends Run {
       }
       // 贴身 → 开始抬手（可读预警，不立即掉血）
       if (d < p.r + e.r && p.invuln <= 0 && e.attackT <= 0) {
-        e.attackT = 0.3;   // 抬手 0.3s
+        e.attackT = e.atkWindup ?? DEFAULT_ATK_WINDUP;   // 抬手时长按变体（重装最长，冲撞最短）
       }
     }
     if (this.enemies.some((e) => e.dead)) this.enemies = this.enemies.filter((e) => !e.dead);
