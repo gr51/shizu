@@ -1435,7 +1435,9 @@ export class RealtimeRun extends Run {
         }
         this.emit('🏔 顶天立地！', 'win');
       }
-      this.emitFx('surge', p.x, p.y);
+      // 变身用专属表现：原来发的是 surge，那只震屏、连个圈都不画 ——
+      // 一个「终极形态」放出去屏幕上什么都没有
+      this.emitFx('skill', p.x, p.y, { skillKind: 'form' });
       return;
     }
 
@@ -1481,7 +1483,17 @@ export class RealtimeRun extends Run {
         if (this.state !== RunState.FIGHTING) return;
       }
     }
-    this.emitFx('skill', p.x, p.y);
+    // 13 个主动技横跨 6 类语义（全屏爆发 / 范围爆发 / 召唤 / 治疗 / 无敌 / 变身），
+    // 此前全部共用同一个 emitFx('skill') —— 屏幕上一律是同一个金色圆环，
+    // 玩家分不出自己放的是「九重雷劫」还是「饕餮巨口」。按语义分派表现。
+    const skillKind = (e.aoeMul || e.burstMul) ? 'nuke'
+      : e.summon ? 'summon'
+      : (e.trapMul || e.missileMul) ? 'blast'
+      : e.devourHealPct ? 'heal'
+      : e.invuln ? 'invuln'
+      : e.allStatsPct ? 'berserk'
+      : 'generic';
+    this.emitFx('skill', p.x, p.y, { skillKind });
     this.emit(`释放 <b>${skill.name}</b>`, 'learn');
   }
 

@@ -437,7 +437,7 @@ export class Run {
       && this.genes >= UPGRADE_GENE_STEPS[this.geneStep]
     ) {
       this.geneStep += 1;
-      this.openChoice('基因充能完成 · 选择进化方向');
+      this.openChoice('基因充能完成');
     }
   }
 
@@ -460,7 +460,7 @@ export class Run {
       && this.genes >= UPGRADE_GENE_STEPS[this.geneStep]
     ) {
       this.geneStep += 1;
-      this.openChoice('基因充能完成 · 选择进化方向');
+      this.openChoice('基因充能完成');
       return;
     }
     // 三选一都处理完了，若本阶段挂着黑市则接着开门

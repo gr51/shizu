@@ -235,6 +235,29 @@ for (const [type, label] of [
   console.log(`  ${label}`);
 }
 
+// —— 主动技特效 ——
+// 13 个主动技横跨 6 类语义，此前共用同一个金圈。这里直接调 castSkill
+// 逐类拍一张，确保「不同技能长得不同」这件事有永久的视觉覆盖。
+console.log('\n主动技特效（按效果语义分派）：');
+await p.evaluate(() => globalThis.__shizu.setTimeScale(0.25));
+for (const [kindName, label] of [
+  ['nuke', '全屏爆发（九重雷劫/万剑归宗/禁咒）'],
+  ['summon', '召唤（机关哨兵/傀儡分身/尸潮）'],
+  ['heal', '治疗（饕餮巨口）'],
+  ['invuln', '无敌（金身不灭）'],
+  ['form', '终极变身（高达合体/顶天立地）'],
+]) {
+  const ok = await p.evaluate((k) => {
+    const r = globalThis.__shizu.run;
+    if (!r) return false;
+    r.emitFx('skill', r.player.x, r.player.y, { skillKind: k });
+    return true;
+  }, kindName).catch(() => false);
+  if (!ok) { console.log(`  ⚠ ${label}：emitFx 不可用`); continue; }
+  await shot(`skillfx-${kindName}`, 60);
+  console.log(`  ${label}`);
+}
+
 console.log('\n' + (errs.length
   ? '✗ ' + errs.length + ' 项报错:\n  ' + [...new Set(errs)].slice(0, 10).join('\n  ')
   : '✓ 控制台零报错、零资源加载失败'));

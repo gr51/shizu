@@ -27,12 +27,33 @@ const PROC_FX = {
   devour: 0.40,      // 吞噬爆发
   dodge: 0.22,       // 闪避翻滚
   shield: 0.40,      // 护盾
-  skill: 0.26,       // 主动技释放
+  skill: 0.26,       // 主动技释放（默认；具体时长按 skillKind 覆盖，见 SKILL_FX）
   lotus: 0.55,       // 功德：金光普照
   corpseTide: 0.45,  // 尸海：尸潮拱地
   spore: 0.50,       // 共生巢：孢子迸散
   swordQi: 0.28,     // 武侠：剑气纵横
   titanStep: 0.55,   // 巨神：巨神踏步
+};
+
+/**
+ * 主动技特效：按**效果语义**分派，而不是所有技能一个圈。
+ *
+ * 13 个主动技横跨 6 类语义（全屏爆发 3 个 / 召唤 5 个 / 变身 2 个 /
+ * 无敌·治疗·范围爆发各 1 个），此前全部走同一个 emitFx('skill')，
+ * 屏幕上一律是同一个金色圆环 —— 玩家分不出自己放的是「九重雷劫」
+ * 还是「饕餮巨口」。两个「变身」终极技更糟：发的是 surge，只震屏不画东西。
+ *
+ * dur = 持续秒数；ring/color 决定形状与色相；flash 决定是否配全屏闪。
+ */
+const SKILL_FX = {
+  nuke:    { dur: 0.62, color: '#ffd76a', rings: 3, maxR: 460, width: 5, flash: true },  // 全屏爆发
+  blast:   { dur: 0.42, color: '#e08a4c', rings: 2, maxR: 230, width: 4, flash: false }, // 范围爆发
+  summon:  { dur: 0.50, color: '#a678d4', rings: 1, maxR: 200, width: 3, flash: false }, // 召唤
+  heal:    { dur: 0.50, color: '#6fb98a', rings: 2, maxR: 170, width: 3, flash: false }, // 治疗
+  invuln:  { dur: 0.55, color: '#d8bd6a', rings: 1, maxR: 90,  width: 6, flash: false }, // 无敌（贴身金罩）
+  berserk: { dur: 0.45, color: '#c9556a', rings: 2, maxR: 190, width: 4, flash: false }, // 狂暴
+  form:    { dur: 0.75, color: '#eaf2ff', rings: 4, maxR: 520, width: 6, flash: true },  // 终极变身
+  generic: { dur: 0.26, color: '#d8bd6a', rings: 1, maxR: 60,  width: 3, flash: false },
 };
 
 const PAL = {
@@ -121,6 +142,11 @@ export class Renderer {
         // 此前**全部画不出来**：玩家只会莫名其妙掉血，十二个位面因此长得一模一样。
         else if (PROC_FX[e.type]) {
           this.procFx.push({ type: e.type, x: e.x, y: e.y, data: e.data ?? null, t: 0 });
+          // 终极技该有「一屏都在响」的分量：全屏爆发与变身加全屏闪 + 重震屏
+          if (e.type === 'skill' && SKILL_FX[e.data?.skillKind]?.flash) {
+            this.flash = Math.max(this.flash, 0.85);
+            this.shake = Math.max(this.shake, 8);
+          }
         }
         if (e.type === 'hit') this.shake = Math.max(this.shake, 5);
         if (e.type === 'crit') this.shake = Math.max(this.shake, 3);
@@ -334,7 +360,8 @@ export class Renderer {
     const ctx = this.ctx;
     for (const f of this.procFx) f.t += dt;
     this.procFx = this.procFx.filter((f) => {
-      const dur = PROC_FX[f.type] ?? 0.3;
+      const spec = f.type === 'skill' ? (SKILL_FX[f.data?.skillKind] ?? SKILL_FX.generic) : null;
+      const dur = spec ? spec.dur : (PROC_FX[f.type] ?? 0.3);
       if (f.t >= dur) return false;
       const k = f.t / dur;              // 0→1 进度
       const fade = 1 - k;
@@ -437,12 +464,41 @@ export class Renderer {
           break;
         }
         case 'skill': {
-          ctx.globalAlpha = fade;
-          ctx.strokeStyle = PAL.gold;
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, 16 + k * 44, 0, Math.PI * 2);
-          ctx.stroke();
+          // 按语义分派：全屏爆发是多重大环 + 全屏闪，召唤是单圈紫，
+          // 治疗是绿环，无敌是贴身金罩……不再是所有技能一个样
+          ctx.strokeStyle = spec.color;
+          for (let i = 0; i < spec.rings; i++) {
+            const rr = spec.maxR * k - i * (spec.maxR * 0.16);
+            if (rr <= 0) continue;
+            ctx.globalAlpha = fade * (1 - i * 0.22);
+            ctx.lineWidth = Math.max(1, spec.width - i);
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, rr, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          if (f.data?.skillKind === 'summon') {
+            // 召唤：环上冒出几点「落地」的光，暗示随从从这里出来
+            ctx.globalAlpha = fade;
+            ctx.fillStyle = spec.color;
+            for (let i = 0; i < 5; i++) {
+              const a = (i / 5) * Math.PI * 2 + f.x * 0.3;
+              const rr = spec.maxR * k * 0.55;
+              ctx.beginPath();
+              ctx.arc(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr * 0.6, 4, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          if (f.data?.skillKind === 'heal') {
+            // 治疗：向上飘的绿点
+            ctx.globalAlpha = fade;
+            ctx.fillStyle = spec.color;
+            for (let i = 0; i < 6; i++) {
+              const a = (i / 6) * Math.PI * 2;
+              ctx.beginPath();
+              ctx.arc(f.x + Math.cos(a) * 26, f.y - k * 54 + Math.sin(a) * 12, 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
           break;
         }
         case 'lotus': {
