@@ -87,6 +87,12 @@ export class Audio {
       case 'elite':        this.tone(600, 0.12, 'square', 0.12); this.tone(600, 0.12, 'square', 0.12, null, 0.16); break;
       case 'boss':         this.tone(80, 0.8, 'sawtooth', 0.22, 40); this.noise(0.7, 0.15, 250, 'lowpass'); break;
       case 'bossdie':      this.tone(392, 0.5, 'square', 0.14); this.tone(523, 0.5, 'square', 0.14, null, 0.1); this.tone(659, 0.7, 'square', 0.14, null, 0.2); break;
+      // —— 位面招牌事件 / 新机制（与 emitFx 类型一一对应）——
+      case 'lotus':        this.tone(523, 0.3, 'sine', 0.1); this.tone(784, 0.35, 'sine', 0.09, null, 0.12); break;   // 金光普照：温暖的五度上行
+      case 'corpseTide':   this.noise(0.4, 0.16, 220, 'lowpass'); this.tone(75, 0.35, 'sawtooth', 0.14, 50); break;    // 尸潮：低频隆隆
+      case 'spore':        this.tone(320, 0.07, 'triangle', 0.1); this.tone(260, 0.08, 'triangle', 0.09, null, 0.06); break; // 孢子：两声闷爆
+      case 'chainZap':     this.noise(0.04, 0.05, 3400, 'highpass'); this.tone(1900, 0.05, 'square', 0.05); break;     // 雷链：高频短促电击
+      case 'meteor':       this.tone(1500, 0.22, 'sawtooth', 0.07, 300); this.noise(0.15, 0.12, 600, 'lowpass'); break; // 陨石：呼啸坠落
       case 'levelup':      this.tone(660, 0.1, 'sine', 0.12); this.tone(880, 0.16, 'sine', 0.12, null, 0.08); break;
       case 'won':          [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.4, 'triangle', 0.12, null, i * 0.1)); break;
       case 'lost':         this.tone(440, 0.5, 'sine', 0.16, 110); break;
@@ -113,10 +119,14 @@ export class Audio {
         case 'slash': case 'burst': case 'gene': case 'spit':
         case 'dodge': case 'devour': case 'skill': case 'crit':
         case 'sword_hit': case 'lightning': case 'laser': case 'stomp':
+        case 'chainZap': case 'lotus': case 'corpseTide': case 'spore':
+        case 'meteor':
           once(fx.type); break;
         case 'hit': once('hit'); break;
         case 'surge': case 'elite': once('elite'); break;
         case 'boss': once('boss'); break;
+        case 'titanStep': once('stomp'); break;    // 踏步复用既有重踩声（更重的位面版后续再分化）
+        case 'swordQi': once('sword_hit'); break;  // 剑气破空 = 既有剑击声
         default: break;
       }
     }
