@@ -38,9 +38,9 @@ export function renderLobby(ctx) {
   const lines = [
     { text: `「${nestLine(save, rng)}」　—— 噬祖`, cls: 'hidden' },
   ];
-  if (p.totalRuns === 0) {
-    lines.unshift({ text: '「诸天崩坏，裂缝涌现。噬祖，醒来。」', cls: 'gold' });
-  }
+  // 首局不必再单独插一句开场白：nestLine() 在 totalRuns === 0 时返回的就是
+  // NARRATION.boot（「诸天崩坏，裂缝涌现。噬祖，醒来。」），
+  // 这里再 unshift 一次同样的话，大厅上会把同一句台词并排显示两遍。
   lines.push({ text: `已开裂缝 <b>${p.totalRuns}</b> 次，噬灭 <b>${p.wins}</b> 个位面。`, cls: 'info' });
   const active = activatedRoutes(save);
   if (active.length) {
@@ -74,9 +74,12 @@ export function renderLobby(ctx) {
     { text: '虫巢强化', icon: ICON('gear'), onClick: () => openNest(ctx) },
     { text: '装备背包', icon: ICON('bag'), onClick: () => openBag(ctx) },
     { text: '进化图鉴', icon: ICON('codex'), onClick: () => openCodex(ctx) },
-    { text: '成就', icon: ICON('codex'), onClick: () => openAchievements(ctx) },
-    { text: '难度设置', icon: ICON('gear'), onClick: () => openDifficulty(ctx) },
-    { text: '重置存档', style: 'danger', icon: ICON('reset'), onClick: () => confirmReset(ctx) },
+    { text: '成就', icon: ICON('achieve'), onClick: () => openAchievements(ctx) },
+    // 设置与重置是「工具」不是「行动」，压成一行小按钮：
+    // 七项等权平铺会把菜单撑出屏幕（重置存档此前被裁掉一半），
+    // 更糟的是「重置存档」和「开启裂缝」视觉权重相同 —— 不可逆操作不该长这样。
+    { text: '难度设置', style: 'minor', icon: ICON('difficulty'), onClick: () => openDifficulty(ctx) },
+    { text: '重置存档', style: 'minor danger', icon: ICON('reset'), onClick: () => confirmReset(ctx) },
   ]);
   view.setPanelCollapsed(true);
   view.setHint(save.player.totalRuns === 0 ? '首次裂缝固定为「机关城」，用于熟悉基本操作' : '选择一项行动');

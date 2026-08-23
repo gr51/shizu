@@ -288,6 +288,26 @@ html, body {
   animation: optIn .26s ease-out var(--opt-delay) backwards, ctaPulse 2.8s ease-in-out infinite;
 }
 #options button.primary .opt-ic { filter: drop-shadow(0 0 8px rgba(216, 189, 106, .7)); }
+
+/* 工具类入口（难度设置 / 重置存档）：压成并排的小按钮。
+   它们是「工具」不是「行动」—— 与主行动等权平铺会撑爆菜单，
+   而且不可逆操作不该和「开启裂缝」长得一样重。 */
+#options button.minor {
+  font-size: 13px;
+  letter-spacing: 2px;
+  padding: 8px 12px;
+  min-height: 0;
+  opacity: .72;
+  /* 两个 minor 并排：各占一半减去间距 */
+  flex: 0 0 calc(50% - 5px);
+}
+#options button.minor:hover { opacity: 1; }
+#options button.minor .opt-ic { flex-basis: 18px; width: 18px; height: 18px; }
+#options button.minor.danger { color: var(--danger); border-color: rgba(201, 85, 106, .35); }
+#options button.minor.danger:hover { border-color: var(--danger); background: rgba(60, 22, 30, .9); }
+/* 让 minor 能并排：主轴改成可换行的行流，普通项仍占满整行 */
+#options { flex-flow: row wrap; }
+#options button:not(.minor) { flex: 0 0 100%; }
 @keyframes ctaPulse {
   0%, 100% { box-shadow: 0 4px 18px rgba(0, 0, 0, .45), 0 0 0 0 rgba(216, 189, 106, .35); }
   50%      { box-shadow: 0 4px 22px rgba(0, 0, 0, .5), 0 0 26px 4px rgba(216, 189, 106, .28); }
