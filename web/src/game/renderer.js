@@ -694,6 +694,11 @@ export class Renderer {
     const targetH = kind === 'boss' ? 95 : kind === 'elite' ? 60 : 34;
     const y = e.y;   // 不加颠簸，走路全靠 4 帧拼接（颠簸会「一跳一跳」）
     const base = e.sprite || this.spriteBase(kind, e.variant, e.id);
+    // 受击白闪强度分级：小怪群在 AoE 下会同时大面积闪烁，0.7 全亮=频闪风暴；
+    // 小怪按剩余时长衰减且封顶减半，精英/Boss 保持强闪（读「这只被重击了」）
+    const flashK = e.hitFlash > 0
+      ? (kind === 'minion' ? 0.22 + 0.35 * (e.hitFlash / 0.15) : 0.7)
+      : false;
     // 特殊敌人可读性：脚下光环区分（自爆红 / 坦克灰蓝 / 伏击金 / 精英橙 / Boss 紫）
     const RING = { bomber: PAL.bomber, tank: PAL.tank };
     const ringColor = e.affix?.color
@@ -812,9 +817,9 @@ export class Renderer {
       // 攻击动画：attackT 0.3→0，按进度切 起手→劈砍→收招（小怪/精英/Boss 通用）
       const prog = 1 - e.attackT / (e.atkWindup ?? 0.3);   // 抬手时长按变体，写死 0.3 会让重装的动画提前播完
       const f = prog < 0.35 ? 'atk0' : prog < 0.7 ? 'atk1' : 'atk2';
-      ok = this.blitSprite(`units/${base}_${f}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
-        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
-        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true);
+      ok = this.blitSprite(`units/${base}_${f}.png`, e.x, y, targetH, flashK, facing, 1, true)
+        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, flashK, facing, 1, true)
+        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, flashK, facing, 1, true);
       // 刀光特效（优先专属，回退通用）
       const slashOk = this.blitSprite(`effects/${base}_slash.png`, e.x + facing * 16, e.y, targetH * 0.75, false, facing)
         || this.blitSprite('effects/slash.png', e.x + facing * 16, e.y, targetH * 0.75, false, facing);
@@ -825,10 +830,10 @@ export class Renderer {
     } else {
       // 走路动画：4 帧循环（e.anim 每秒 +8）+ 轻微上下颠簸
       const walkF = Math.floor(e.anim) % 4;
-      ok = this.blitSprite(`units/${base}_walk${walkF}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
-        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
-        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true)
-        || this.blitSprite(`units/minion_${this.planeId}.png`, e.x, y, targetH, e.hitFlash > 0, facing, 1, true);
+      ok = this.blitSprite(`units/${base}_walk${walkF}.png`, e.x, y, targetH, flashK, facing, 1, true)
+        || this.blitSprite(`units/${base}_walk0.png`, e.x, y, targetH, flashK, facing, 1, true)
+        || this.blitSprite(`units/${base}.png`, e.x, y, targetH, flashK, facing, 1, true)
+        || this.blitSprite(`units/minion_${this.planeId}.png`, e.x, y, targetH, flashK, facing, 1, true);
     }
     if (!ok) this.dot(e.x, e.y, e.r, e.kind === 'boss' ? PAL.boss : PAL.danger);
 
@@ -1059,7 +1064,7 @@ export class Renderer {
       ctx.translate(rx + rw, ry);
       ctx.scale(-1, 1);
       ctx.drawImage(src, 0, 0, rw, rh);
-      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(src, 0, 0, rw, rh); }
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7 * (typeof flash === 'number' ? flash : 1); ctx.drawImage(src, 0, 0, rw, rh); }
     } else {
       ctx.drawImage(src, rx, ry, rw, rh);
       if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(src, rx, ry, rw, rh); }
@@ -1090,7 +1095,7 @@ export class Renderer {
       ctx.translate(rx + rw, ry);
       ctx.scale(-1, 1);
       ctx.drawImage(src, 0, 0, rw, rh);
-      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(src, 0, 0, rw, rh); }
+      if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7 * (typeof flash === 'number' ? flash : 1); ctx.drawImage(src, 0, 0, rw, rh); }
     } else {
       ctx.drawImage(src, rx, ry, rw, rh);
       if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(src, rx, ry, rw, rh); }

@@ -112,7 +112,7 @@ export function showBattleStage() {
       + '<div id="battleToast" aria-live="polite"></div>'
       + '<div id="stickBase" aria-hidden="true"><i id="stickKnob"></i></div>'
       + '<div id="pauseVeil">已暂停　<span class="small">Esc/P 继续 · M 静音</span></div></div>'
-      + '<div id="battleHint">WASD 移动 · 自动索敌攻击 · <b>空格</b>吞噬爆发（吸基因+回血+狂暴）· <b>Shift</b>闪避翻滚 · 靠近尸体自动吸取</div>';
+      + '<div id="battleHint">WASD 移动 · 自动索敌攻击 · <b>空格</b>吞噬爆发（吸基因+回血+狂暴）· <b>Shift</b>闪避翻滚 · 靠近尸体自动吸取 · 主动技<b>自动施放</b>（冷却好转自动打出）</div>';
     app.appendChild(stage);
   }
   app.classList.add('in-battle');
