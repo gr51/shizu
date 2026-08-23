@@ -550,8 +550,8 @@ export class RealtimeRun extends Run {
       this.spawnEnemy(st.closer, true);
       if (st.extraElite) this.spawnEnemy({ ...st.closer, name: `${st.closer.name}·其二` }, true);
       this.emitFx(st.closer.kind === 'boss' ? 'boss' : 'elite', this.player.x, this.player.y);
-      // Boss 登场演出：0.3s 时停——「大敌当前」的一拍停顿（纯表现层，不影响平衡）
-      if (st.closer.kind === 'boss') this.hitStop = 0.3;
+      // Boss 登场演出：0.12s 时停——「大敌当前」的一拍停顿（0.3 实测与「卡死」反馈同类，压到有力不拖沓）
+      if (st.closer.kind === 'boss') this.hitStop = 0.12;
       this.emit(
         st.closer.kind === 'boss'
           ? `【位面之主】${st.closer.name} 降临`
