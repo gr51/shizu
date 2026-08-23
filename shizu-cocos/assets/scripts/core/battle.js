@@ -300,8 +300,13 @@ export class RealtimeRun extends Run {
     return fx;
   }
 
-  emitFx(type, x, y) {
-    if (this.hits.length < 40) this.hits.push({ type, x, y });
+  /**
+   * 发一个特效事件给渲染层。
+   * data 是可选的类型专属参数（如激光的朝向）——渲染层要画得对，光有坐标不够：
+   * 位面机制的激光是横扫还是竖扫，只看 x/y 是分辨不出来的。
+   */
+  emitFx(type, x, y, data = null) {
+    if (this.hits.length < 40) this.hits.push({ type, x, y, data });
   }
 
   // ===== 主循环 =====
@@ -1838,7 +1843,6 @@ export class RealtimeRun extends Run {
     // 位面机制随阶段收紧（backlog #5）：S1 教学期不启用；S2 起频率按表加速，
     // S5 达 2 倍——位面身份参与阶段曲线，「考验」阶段开始有位面自己的声音。
     const MECH_STAGE_ACCEL = [1, 1.15, 1.3, 1.6, 2];
-    if (false) return; // TEMP-ISO
     const accel = MECH_STAGE_ACCEL[Math.min(this.stageNo - 1, MECH_STAGE_ACCEL.length - 1)];
 
     if (m.type === 'mix') {
@@ -1896,7 +1900,7 @@ export class RealtimeRun extends Run {
       case 'laser': {
         const horiz = this.rng() < 0.5;
         const line = horiz ? (p.y + (this.rng() * 2 - 1) * 160) : (p.x + (this.rng() * 2 - 1) * 160);
-        this.emitFx('laser', horiz ? p.x : line, horiz ? line : p.y);
+        this.emitFx('laser', horiz ? p.x : line, horiz ? line : p.y, { horiz });
         if (horiz ? Math.abs(p.y - line) < 22 : Math.abs(p.x - line) < 22) {
           this.hurtPlayer(4 * this.dungeon.D);
         }

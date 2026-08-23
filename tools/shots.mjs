@@ -208,6 +208,29 @@ if (sample.length) {
   }
 }
 
+// —— 位面机制的表现 ——
+// 核心层发 16 种特效，渲染层此前只映射了 7 种：落雷/激光/践踏/精英预警 等
+// 一律画不出来，玩家只会莫名其妙掉血 —— 十二个位面因此长得一模一样。
+// 机制按 10~18 秒的周期自己触发，等不起，直接调 castMech 逼它出手再拍。
+console.log('\n位面机制表现：');
+await p.evaluate(() => globalThis.__shizu.setTimeScale(0.25));
+for (const [type, label] of [
+  ['lightning', '落雷（渡劫）'],
+  ['laser', '激光横扫（机关城/奇巧）'],
+  ['stomp', '巨型践踏（山海/巨神）'],
+  ['bulletHell', '弹幕法阵（奥法）'],
+]) {
+  const ok = await p.evaluate((t) => {
+    const r = globalThis.__shizu.run;
+    if (!r || typeof r.castMech !== 'function') return false;
+    r.castMech(t);
+    return true;
+  }, type).catch(() => false);
+  if (!ok) { console.log(`  ⚠ ${label}：castMech 不可用`); continue; }
+  await shot(`mech-${type}`, 60);
+  console.log(`  ${label}`);
+}
+
 console.log('\n' + (errs.length
   ? '✗ ' + errs.length + ' 项报错:\n  ' + [...new Set(errs)].slice(0, 10).join('\n  ')
   : '✓ 控制台零报错、零资源加载失败'));

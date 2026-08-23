@@ -12,6 +12,24 @@ const FX_SPRITE = {
 // 调色板：十六进制与 shizu-cocos/assets/scripts/game/UiKit.ts 的 C 表同源，
 // 外加战斗语义扩展（精英/自爆/践踏/引信/暴击…）。渲染端只在此处写颜色值 ——
 // 改色一处生效，避免「金四种、红五种」式的漂移。
+/**
+ * 没有贴图、靠程序化绘制的特效：类型 → 持续时长（秒）。
+ * 本作是「纯程序化、无 prefab」的架构，这些机制表现不该为了几个圆环去出图。
+ */
+const PROC_FX = {
+  lightning: 0.38,   // 渡劫：随机落雷
+  laser: 0.30,       // 机关城 / 奇巧：激光横扫
+  stomp: 0.42,       // 山海 / 巨神：巨型践踏
+  slam: 0.42,        // 重装怪践踏落地
+  spit: 0.16,        // 远程起手枪口闪
+  elite: 0.50,       // 精英抬手预警
+  boss: 0.60,        // 位面之主抬手预警
+  devour: 0.40,      // 吞噬爆发
+  dodge: 0.22,       // 闪避翻滚
+  shield: 0.40,      // 护盾
+  skill: 0.26,       // 主动技释放
+};
+
 const PAL = {
   bgFallback: '#0d1013',   // 兜底底色（= C.bg）
   gene: '#5fb8a6',         // 基因青（= C.gene）
@@ -38,6 +56,7 @@ export class Renderer {
     this.assets = assets;
     this.planeId = planeId;
     this.fx = [];             // 活跃特效实例
+    this.procFx = [];         // 程序化特效实例（无贴图，见 PROC_FX）
     this._outlines = new Map();   // 墨线描边版贴图缓存（键 = 原始 Image）
     this.shake = 0;
     this.flash = 0;           // 全屏闪光（升级/进化瞬间）
@@ -88,9 +107,18 @@ export class Renderer {
       } else {
         const s = FX_SPRITE[e.type];
         if (s) this.fx.push({ sprite: s, x: e.x, y: e.y, t: 0 });
+        // 没有贴图的类型走程序化绘制。核心层一共发 16 种特效，FX_SPRITE 只映射了 7 种 ——
+        // 位面机制（落雷/激光/践踏）、精英与 Boss 的抬手预警、闪避、吞噬爆发
+        // 此前**全部画不出来**：玩家只会莫名其妙掉血，十二个位面因此长得一模一样。
+        else if (PROC_FX[e.type]) {
+          this.procFx.push({ type: e.type, x: e.x, y: e.y, data: e.data ?? null, t: 0 });
+        }
         if (e.type === 'hit') this.shake = Math.max(this.shake, 5);
         if (e.type === 'crit') this.shake = Math.max(this.shake, 3);
         if (e.type === 'sword_hit') this.shake = Math.max(this.shake, 2);
+        if (e.type === 'lightning' || e.type === 'stomp' || e.type === 'slam') {
+          this.shake = Math.max(this.shake, 6);
+        }
       }
     }
   }
@@ -200,6 +228,9 @@ export class Renderer {
       return true;
     });
 
+    // —— 程序化特效（位面机制 / 预警 / 位移动作）——
+    this.drawProcFx(dt);
+
     // —— 伤害飘字（暴击金色）——
     this.drawDamageNums(run);
 
@@ -282,6 +313,134 @@ export class Renderer {
   pulse() {
     this.flash = 1;
     this.pop = 1;
+  }
+
+  /**
+   * 程序化特效。核心层发的 16 种特效里有 11 种没有贴图，此前一律不画 ——
+   * 位面机制（落雷/激光/践踏）和精英 Boss 的抬手预警因此完全不可见：
+   * 玩家只会莫名其妙掉血，而十二个位面的差异恰恰就藏在这些机制里。
+   * 这里按语义各画各的形状，颜色统一走 PAL，不新增任何美术资产。
+   */
+  drawProcFx(dt) {
+    const ctx = this.ctx;
+    for (const f of this.procFx) f.t += dt;
+    this.procFx = this.procFx.filter((f) => {
+      const dur = PROC_FX[f.type] ?? 0.3;
+      if (f.t >= dur) return false;
+      const k = f.t / dur;              // 0→1 进度
+      const fade = 1 - k;
+      ctx.save();
+      ctx.lineCap = 'round';
+
+      switch (f.type) {
+        case 'lightning': {
+          // 天降雷：先一道抖动的折线劈下，再在落点炸开一圈
+          ctx.globalAlpha = Math.min(1, fade * 1.6);
+          ctx.strokeStyle = '#cfa8ff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          let ly = f.y - 260;
+          ctx.moveTo(f.x, ly);
+          for (let i = 1; i <= 6; i++) {
+            const t = i / 6;
+            ctx.lineTo(f.x + Math.sin(i * 2.3 + f.x) * 16 * (1 - t), ly + 260 * t);
+          }
+          ctx.stroke();
+          ctx.globalAlpha = fade * 0.8;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 18 + k * 58, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
+        case 'laser': {
+          // 横扫激光：整条轴线一道亮束，外面套一层辉光
+          const horiz = f.data?.horiz ?? true;
+          const half = ARENA.w;
+          ctx.globalAlpha = fade;
+          for (const [w, c] of [[16, 'rgba(255,120,90,0.22)'], [5, '#ff8f6b'], [2, '#ffe6d8']]) {
+            ctx.strokeStyle = c;
+            ctx.lineWidth = w;
+            ctx.beginPath();
+            if (horiz) { ctx.moveTo(f.x - half, f.y); ctx.lineTo(f.x + half, f.y); }
+            else { ctx.moveTo(f.x, f.y - half); ctx.lineTo(f.x, f.y + half); }
+            ctx.stroke();
+          }
+          break;
+        }
+        case 'stomp':
+        case 'slam': {
+          // 践踏：地面冲击环，横向压扁模拟俯视
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = f.type === 'slam' ? PAL.slam : PAL.tank;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.ellipse(f.x, f.y, 20 + k * 110, (20 + k * 110) * 0.42, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
+        case 'spit': {
+          ctx.globalAlpha = fade;
+          ctx.fillStyle = PAL.shotTrail;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 4 + k * 10, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'elite':
+        case 'boss': {
+          // 抬手预警：一圈从外向内收缩的环 —— 收拢即出手，给玩家读秒的锚点
+          ctx.globalAlpha = 0.3 + fade * 0.6;
+          ctx.strokeStyle = f.type === 'boss' ? PAL.boss : PAL.elite;
+          ctx.lineWidth = f.type === 'boss' ? 4 : 3;
+          const r0 = f.type === 'boss' ? 120 : 80;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, r0 * (1 - k) + 14, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
+        case 'devour': {
+          ctx.globalAlpha = fade * 0.9;
+          ctx.strokeStyle = PAL.gene;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 30 + k * 230, 0, Math.PI * 2);   // ≈ DEVOUR_RADIUS
+          ctx.stroke();
+          break;
+        }
+        case 'dodge': {
+          ctx.globalAlpha = fade * 0.55;
+          ctx.strokeStyle = PAL.playerDot;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 10 + k * 22, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
+        case 'shield': {
+          ctx.globalAlpha = fade * 0.8;
+          ctx.strokeStyle = PAL.tank;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 26, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
+        case 'skill': {
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = PAL.gold;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 16 + k * 44, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
+        default: break;
+      }
+      ctx.restore();
+      return true;
+    });
   }
 
   drawDamageNums(run) {
