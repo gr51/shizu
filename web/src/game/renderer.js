@@ -94,6 +94,10 @@ export class Renderer {
     this.canvas.height = Math.round(ARENA.h * scale);
     this.canvas.style.width = `${this.canvas.width}px`;
     this.canvas.style.height = `${this.canvas.height}px`;
+    // 把画布实际宽度暴露给 CSS：HUD 与底部提示栏据此对齐。
+    // 否则超宽屏上 HUD 横跨整个视口、画布只占中间一条，血条贴最左、暂停贴最右，
+    // 读起来跟战场是两个东西。
+    document.documentElement.style.setProperty('--stage-w', `${this.canvas.width}px`);
     this.ctx.imageSmoothingEnabled = false;
   }
 
