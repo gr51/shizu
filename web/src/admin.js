@@ -29,11 +29,33 @@ const loadOv = () => { try { return JSON.parse(localStorage.getItem(KEY) ?? 'nul
 // 编辑器状态：从默认值起步，合并已保存覆盖
 const state = { planes: {}, mechanics: {}, riftMods: [], shopItems: [], sideQuests: [], skills: [], hiddenSkills: {}, routes: {}, combos: [], synergies: [], achievements: [], relics: {}, crises: [], eliteAffixes: [], attrPool: [], nestUpgrades: [], mechUpgrades: [], weaponAttack: {}, stageSprites: {}, bossSprites: {} };
 
+/** 把一份覆盖对象合并进编辑器状态（启动读档与分享码导入共用） */
+function mergeIntoState(o) {
+  for (const [pid, patch] of Object.entries(o.planes ?? {})) {
+    if (state.planes[pid]) Object.assign(state.planes[pid], patch);
+    else state.planes[pid] = { ...patch };
+  }
+  for (const [pid, mech] of Object.entries(o.mechanics ?? {})) if (state.mechanics[pid]) Object.assign(state.mechanics[pid], mech);
+  for (const [pid, pairs] of Object.entries(o.stageSprites ?? {})) if (Array.isArray(pairs)) state.stageSprites[pid] = pairs.map((x) => [...x]);
+  for (const [pid, name] of Object.entries(o.bossSprites ?? {})) if (state.bossSprites[pid] != null || String(pid).startsWith('plane_')) state.bossSprites[pid] = name;
+  for (const l of [['riftMods', state.riftMods], ['shopItems', state.shopItems], ['sideQuests', state.sideQuests], ['skills', state.skills], ['combos', state.combos], ['synergies', state.synergies], ['achievements', state.achievements], ['crises', state.crises], ['eliteAffixes', state.eliteAffixes], ['attrPool', state.attrPool], ['nestUpgrades', state.nestUpgrades], ['mechUpgrades', state.mechUpgrades]]) {
+    const [k, arr] = l;
+    for (const patch of o[k] ?? []) {
+      const t = arr.find((x) => x.id === patch.id);
+      if (t) Object.assign(t, patch);
+      else if (patch.id && !['shopItems', 'sideQuests', 'achievements'].includes(k)) arr.push({ ...patch });
+    }
+  }
+  for (const [hid, patch] of Object.entries(o.hiddenSkills ?? {})) if (state.hiddenSkills[hid]) Object.assign(state.hiddenSkills[hid], patch);
+  for (const [rid, patch] of Object.entries(o.routes ?? {})) if (state.routes[rid]) Object.assign(state.routes[rid], patch);
+  for (const [rid, patch] of Object.entries(o.relics ?? {})) if (state.relics[rid]) Object.assign(state.relics[rid], patch);
+  for (const [rid, patch] of Object.entries(o.weaponAttack ?? {})) if (state.weaponAttack[rid]) Object.assign(state.weaponAttack[rid], patch);
+}
+
+// —— 默认装载（原生表）→ 再合并已保存覆盖 ——
 {
   const o = loadOv();
-
   for (const p of planes) state.planes[p.id] = { name: p.name, theme: p.theme, boss: p.boss, bossDesc: p.bossDesc ?? '', poem: p.poem ?? '' };
-  for (const [pid, m] of Object.entries(PLANE_MECHANICS)) state.mechanics[pid] = { type: m.type, interval: m.interval ?? 12 };
   for (const pid of Object.keys(MINION_SPRITE_BY_STAGE)) state.stageSprites[pid] = MINION_SPRITE_BY_STAGE[pid].map((x) => [...x]);
   for (const [pid, name] of Object.entries(BOSS_BY_PLANE)) state.bossSprites[pid] = name;
 
@@ -56,21 +78,7 @@ const state = { planes: {}, mechanics: {}, riftMods: [], shopItems: [], sideQues
   state.weaponAttack.__default = { projectile: DEFAULT_WEAPON.projectile, color: DEFAULT_WEAPON.color, pattern: DEFAULT_WEAPON.pattern };
 
   // 合并已保存覆盖（未知 id = 上次后台新增的条目，直接并入状态）
-  for (const [pid, patch] of Object.entries(o.planes ?? {})) {
-    if (state.planes[pid]) Object.assign(state.planes[pid], patch);
-    else state.planes[pid] = { ...patch };
-  }
-  for (const [pid, mech] of Object.entries(o.mechanics ?? {})) if (state.mechanics[pid]) Object.assign(state.mechanics[pid], mech);
-  for (const [pid, pairs] of Object.entries(o.stageSprites ?? {})) if (Array.isArray(pairs)) state.stageSprites[pid] = pairs.map((x) => [...x]);
-  for (const [pid, name] of Object.entries(o.bossSprites ?? {})) state.bossSprites[pid] = name;
-  for (const l of [['riftMods', state.riftMods], ['shopItems', state.shopItems], ['sideQuests', state.sideQuests], ['skills', state.skills], ['combos', state.combos], ['synergies', state.synergies], ['achievements', state.achievements], ['crises', state.crises], ['eliteAffixes', state.eliteAffixes], ['attrPool', state.attrPool], ['nestUpgrades', state.nestUpgrades], ['mechUpgrades', state.mechUpgrades]]) {
-    const [k, arr] = l;
-    for (const patch of o[k] ?? []) { const t = arr.find((x) => x.id === patch.id); if (t) Object.assign(t, patch); }
-  }
-  for (const [hid, patch] of Object.entries(o.hiddenSkills ?? {})) if (state.hiddenSkills[hid]) Object.assign(state.hiddenSkills[hid], patch);
-  for (const [rid, patch] of Object.entries(o.routes ?? {})) if (state.routes[rid]) Object.assign(state.routes[rid], patch);
-  for (const [rid, patch] of Object.entries(o.relics ?? {})) if (state.relics[rid]) Object.assign(state.relics[rid], patch);
-  for (const [rid, patch] of Object.entries(o.weaponAttack ?? {})) if (state.weaponAttack[rid]) Object.assign(state.weaponAttack[rid], patch);
+  mergeIntoState(o);
 }
 
 // ——— 小工具（转义 & 控件）———
@@ -785,6 +793,31 @@ function init() {
       hint.textContent = res.ok ? '✓ 已写入 web/src/config/overrides.data.json（可提交进仓库）' : `✗ 保存失败（HTTP ${res.status}）`;
     } catch (e) {
       hint.textContent = `✗ 保存失败：${e.message}`;
+    }
+  });
+
+  // —— 地图分享码：完整配置 ↔ base64 字符串（复制即分发，粘贴即导入）——
+  const bGen = document.createElement('button');
+  bGen.id = 'shareExportBtn'; bGen.textContent = '生成分享码';
+  const bImp = document.createElement('button');
+  bImp.id = 'shareImportBtn'; bImp.textContent = '导入分享码';
+  bar.insertBefore(bGen, bar.querySelector('#exportBtn'));
+  bar.insertBefore(bImp, bar.querySelector('#exportBtn'));
+  bGen.addEventListener('click', () => {
+    const code = btoa(unescape(encodeURIComponent(JSON.stringify(buildOutput()))));
+    navigator.clipboard?.writeText(code).catch(() => {});
+    bar.querySelector('.hint').textContent = `✓ 分享码已生成并复制（${code.length} 字符）`;
+  });
+  bImp.addEventListener('click', () => {
+    const code = (prompt('粘贴分享码：') ?? '').trim();
+    if (!code) return;
+    try {
+      mergeIntoState(JSON.parse(decodeURIComponent(escape(atob(code)))));
+      for (const def of PANE_DEFS) { PANES[def[0]].innerHTML = ''; def[2](PANES[def[0]]); }
+      mark();
+      bar.querySelector('.hint').textContent = '✓ 已导入编辑器——检查无误后点「应用修改」生效';
+    } catch (e) {
+      bar.querySelector('.hint').textContent = `✗ 导入失败：${e.message}`;
     }
   });
 
