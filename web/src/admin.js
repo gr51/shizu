@@ -213,6 +213,20 @@ function buildPlanes(root) {
       },
       true,
     ));
+    {
+      const tplBtn = document.createElement('button');
+      tplBtn.type = 'button';
+      tplBtn.textContent = '插入示例剧本';
+      tplBtn.addEventListener('click', () => {
+        st.triggers = [
+          { on: 'onFirstBlood', actions: [{ type: 'genes', amount: 50 }] },
+          { on: 'onChestOpen', actions: [{ type: 'spawnElite', count: 2 }] },
+          { on: 'onTimeTick', every: 30, actions: [{ type: 'surge', count: 15 }] },
+        ];
+        mark(); refreshPane('planes');
+      });
+      b.appendChild(tplBtn);
+    }
     sec.appendChild(b);
   }
   root.appendChild(sec);
