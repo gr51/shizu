@@ -363,6 +363,14 @@ export class RealtimeRun extends Run {
       this._lowHpFired = true;
       this.runPlaneTriggers('onLowHp');
     }
+    // 触发器：Boss 半血边沿——狂暴/增援类剧本钩
+    if (!this._bossHalfFired) {
+      const boss = (this.enemies ?? []).find((e2) => e2.kind === 'boss' && !e2.dead);
+      if (boss && boss.hp / Math.max(1, boss.maxHp) <= 0.5) {
+        this._bossHalfFired = true;
+        this.runPlaneTriggers('onBossHalfHp');
+      }
+    }
     // 触发器：定时事件——on:'onTimeTick' 且 every:N(秒) 的规则按各自周期循环触发
     const tickTrigs = this.dungeon?.plane?.triggers;
     if (Array.isArray(tickTrigs)) {
