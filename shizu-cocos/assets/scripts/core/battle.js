@@ -416,6 +416,18 @@ export class RealtimeRun extends Run {
     // 无限画布：玩家不受边界约束，自由漫游
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    // 障碍物：圆形碰撞，把玩家推出（v1 只约束玩家，怪穿行——低成本制造走位地标）
+    const obs = this.dungeon.plane?.obstacles;
+    if (Array.isArray(obs)) {
+      for (const o of obs) {
+        const ox = Number(o?.x), oy = Number(o?.y), or = Math.max(0, Number(o?.r) || 0);
+        if (![ox, oy].every(Number.isFinite) || or <= 0) continue;
+        const dx = p.x - ox, dy = p.y - oy;
+        const d = Math.hypot(dx, dy) || 1;
+        const min = or + p.r;
+        if (d < min) { p.x = ox + (dx / d) * min; p.y = oy + (dy / d) * min; }
+      }
+    }
 
     if (Math.abs(nx) > 0.01) p.facing = nx > 0 ? 1 : -1;
     p.invuln = Math.max(0, p.invuln - dt);

@@ -120,6 +120,7 @@ export function applyOverridesData(o) {
     if (clean.stagePlan) clean.stagePlan = JSON.parse(JSON.stringify(clean.stagePlan));
     if (clean.variantWeights) clean.variantWeights = { ...clean.variantWeights };
     if (clean.triggers) clean.triggers = JSON.parse(JSON.stringify(clean.triggers));
+    if (clean.obstacles) clean.obstacles = JSON.parse(JSON.stringify(clean.obstacles));
     if (Object.keys(clean).length) {
       for (const [k, v] of Object.entries(clean)) {
         if (typeof v !== 'function' && v !== undefined) p[k] = v;
