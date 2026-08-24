@@ -393,6 +393,9 @@ export class Run {
         } else if (act.type === 'buffSpeed' && Number(act.pct) > 0) {
           this.stats.speed *= 1 + Math.min(1, Number(act.pct));
           this.emit(`⚡ 触发器：移速永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
+        } else if (act.type === 'buffRegen' && Number(act.pct) > 0) {
+          this.stats.regen = (this.stats.regen ?? 0) + Math.min(0.05, Number(act.pct) / 100);
+          this.emit(`⚡ 触发器：每秒回血 +${Number(act.pct)}% 上限`, 'win');
         } else if (act.type === 'freeze' && Number(act.duration) > 0 && typeof this.spawnSurge === 'function') {
           const dur = Math.min(5, Number(act.duration));
           for (const en of this.enemies ?? []) {
