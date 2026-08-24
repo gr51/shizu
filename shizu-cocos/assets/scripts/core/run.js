@@ -70,7 +70,7 @@ export function dutyCycle(skill) {
 }
 
 /** 触发器合法事件/动作枚举（唯一真源，测试守护防拼写漂移） */
-export const TRIGGER_EVENTS = new Set(['onFirstBlood', 'onEliteKill', 'onBossKill', 'onChestOpen', 'onStageClear', 'onLowHp', 'onTimeTick', 'onSurgeSpawn', 'onShopOpen', 'onChoiceOpen', 'onPlaneEnter', 'onDevour', 'onAmbushSpawn', 'onBossHalfHp', 'onMiniRushClear', 'onGearDrop', 'onCrisis']);
+export const TRIGGER_EVENTS = new Set(['onFirstBlood', 'onEliteKill', 'onBossKill', 'onChestOpen', 'onStageClear', 'onLowHp', 'onTimeTick', 'onSurgeSpawn', 'onShopOpen', 'onChoiceOpen', 'onPlaneEnter', 'onDevour', 'onAmbushSpawn', 'onBossHalfHp', 'onMiniRushClear', 'onGearDrop', 'onCrisis', 'onEndlessLayer']);
 export const TRIGGER_ACTIONS = new Set(['surge', 'heal', 'shield', 'genes', 'spawnElite', 'freeze', 'buffAtk', 'buffSpeed', 'buffRegen', 'revive', 'freeReroll', 'freeBanish', 'essence', 'permAtk', 'permHp', 'permSpeed', 'permGenes']);
 
 export const RunState = {
@@ -583,6 +583,7 @@ export class Run {
     this.spawnCarry = 0;
     this.emit(`🕳 深渊第 ${this.endlessLayer} 层 —— 敌人更强，基因 ×${this.geneMul.toFixed(2)}`, 'wave');
     this.openChoice(`深入深渊第 ${this.endlessLayer} 层`);
+    this.runPlaneTriggers('onEndlessLayer');
   }
 
   /** 无尽模式主动收手：立即以胜利结算，保住已赚的基因 */
