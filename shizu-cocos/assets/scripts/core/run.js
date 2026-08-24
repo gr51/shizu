@@ -425,6 +425,10 @@ export class Run {
         } else if (act.type === 'buffSpeed' && Number(act.pct) > 0) {
           this.stats.speed *= 1 + Math.min(1, Number(act.pct));
           this.emit(`⚡ 触发器：移速永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
+        } else if (act.type === 'buffCounter' && Number(act.pct) > 0) {
+          this.stats.counterChance = Math.min(1, (this.stats.counterChance ?? 0) + Number(act.pct));
+          this.stats.counterMul = Math.max(this.stats.counterMul ?? 0, Number(act.mul ?? 0.5));
+          this.emit(`⚡ 触发器：受击落雷反击 ${Math.round(Number(act.pct) * 100)}%`, 'win');
         } else if (act.type === 'buffElemental' && Number(act.count) > 0) {
           this.stats.elemental = (this.stats.elemental ?? 0) + Math.min(2, Math.round(Number(act.count)));
           this.emit(`⚡ 触发器：元素附着等级永久 +${Math.min(2, Math.round(act.count))}`, 'win');
