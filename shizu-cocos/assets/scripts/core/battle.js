@@ -2294,6 +2294,7 @@ export class RealtimeRun extends Run {
       'chest',
     );
     this.emit('🧰 宝箱守卫出现了！击破它可获得高稀有进化', 'wave');
+    this.runPlaneTriggers('onChestSpawn');
   }
 
   /** 弹幕 / 导弹投射物 */
