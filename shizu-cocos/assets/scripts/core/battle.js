@@ -392,6 +392,7 @@ export class RealtimeRun extends Run {
       this.orbs.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, genes: 2, bob: this.rng() * 6 });
     }
     this.emit('🍃 急袭肃清，基因雨洒落！', 'gene');
+    this.runPlaneTriggers('onMiniRushClear');
     this.emitFx('gene', p.x, p.y);
   }
 
