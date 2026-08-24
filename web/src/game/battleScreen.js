@@ -52,7 +52,9 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
   function pumpToast() {
     if (!toast) return;
     const log = run.log ?? [];
-    if (logSeen > log.length) logSeen = 0;
+    // P2-9：日志封顶 200 条后 shift 会让 logSeen 永远大于 length（阶段/预警 toast 全灭）——
+    // 游标超界时钳制到队尾，从最新条目继续
+    if (logSeen > log.length) logSeen = Math.max(0, log.length - 1);
     for (; logSeen < log.length; logSeen++) {
       const entry = log[logSeen];
       if (!TOAST_CLS.has(entry.cls)) continue;

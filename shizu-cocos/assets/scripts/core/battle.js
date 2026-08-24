@@ -1897,8 +1897,8 @@ export class RealtimeRun extends Run {
   emitFxMax(type, x, y) {
     if (this.hits.length < 24) this.emitFx(type, x, y);
   }
-  emitFxMin(type, x, y) {
-    if (this.hits.length < 30) this.emitFx(type, x, y);
+  emitFxMin(type, x, y, data = null) {
+    if (this.hits.length < 30) this.emitFx(type, x, y, data);
   }
 
   /**
