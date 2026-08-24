@@ -151,7 +151,12 @@ export function rollUpgradeOptions(dungeon, save, runState, rng, opts = {}) {
 export function applyAttrOption(stats, option) {
   const e = option.eff;
   if (e.atkPct) stats.atk *= 1 + e.atkPct;
-  if (e.hpPct) { stats.hp *= 1 + e.hpPct; stats.maxHp = stats.hp; }
+  if (e.hpPct) {
+    // P1-5：以**当前 maxHp** 为基准放大——此前用陈旧的 stats.hp（初始值）覆写
+    // maxHp，把巢穴/传承/变异/黑市已叠加的生命上限一次性清回初始水平
+    stats.maxHp = Math.round(stats.maxHp * (1 + e.hpPct));
+    stats.hp = Math.min(stats.maxHp, stats.hp * (1 + e.hpPct));
+  }
   if (e.speedPct) stats.speed *= 1 + e.speedPct;
   if (e.aspdPct) stats.aspd *= 1 + e.aspdPct;
   if (e.crit) stats.crit += e.crit;

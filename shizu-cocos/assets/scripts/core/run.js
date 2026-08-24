@@ -489,7 +489,11 @@ export class Run {
    */
   openChest() {
     if (this.state !== RunState.FIGHTING) return false;
-    this.openChoice('🧰 宝箱开启', { rare: 4, legend: 8, base: 0.25, feature: 0.5 });
+    // P1-4：偏置必须包在 opts.rarityBias 嵌套形状里——此前传扁平 { rare: 4 ... }
+    // 被消费端忽略，稀有度乘区完全不生效（测试用了正确嵌套形状所以全绿）
+    this.openChoice('🧰 宝箱开启', {
+      rarityBias: { rare: 4, legend: 8, base: 0.25, feature: 0.5 },
+    });
     this.chestsOpened = (this.chestsOpened ?? 0) + 1;   // 行为成就「开箱有喜」计数
     this.emit('🧰 宝箱开启！稀有选项出现率大幅提升', 'win');
     return true;
