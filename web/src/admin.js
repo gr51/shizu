@@ -21,6 +21,7 @@ import { NEST_UPGRADES } from '../../../shizu-cocos/assets/scripts/data/nestUpgr
 import { MECH_UPGRADES } from '../../../shizu-cocos/assets/scripts/data/mechUpgrades.js';
 import { WEAPON_ATTACK, DEFAULT_WEAPON } from '../../../shizu-cocos/assets/scripts/data/weaponAttack.js';
 import { STAGE_SECONDS } from '../../../shizu-cocos/assets/scripts/core/dungeon.js';
+import { SCHEMA, schemaNewEntry } from './config/schema.js';
 
 const KEY = 'cfg_overrides_v1';
 const loadOv = () => { try { return JSON.parse(localStorage.getItem(KEY) ?? 'null') ?? {}; } catch { return {}; } };
@@ -667,6 +668,34 @@ function mark() {
   document.querySelector('#applyBtn').disabled = false;
 }
 
+/** schema 驱动的通用维度编辑页：字段渲染按类型分发，新增走 schemaNewEntry 骨架 */
+function buildGenericPane(entry) {
+  return (root) => {
+    const sec = document.createElement('section');
+    sec.innerHTML = `<h2>${esc(entry.label)} · 通用编辑器${entry.restricted ? '（仅白名单字段）' : ''}</h2>`;
+    if (!state[entry.key]) state[entry.key] = entry.kind === 'map' ? {} : [];
+    const coll = state[entry.key];
+    const canAdd = !entry.restricted && !entry.noAdd && (entry.kind === 'list' || entry.prefix);
+    if (canAdd) addBtn(sec, `gen_${entry.key}`, () => {
+      const e2 = schemaNewEntry(entry, nn);
+      if (entry.kind === 'map') coll[e2.id] = e2;
+      else coll.push(e2);
+    });
+    const renderOne = (item) => {
+      const b = box(item.id ?? '(未命名)');
+      for (const f of entry.fields ?? []) {
+        if (f.type === 'json') b.appendChild(jsonField(f.label ?? f.key, item[f.key] ?? {}, (v) => { item[f.key] = v; }));
+        else if (f.type === 'num') b.appendChild(numField(f.label ?? f.key, item[f.key] ?? '', (v) => { item[f.key] = v; mark(); }));
+        else b.appendChild(field(f.label ?? f.key, item[f.key] ?? '', (v) => { item[f.key] = v; mark(); }));
+      }
+      sec.appendChild(b);
+    };
+    if (Array.isArray(coll)) for (const item of coll) renderOne(item);
+    else for (const item of Object.values(coll)) renderOne(item);
+    root.appendChild(sec);
+  };
+}
+
 function init() {
   const app = document.querySelector('#app');
   const tabs = document.createElement('nav');
@@ -691,6 +720,14 @@ function init() {
     ['shop', '黑市', buildShop],
     ['quests', '支线', buildSideQuests],
   ];
+  // —— 扩展性核心：schema 里声明了但还没有专属构建器的维度，自动获得通用编辑页 ——
+  {
+    const covered = new Set(defs.map((d) => d[0]));
+    for (const entry of SCHEMA) {
+      if (covered.has(entry.key)) continue;
+      defs.push([`gen_${entry.key}`, `${entry.label}*`, buildGenericPane(entry)]);
+    }
+  }
   PANE_DEFS = defs;
   const panes = {};
   for (const [key, label, fn] of defs) {
