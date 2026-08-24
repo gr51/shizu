@@ -387,6 +387,9 @@ export class Run {
             this.spawnEnemy({ ...stg.closer, name: `${stg.closer.name}·触袭`, kind: 'elite', ambush: true }, false);
           }
           this.emit(`⚡ 触发器：触袭精英 ×${n}！`, 'death');
+        } else if (act.type === 'permAtk' && Number(act.pct) > 0) {
+          this.save.player.permAtkPct = (this.save.player.permAtkPct ?? 0) + Math.min(10, Number(act.pct));
+          this.emit(`⚡ 触发器：永久攻击 +${Math.min(10, act.pct)}%（跨局）`, 'win');
         } else if (act.type === 'essence' && Number(act.amount) > 0) {
           this.save.player.gearEssence = (this.save.player.gearEssence ?? 0) + Math.min(300, Math.round(Number(act.amount)));
           this.emit(`⚡ 触发器：装备精华 +${Math.min(300, Math.round(act.amount))}`, 'gene');
