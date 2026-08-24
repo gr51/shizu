@@ -1765,6 +1765,7 @@ export class RealtimeRun extends Run {
     this.orbs.push({ x: e.x, y: e.y, genes, bob: this.rng() * 6 });
 
     this.enemies = this.enemies.filter((x) => !x.dead);
+    if (!this._firstBloodFired) { this._firstBloodFired = true; this.runPlaneTriggers('onFirstBlood'); }
     if (e.kind === 'elite' && !e.ambush) {
       this.emit(`击破 <b>${e.name}</b>`, 'gene');
       this.runPlaneTriggers('onEliteKill');
