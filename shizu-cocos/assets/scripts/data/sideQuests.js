@@ -30,10 +30,12 @@ export const SIDE_QUESTS = [
   {
     id: 'speedrun',
     name: '速通协议',
-    desc: '150 秒内抵达第 3 阶段',
+    // P1-7 可达性修正：S1 收尾 75s 刷出 + S2 收尾 135s 阶段内刷出，
+    // 抵达 S3 的数学下限 ≈230s——240s 是「紧绷但可行」的阈值
+    desc: '240 秒内抵达第 3 阶段',
     target: 3,
     reward: 400,
-    progress: (r) => (r.time <= 150 ? r.stageNo : 0),   // 超时即失败：归零且不可恢复
+    progress: (r) => (r.time <= 240 ? r.stageNo : 0),   // 超时即失败：归零且不可恢复
   },
   {
     id: 'headhunter',
