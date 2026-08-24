@@ -817,10 +817,20 @@ export class Run {
       this.emit(`✅ 支线协议【${this.sideQuest.name}】完成！额外基因 +${this.sideQuest.reward}`, 'win');
     }
 
+    // 完成度评价（无限流式）：多因子评级 + 按评级发放结算基因加成。
+    // ⚠ 必须在 repo.persist 之前——P0-3：此前写在 persist 之后，加成基因静默丢失
+    const gradeExtras = {
+      sideQuestDone: this.sideQuest ? this.isSideQuestDone() : false,
+      modsCount: (this.dungeon.riftMods?.length ?? 0),   // P2-13：dungeon.mods 是聚合对象无 length，真实所选在 riftMods
+      endlessLayer: this.endlessLayer ?? 0,
+    };
+    const grade = gradeRun(victory, this.stageNo, this.kills, gradeExtras);
+    const gradeBonus = gradeBonusGenes(grade);
+
     // 里程碑奖励：达成但未领取的成就一次性发放（必须在落盘前，且在所有进度更新之后）
     const achievements = claimAchievements(save);
 
-    repo.persist(save);   // 红线 6：一次性落盘
+    repo.persist(save);   // 红线 6：一次性落盘（含评级加成与全部结算收入）
 
     this.state = RunState.SETTLED;
     this.result = {
@@ -843,19 +853,11 @@ export class Run {
       growth,
       dyn,
       achievements,
+      grade,
+      gradeBonusGenes: gradeBonus,
     };
-    // 完成度评价（无限流式）：多因子评级 + 按评级发放结算基因加成
-    const gradeExtras = {
-      sideQuestDone: this.sideQuest ? this.isSideQuestDone() : false,
-      modsCount: (this.dungeon.mods?.length ?? 0),
-      endlessLayer: this.endlessLayer ?? 0,
-    };
-    this.result.grade = gradeRun(victory, this.stageNo, this.kills, gradeExtras);
-    const gradeBonus = gradeBonusGenes(this.result.grade);
     if (gradeBonus > 0) {
-      save.inventory.genes = (save.inventory.genes ?? 0) + gradeBonus;
-      this.result.gradeBonusGenes = gradeBonus;
-      this.emit(`🏅 完成度评价 ${this.result.grade}：基因加成 +${gradeBonus}`, 'win');
+      this.emit(`🏅 完成度评价 ${grade}：基因加成 +${gradeBonus}`, 'win');
     }
     return this.result;
   }

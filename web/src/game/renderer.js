@@ -819,7 +819,7 @@ export class Renderer {
     // 中毒态：脚下绿色滴液圈 + 头顶上浮毒泡——「毒在生效」的持续标识
     if (this._dotIds?.has(e.id)) {
       const ctx = this.ctx;
-      const tt = run.time ?? 0;
+      const tt = performance.now() / 1000;   // drawEnemy 无 run 形参——用时钟相位（P0-1 修复：此前引用不存在的 run.time 致中毒帧冻结）
       const bob = (tt * 1.8 + e.id) % 1;   // 每只怪错相位的上浮泡
       ctx.save();
       ctx.globalAlpha = 0.4;

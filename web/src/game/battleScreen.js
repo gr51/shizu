@@ -176,7 +176,9 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
   }
 
   let frameErrCount = 0;
+  let stopped = false;   // P0-2：结算/离场后置真，frame 不再续约——此前 N 局 N 个并发死循环
   function frame(now) {
+    if (stopped) return;
     try {
       frameBody(now);
     } catch (err) {
@@ -188,7 +190,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
         console.error(`[battleScreen] 帧异常 #${frameErrCount}:`, err);
       }
     }
-    raf = requestAnimationFrame(frame);
+    if (!stopped) raf = requestAnimationFrame(frame);
   }
 
   function frameBody(now) {
@@ -500,6 +502,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
   }
 
   function showSettle() {
+    stopped = true;              // P0-2：结算即停帧——此前 cancel 的是已执行完的句柄（no-op），循环对着隐藏画布空转
     cancelAnimationFrame(raf);
     cleanup();
     audio.stopBgm();
