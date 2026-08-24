@@ -792,12 +792,10 @@ export class RealtimeRun extends Run {
       // 接触攻击：抬手预警 0.3s（attackT 走完才结算伤害，给足躲闪窗口）
       if (prevAttackT > 0 && e.attackT <= 0 && d < p.r + e.r + 8 && p.invuln <= 0) {
         const bigMul = e.kind === 'boss' ? 5.0 : e.kind === 'elite' ? 3.5 : 1;
-        let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * bigMul * (e.atkMul ?? 1) * (1 - this.stats.dmgReduct));
-        if (this.mech?.type === 'combo') dmg *= this.mech.mul;   // 武侠：连招增伤
-        this.hp -= dmg;
-        p.invuln = INVULN_ON_HIT;
-        p.hitFlash = 0.18;
-        this.emitFx('hit', p.x, p.y);
+        // P2-14：改走 hurtPlayer 统一结算——护盾吸收/金身反击/雷枢/倒刺此前对本伤害源全部失效
+        let dmg = Math.max(1, e.atk * CONTACT_DPS_SCALE * bigMul * (e.atkMul ?? 1));
+        if (this.mech?.type === 'combo') dmg *= this.mech.mul;   // 武侠：连招增伤（位面身份保留）
+        this.hurtPlayer(dmg, INVULN_ON_HIT);
         // 汲血词缀：命中玩家即自我治疗（逼玩家优先处理它，而不是拖着打）
         const leech = e.affix?.eff.leech ?? 0;
         if (leech > 0) {
@@ -1769,11 +1767,9 @@ export class RealtimeRun extends Run {
       }
       if (p.invuln <= 0 && Math.hypot(s.x - p.x, s.y - p.y) < p.r + 5) {
         s.dead = true;
-        const dmg = Math.max(1, s.atk * CONTACT_DPS_SCALE * 1.4 * (1 - this.stats.dmgReduct));
-        this.hp -= dmg;
-        p.invuln = INVULN_ON_HIT * 0.6;
-        p.hitFlash = 0.18;
-        this.emitFx('hit', p.x, p.y);
+        // P2-14：改走 hurtPlayer 统一结算（护盾/反伤对弹幕同样生效）
+        const dmg = Math.max(1, s.atk * CONTACT_DPS_SCALE * 1.4);
+        this.hurtPlayer(dmg, INVULN_ON_HIT * 0.6);
         if (this.hp <= 0 && !this.tryRevive()) {
           this.hp = 0;
           this.state = RunState.LOST;
