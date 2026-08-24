@@ -358,6 +358,11 @@ export class RealtimeRun extends Run {
     if (this.stats.regen > 0) {
       this.heal(this.stats.maxHp * this.stats.regen * dt, '再生', true);
     }
+    // 触发器：低血量边沿——首次跌破 30% 触发一次 onLowHp（绝境翻盘/救援事件钩）
+    if (!this._lowHpFired && this.hp > 0 && this.hp / Math.max(1, this.stats.maxHp) < 0.3) {
+      this._lowHpFired = true;
+      this.runPlaneTriggers('onLowHp');
+    }
   }
 
   /** 急袭完成奖励：击破整波后才洒落基因，形成风险→胜利→奖励闭环 */
