@@ -26,7 +26,8 @@
     "audit:reach": "node tools/content-reach.mjs",
     "art:tile": "node tools/ai-art/tile-preview.mjs",
     "art:floor": "node tools/ai-art/regen-floor.mjs",
-    "plane:new": "node tools/plane-new.mjs"
+    "plane:new": "node tools/plane-new.mjs",
+    "plane-assets": "node tools/gen-plane-placeholders.mjs"
   },
   "devDependencies": {
     "jpeg-js": "^0.4.4",
