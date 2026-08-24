@@ -811,6 +811,19 @@ export class RealtimeRun extends Run {
         }
       }
 
+      // 障碍物对怪同样推出（v2：地形双向约束；追击位移在各分支完成后统一解算）
+      const eObs = this.dungeon.plane?.obstacles;
+      if (Array.isArray(eObs)) {
+        for (const o of eObs) {
+          const ox = Number(o?.x), oy = Number(o?.y), or = Math.max(0, Number(o?.r) || 0);
+          if (![ox, oy].every(Number.isFinite) || or <= 0) continue;
+          const edx = e.x - ox, edy = e.y - oy;
+          const ed = Math.hypot(edx, edy) || 1;
+          const emin = or + e.r;
+          if (ed < emin) { e.x = ox + (edx / ed) * emin; e.y = oy + (edy / ed) * emin; }
+        }
+      }
+
       // 接触攻击：抬手预警 0.3s（attackT 走完才结算伤害，给足躲闪窗口）
       if (prevAttackT > 0 && e.attackT <= 0 && d < p.r + e.r + 8 && p.invuln <= 0) {
         const bigMul = e.kind === 'boss' ? 5.0 : e.kind === 'elite' ? 3.5 : 1;
