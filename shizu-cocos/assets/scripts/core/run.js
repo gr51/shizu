@@ -381,6 +381,7 @@ export class Run {
     if (!TRIGGER_EVENTS.has(eventName)) return;
     for (const t of triggers) {
       if (!t || t.on !== eventName) continue;
+      if (!TRIGGER_EVENTS.has(t.on)) { console.warn(`[triggers] 未知事件: ${t.on}`); continue; }
       if (only && t !== only) continue;
       if (Number.isFinite(t.stage) && t.stage > 0 && Math.round(t.stage) !== this.stageNo) continue;
       for (const act of Array.isArray(t.actions) ? t.actions : []) {
