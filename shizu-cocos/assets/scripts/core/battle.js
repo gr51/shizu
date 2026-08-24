@@ -530,6 +530,7 @@ export class RealtimeRun extends Run {
     this.crisis = { def, warnT: CRISIS_WARN, activeT: def.duration, beatT: 0 };
     this.emit(def.warn, 'death');
     this.emitFx('surge', this.player.x, this.player.y);
+    this.runPlaneTriggers('onCrisis');
   }
 
   /** 按 dungeon 时间轴刷怪（持续流 + 涌潮 + 阶段收尾单位） */
