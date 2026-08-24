@@ -1,0 +1,51 @@
+// ===== stagePlan.test.mjs · 位面自定义关卡时间轴（关卡编辑器地基）=====
+// generateDungeon 必须尊重 plane.stagePlan 的 时长/刷怪率/涌潮表/收尾时点 覆盖，
+// 未覆盖的阶段与字段保持全局默认 —— 这是「像魔兽争霸一样自建地图」的核心契约。
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { generateDungeon } from '../shizu-cocos/assets/scripts/core/dungeon.js';
+import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
+import { freshSave } from './helpers.mjs';
+
+const jiguan = planes.find((p) => p.id === 'jiguan');
+
+test('无 stagePlan 时完全走默认时间轴', () => {
+  const d = generateDungeon(jiguan, freshSave(), 42);
+  assert.equal(d.stages[0].duration, 120);
+  assert.equal(d.stages[0].surges.length, 3);
+});
+
+test('stagePlan 覆盖时长/刷怪率/涌潮表/收尾时点', () => {
+  const custom = {
+    ...jiguan,
+    stagePlan: [{
+      duration: 60, ratePct: 150,
+      surges: [{ atSec: 20, count: 9 }, { atSec: 40, count: 18 }],
+      closerAt: 45,
+    }],
+  };
+  const d = generateDungeon(custom, freshSave(), 42);
+  const s1 = d.stages[0];
+  assert.equal(s1.duration, 60);
+  assert.equal(s1.closerAt, 45);
+  assert.deepEqual(s1.surges, [{ atSec: 20, count: 9 }, { atSec: 40, count: 18 }]);
+  // 刷怪率 = 默认 ×1.5（同种子同位面，仅 S1 改）
+  const base = generateDungeon(jiguan, freshSave(), 42);
+  assert.ok(Math.abs(s1.spawnRate - base.stages[0].spawnRate * 1.5) < 1e-9);
+});
+
+test('未覆盖的阶段不受影响；非法涌潮条目被过滤', () => {
+  const custom = {
+    ...jiguan,
+    stagePlan: [
+      {},
+      {},
+      { surges: [{ atSec: -5, count: 7 }, { atSec: 90, count: 0 }, { atSec: 60, count: 4 }] },
+    ],
+  };
+  const base = generateDungeon(jiguan, freshSave(), 42);
+  const d = generateDungeon(custom, freshSave(), 42);
+  assert.equal(d.stages[1].duration, base.stages[1].duration);
+  assert.deepEqual(d.stages[2].surges, [{ atSec: 60, count: 4 }]);
+});

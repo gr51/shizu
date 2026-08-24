@@ -109,7 +109,7 @@ export function generateDungeon(plane, save, seed, riftMods = [], opts = {}) {
 
   for (let stage = 1; stage <= 5; stage++) {
     const coef = stageCoef(stage, rng);
-    const duration = STAGE_SECONDS[stage - 1];
+    let duration = STAGE_SECONDS[stage - 1];
 
     // 涌潮：次数取自平衡表五章的「波次」列，均匀分布在本阶段时间轴上
     const surgeCount = stage === 5 ? 2 : plane.waves[stage - 1];
@@ -140,16 +140,35 @@ export function generateDungeon(plane, save, seed, riftMods = [], opts = {}) {
           ...buildEnemy(UNIT_BASE.elite, D, coef, dyn),
         };
 
+    // 位面自定义时间轴（关卡编辑器）：覆盖默认 时长/刷怪率/涌潮表/收尾时点。
+    // plane.stagePlan[stage-1] = { duration?, ratePct?(100 基准), surges?:[{atSec,count}], closerAt?(≥30) }
+    let spawnRate = SPAWN_RATE[stage - 1] * rateMul;
+    let closerAt = Math.max(30, duration - CLOSER_LEAD_SEC);
+    {
+      const plan = plane.stagePlan?.[stage - 1];
+      if (plan && typeof plan === 'object') {
+        if (Number(plan.duration) > 0) duration = Math.round(Number(plan.duration));
+        if (Number(plan.ratePct) > 0) spawnRate = Math.round(spawnRate * (Number(plan.ratePct) / 100) * 100) / 100;
+        if (Array.isArray(plan.surges)) {
+          const custom = plan.surges
+            .map((s) => ({ atSec: Math.round(Number(s?.atSec) || 0), count: Math.round(Number(s?.count) || 0) }))
+            .filter((s) => s.count > 0 && s.atSec >= 0);
+          if (custom.length) surges.splice(0, surges.length, ...custom);
+        }
+        if (Number(plan.closerAt) >= 30) closerAt = Math.max(30, Math.round(Number(plan.closerAt)));
+      }
+    }
+
     stages.push({
       stage,
       coef,
       duration,
-      spawnRate: SPAWN_RATE[stage - 1] * rateMul,
+      spawnRate,
       surges,
       minionName: `${plane.theme}·喽啰`,
       minion,
       closer,
-      closerAt: Math.max(30, duration - CLOSER_LEAD_SEC),
+      closerAt,
       // 关卡策划「阶段4：精英×2」—— 第 4 阶段夹击加一只
       extraElite: stage === 4 && plane.eliteStages.includes(4),
     });

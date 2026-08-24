@@ -20,6 +20,7 @@ import { GENERIC_ATTR_POOL } from '../../../shizu-cocos/assets/scripts/data/attr
 import { NEST_UPGRADES } from '../../../shizu-cocos/assets/scripts/data/nestUpgrades.js';
 import { MECH_UPGRADES } from '../../../shizu-cocos/assets/scripts/data/mechUpgrades.js';
 import { WEAPON_ATTACK, DEFAULT_WEAPON } from '../../../shizu-cocos/assets/scripts/data/weaponAttack.js';
+import { STAGE_SECONDS } from '../../../shizu-cocos/assets/scripts/core/dungeon.js';
 
 const KEY = 'cfg_overrides_v1';
 const loadOv = () => { try { return JSON.parse(localStorage.getItem(KEY) ?? 'null') ?? {}; } catch { return {}; } };
@@ -210,6 +211,69 @@ function spritePreview(getName) {
   update();
   img.updateSprite = update;
   return img;
+}
+
+/**
+ * 关卡·波次编辑（魔兽式）：每位面 5 阶段的 时长/刷怪率/涌潮表/收尾时点，
+ * 外加 变体权重（怪物构成）与 词缀概率。留空 = 用全局默认。
+ * 写入 plane.stagePlan / variantWeights / eliteAffixChance，经 overrides 深拷贝进运行时。
+ */
+function buildStagePlan(root) {
+  const sec = document.createElement('section');
+  sec.innerHTML = '<h2>关卡 · 波次与时间轴（留空 = 全局默认；涌潮格式 at秒:数量，逗号分隔）</h2>';
+  const extraIds = Object.keys(state.planes).filter((id) => !planes.some((p) => p.id === id));
+  for (const pid of [...planes.map((p) => p.id), ...extraIds]) {
+    const st = state.planes[pid];
+    if (!st.stagePlan) st.stagePlan = [];
+    const b = box(`${pid} · ${st.name}`);
+    for (let i = 0; i < 5; i++) {
+      if (!st.stagePlan[i]) st.stagePlan[i] = {};
+      const def = st.stagePlan[i];
+      const row = document.createElement('div');
+      row.className = 'af-row';
+      const mkNum = (label, key, ph) => {
+        const lbl = document.createElement('span'); lbl.textContent = label;
+        const inp = document.createElement('input');
+        inp.type = 'number'; inp.placeholder = ph;
+        inp.value = def[key] ?? '';
+        inp.addEventListener('input', (e) => {
+          const n = Number(e.target.value);
+          if (e.target.value === '' || !Number.isFinite(n)) delete def[key];
+          else def[key] = n;
+          mark();
+        });
+        inp.style.flex = '1';
+        row.appendChild(lbl); row.appendChild(inp);
+      };
+      mkNum(`S${i + 1}时长(s)`, 'duration', `默认${STAGE_SECONDS[i]}`);
+      mkNum('刷怪率%', 'ratePct', '100');
+      mkNum('收尾(s)≥30', 'closerAt', '默认');
+      b.appendChild(row);
+      b.appendChild(field(
+        `S${i + 1}涌潮`,
+        (def.surges ?? []).map((s) => `${s.atSec}:${s.count}`).join(','),
+        (v) => {
+          const list = v.split(',').map((seg) => {
+            const [a, c] = seg.trim().split(':').map(Number);
+            return { atSec: a, count: c };
+          }).filter((s) => Number.isFinite(s.atSec) && s.count > 0);
+          if (list.length) def.surges = list;
+          else delete def.surges;
+          mark();
+        },
+        '例：30:18,60:26',
+      ));
+    }
+    if (!st.variantWeights) st.variantWeights = {};
+    b.appendChild(jsonField('变体权重（怪物构成，可省）', st.variantWeights, (v) => { st.variantWeights = v; }));
+    b.appendChild(numField('词缀概率 0~1（可省）', st.eliteAffixChance ?? '', (v) => {
+      if (v > 0 && v <= 1) st.eliteAffixChance = v;
+      else delete st.eliteAffixChance;
+      mark();
+    }));
+    sec.appendChild(b);
+  }
+  root.appendChild(sec);
 }
 
 function buildEnemies(root) {
@@ -598,6 +662,7 @@ function init() {
   tabs.className = 'admin-tabs';
   const defs = [
     ['planes', '位面', buildPlanes],
+    ['stages', '关卡·波次', buildStagePlan],
     ['enemies', '敌人·Boss', buildEnemies],
     ['skills', '技能', buildSkills],
     ['hidden', '隐藏技', buildHiddenSkills],

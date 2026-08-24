@@ -97,6 +97,9 @@ export function applyOverridesData(o) {
     const clean = { ...patch };
     delete clean._new;
     if (!patch._new) delete clean.codex;
+    // 嵌套对象必须深拷贝，避免覆盖对象与默认表共享引用后被后台二次编辑污染
+    if (clean.stagePlan) clean.stagePlan = JSON.parse(JSON.stringify(clean.stagePlan));
+    if (clean.variantWeights) clean.variantWeights = { ...clean.variantWeights };
     if (Object.keys(clean).length) assignShallow(p, clean);
   }
 

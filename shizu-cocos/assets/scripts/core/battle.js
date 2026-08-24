@@ -586,6 +586,7 @@ export class RealtimeRun extends Run {
     // 裂缝变异的 affixChance 仍是最高优先（玩家主动选的风险）。
     const AFFIX_CHANCE_BY_STAGE = [0.2, 0.35, 0.5, 0.6, 0.6];
     const affixChance = this.dungeon.mods?.affixChance
+      ?? this.dungeon.plane?.eliteAffixChance   // 位面可固定词缀概率（关卡编辑）
       ?? AFFIX_CHANCE_BY_STAGE[Math.min(this.stageNo - 1, AFFIX_CHANCE_BY_STAGE.length - 1)];
     const affix = tpl.kind === 'elite' ? rollEliteAffix(this.rng, affixChance) : null;
     const affixHp = affix?.eff.hpMul ?? 1;
@@ -637,10 +638,13 @@ export class RealtimeRun extends Run {
   }
 
   rollVariant() {
-    const total = Object.values(MINION_VARIANTS).reduce((a, b) => a + b.weight, 0);
+    // 位面可自定义变体权重（关卡编辑：怪物构成）；未配置的键回落全局表
+    const weights = this.dungeon.plane?.variantWeights ?? {};
+    const wOf = (k, v) => (Number(weights[k]) > 0 ? Number(weights[k]) : v.weight);
+    const total = Object.entries(MINION_VARIANTS).reduce((a, [k, v]) => a + wOf(k, v), 0);
     let r = this.rng() * total;
     for (const [k, v] of Object.entries(MINION_VARIANTS)) {
-      r -= v.weight;
+      r -= wOf(k, v);
       if (r <= 0) return k;
     }
     return 'walker';
