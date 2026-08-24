@@ -425,6 +425,9 @@ export class Run {
         } else if (act.type === 'buffSpeed' && Number(act.pct) > 0) {
           this.stats.speed *= 1 + Math.min(1, Number(act.pct));
           this.emit(`⚡ 触发器：移速永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
+        } else if (act.type === 'buffGeneBonus' && Number(act.pct) > 0) {
+          this.stats.geneBonus = (this.stats.geneBonus ?? 0) + Math.min(2, Number(act.pct));
+          this.emit(`⚡ 触发器：基因产出永久 +${Math.round(Math.min(2, act.pct) * 100)}%`, 'gene');
         } else if (act.type === 'buffChain' && Number(act.count) > 0) {
           this.stats.chainJumps = (this.stats.chainJumps ?? 0) + Math.min(5, Math.round(Number(act.count)));
           this.emit(`⚡ 触发器：雷链弹射永久 +${Math.min(5, Math.round(act.count))} 跳`, 'win');
