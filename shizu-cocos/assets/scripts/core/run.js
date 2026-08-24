@@ -362,6 +362,37 @@ export class Run {
     this.emit(`—— 阶段 ${this.stageNo} / 5 ——`, 'wave');
     this.pendingShop = true;   // 阶段间开黑市（在三选一结束后弹）
     this.openChoice(`阶段 ${this.stageNo - 1} 完成`);
+    this.runPlaneTriggers('onStageClear');
+  }
+
+  /**
+   * 位面触发器（关卡编辑·WC3 式「当X做Y」第一版）：
+   * plane.triggers = [{ on:'onStageClear', stage?:N(缺省每阶段), actions:[{type,count|pct|amount}] }]
+   * 动作：surge 刷涌潮(count 只，战斗子类兑现) / heal 回血(pct) / genes 给基因(amount)。
+   */
+  runPlaneTriggers(eventName) {
+    const triggers = this.dungeon.plane?.triggers;
+    if (!Array.isArray(triggers)) return;
+    for (const t of triggers) {
+      if (!t || t.on !== eventName) continue;
+      if (Number.isFinite(t.stage) && t.stage > 0 && Math.round(t.stage) !== this.stageNo) continue;
+      for (const act of Array.isArray(t.actions) ? t.actions : []) {
+        if (!act || typeof act !== 'object') continue;
+        if (act.type === 'surge' && Number(act.count) > 0 && typeof this.spawnSurge === 'function') {
+          const tpl = this.dungeon.stages[this.stageIndex]?.minion ?? { hp: 20, atk: 3 };
+          const n = Math.min(30, Math.round(Number(act.count)));
+          this.spawnSurge({ name: '触发潮', hp: tpl.hp, atk: tpl.atk }, n, 'trigger');
+          this.emit(`⚡ 触发器：涌潮 ×${n}`, 'wave');
+        } else if (act.type === 'heal' && Number(act.pct) > 0) {
+          const p = Math.min(1, Number(act.pct));
+          this.heal(this.stats.maxHp * p, '触发器', true);
+          this.emit(`⚡ 触发器：回复 ${Math.round(p * 100)}% 生命`, 'win');
+        } else if (act.type === 'genes' && Number(act.amount) > 0) {
+          this.addGenes(Math.round(Number(act.amount)), true);
+          this.emit(`⚡ 触发器：基因 +${Math.round(act.amount)}`, 'gene');
+        }
+      }
+    }
   }
 
   /**

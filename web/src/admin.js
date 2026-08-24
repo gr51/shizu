@@ -119,7 +119,7 @@ function textarea(label, value, oninput) {
  * 效果字段（eff）编辑器：JSON 对象，失焦时校验。
  * 合法 → 写回 state 并标脏；非法 → 红字提示且不写回（不污染导出）。
  */
-function jsonField(label, obj, onChange) {
+function jsonField(label, obj, onChange, allowArray = false) {
   const wrap = document.createElement('label');
   wrap.className = 'af-field af-ta';
   wrap.innerHTML = `<span>${esc(label)}</span>`;
@@ -133,7 +133,8 @@ function jsonField(label, obj, onChange) {
   const sync = () => {
     try {
       const v = JSON.parse(ta.value);
-      if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('必须是 {键:值} 对象');
+      const badType = allowArray ? (!v || typeof v !== 'object') : (!v || typeof v !== 'object' || Array.isArray(v));
+      if (badType) throw new Error(allowArray ? '必须是对象或数组' : '必须是 {键:值} 对象');
       onChange(v);
       hint.textContent = '✓ 有效'; hint.style.color = '#6fbb8f'; mark();
     } catch (e) {
@@ -191,6 +192,15 @@ function buildPlanes(root) {
     b.appendChild(textarea('开场诗', st.poem, (v) => { st.poem = v; mark(); }));
     const mech = state.mechanics[pid];
     if (mech) b.appendChild(numField('机制间隔(s)', mech.interval, (v) => { mech.interval = v; mark(); }));
+    b.appendChild(jsonField(
+      '触发器(实验) [{on,stage?,actions:[{type,count|pct|amount}]}]',
+      st.triggers ?? [],
+      (v) => {
+        if (Array.isArray(v) && v.length) st.triggers = v;
+        else delete st.triggers;
+      },
+      true,
+    ));
     sec.appendChild(b);
   }
   root.appendChild(sec);
