@@ -371,11 +371,12 @@ export class Run {
    * plane.triggers = [{ on:'onStageClear', stage?:N(缺省每阶段), actions:[{type,count|pct|amount}] }]
    * 动作：surge 刷涌潮(count 只，战斗子类兑现) / heal 回血(pct) / genes 给基因(amount)。
    */
-  runPlaneTriggers(eventName) {
+  runPlaneTriggers(eventName, only = null) {
     const triggers = this.dungeon.plane?.triggers;
     if (!Array.isArray(triggers)) return;
     for (const t of triggers) {
       if (!t || t.on !== eventName) continue;
+      if (only && t !== only) continue;
       if (Number.isFinite(t.stage) && t.stage > 0 && Math.round(t.stage) !== this.stageNo) continue;
       for (const act of Array.isArray(t.actions) ? t.actions : []) {
         if (!act || typeof act !== 'object') continue;

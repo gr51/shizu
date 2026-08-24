@@ -363,6 +363,15 @@ export class RealtimeRun extends Run {
       this._lowHpFired = true;
       this.runPlaneTriggers('onLowHp');
     }
+    // 触发器：定时事件——on:'onTimeTick' 且 every:N(秒) 的规则按各自周期循环触发
+    const tickTrigs = this.dungeon?.plane?.triggers;
+    if (Array.isArray(tickTrigs)) {
+      for (const t of tickTrigs) {
+        if (t?.on !== 'onTimeTick' || !(Number(t.every) > 0)) continue;
+        t._t = (Number.isFinite(t._t) ? t._t : Number(t.every)) - dt;
+        if (t._t <= 0) { t._t = Number(t.every); this.runPlaneTriggers('onTimeTick', t); }
+      }
+    }
   }
 
   /** 急袭完成奖励：击破整波后才洒落基因，形成风险→胜利→奖励闭环 */
