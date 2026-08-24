@@ -387,6 +387,14 @@ export class Run {
             this.spawnEnemy({ ...stg.closer, name: `${stg.closer.name}·触袭`, kind: 'elite', ambush: true }, false);
           }
           this.emit(`⚡ 触发器：触袭精英 ×${n}！`, 'death');
+        } else if (act.type === 'freeze' && Number(act.duration) > 0 && typeof this.spawnSurge === 'function') {
+          const dur = Math.min(5, Number(act.duration));
+          for (const en of this.enemies ?? []) {
+            if (en?.kind !== 'minion' || en.dead) continue;
+            const cur = this.elementalSlows?.get?.(en.id) ?? 0;
+            this.elementalSlows?.set?.(en.id, Math.max(cur, dur));
+          }
+          this.emit(`⚡ 触发器：全场冰封 ${dur} 秒`, 'win');
         } else if (act.type === 'surge' && Number(act.count) > 0 && typeof this.spawnSurge === 'function') {
           const tpl = this.dungeon.stages[this.stageIndex]?.minion ?? { hp: 20, atk: 3 };
           const n = Math.min(30, Math.round(Number(act.count)));
