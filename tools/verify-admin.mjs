@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -157,6 +158,16 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     if (hidSaved?.eff && Number(hidSaved.eff.crit) === 0.33) ok('隐藏技 eff 落盘', 'wushuang.eff.crit=0.33 已写入');
     else bad('隐藏技 eff 落盘', JSON.stringify(hidSaved ?? null));
 
+    // 7c. 保存到项目：经 serve 端点写入 overrides.data.json
+    await page.locator('#saveProjectBtn').click();
+    await wait(400);
+    const projHint = await page.locator('#saveBar .hint').innerText();
+    if (projHint.includes('✓ 已写入')) ok('保存到项目', projHint);
+    else bad('保存到项目', projHint);
+    const fileOk = fs.existsSync(path.join(ROOT, 'web/src/config/overrides.data.json'));
+    if (fileOk) ok('持久文件落盘', 'overrides.data.json 存在');
+    else bad('持久文件落盘', '文件未生成');
+
     // 8. 刷新主游戏页，验证 overrides 被运行时消费（override 改的是 ESM 模块对象，
     //    主游戏页 boot 时已跑 applyConfigOverrides；读 planes 模块实例看 theme 是否被改）
     await page.goto(`http://localhost:${PORT}/web/`, { waitUntil: 'networkidle' });
@@ -232,6 +243,8 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   } finally {
     await browser.close();
     server.kill();
+    // 清理验证产物，保持仓库干净（该文件由使用者按需保存/提交）
+    try { fs.unlinkSync(path.join(ROOT, 'web/src/config/overrides.data.json')); } catch {}
   }
 
   console.log('\n==== 汇总 ====');

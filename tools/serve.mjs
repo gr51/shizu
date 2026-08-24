@@ -24,8 +24,31 @@ const MIME = {
   '.ogg': 'audio/ogg',
 };
 
+const OVERRIDE_FILE = 'web/src/config/overrides.data.json';
+
 http.createServer((req, res) => {
   const urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  // 后台「保存到项目」：唯一写入端点（固定路径 / 限 256KB / 必须合法 JSON）
+  if (req.method === 'POST' && urlPath === '/web/src/config/overrides.data.json') {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > 262144) { res.writeHead(413).end('too large'); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      try {
+        const body = Buffer.concat(chunks);
+        JSON.parse(body.toString('utf8'));   // 非 JSON 直接拒绝
+        fs.writeFileSync(path.join(root, OVERRIDE_FILE), body);
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' }).end(`bad json: ${e.message}`);
+      }
+    });
+    return;
+  }
   let file = path.join(root, urlPath === '/' ? 'web/index.html' : urlPath);
   if (!file.startsWith(root)) {
     res.writeHead(403).end('forbidden');

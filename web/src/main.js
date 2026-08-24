@@ -8,11 +8,17 @@ import { renderLobby } from './ui/lobby.js';
 import { startBattle } from './game/battleScreen.js';
 import { startLobbyFx, stopLobbyFx } from './ui/fx.js';
 import * as view from './ui/view.js';
-import { applyConfigOverrides } from './config/overrides.js';
+import { applyConfigOverrides, applyOverridesData } from './config/overrides.js';
 
-function boot() {
-  // 后台管理界面的配置覆盖：在装配前改写数据表（本地预览，不落盘）
+async function boot() {
+  // 后台管理界面的配置覆盖：在装配前改写数据表
+  // 来源①localStorage（本机预览，即时生效）
   applyConfigOverrides();
+  // 来源②项目持久文件 overrides.data.json（可提交进仓库、随仓库分发）
+  try {
+    const r = await fetch('src/config/overrides.data.json', { cache: 'no-store' });
+    if (r.ok) applyOverridesData(await r.json());
+  } catch { /* 文件不存在或不可达 → 忽略 */ }
 
   view.initView();
 

@@ -651,6 +651,24 @@ function init() {
     a.download = 'plane-config.json';
     a.click();
   });
+  // 保存到项目：经 serve 的受控端点写入 web/src/config/overrides.data.json（可提交进仓库）
+  const saveProj = document.createElement('button');
+  saveProj.id = 'saveProjectBtn';
+  saveProj.textContent = '保存到项目';
+  bar.insertBefore(saveProj, bar.querySelector('#exportBtn'));
+  saveProj.addEventListener('click', async () => {
+    const hint = bar.querySelector('.hint');
+    try {
+      const res = await fetch('src/config/overrides.data.json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildOutput()),
+      });
+      hint.textContent = res.ok ? '✓ 已写入 web/src/config/overrides.data.json（可提交进仓库）' : `✗ 保存失败（HTTP ${res.status}）`;
+    } catch (e) {
+      hint.textContent = `✗ 保存失败：${e.message}`;
+    }
+  });
 
   showTab('planes');
 }

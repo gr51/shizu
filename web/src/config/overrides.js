@@ -58,10 +58,18 @@ function assignShallow(target, patch) {
   }
 }
 
-/** 把覆盖对象应用到已导入的数据表（在 boot 最早期调用） */
+/** boot 同步入口：应用 localStorage 覆盖 */
 export function applyConfigOverrides() {
-  const o = loadOverrides();
-  if (!o) return;
+  applyOverridesData(loadOverrides());
+}
+
+/**
+ * 应用一份覆盖对象（幂等：push-if-new 均先按 id 查重，重复应用不产生重复条目）。
+ * 双来源：localStorage（applyConfigOverrides）与项目持久文件 overrides.data.json
+ * （main.js 启动时 fetch 合并；localStorage 与文件都存在时后应用者覆盖同名字段）。
+ */
+export function applyOverridesData(o) {
+  if (!o || typeof o !== 'object') return;
 
   // —— 位面叙事与 Boss 词；带 _new 标记的未知 id = 后台新增位面，补默认骨架后注册 ——
   for (const [pid, patch] of Object.entries(o.planes ?? {})) {
@@ -85,7 +93,8 @@ export function applyConfigOverrides() {
       });
       continue;
     }
-    assignShallow(p, patch);
+    const { _new: _n2, codex: _c2, ...rest2 } = patch;   // codex 一律由系统分配，更新路径同样不可覆盖
+    if (Object.keys(rest2).length) assignShallow(p, rest2);
   }
 
   // —— 位面机制参数 ——
