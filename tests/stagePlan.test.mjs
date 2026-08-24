@@ -11,7 +11,7 @@ import { rollEliteAffix } from '../shizu-cocos/assets/scripts/data/eliteAffixes.
 import { TRIGGER_EVENTS, TRIGGER_ACTIONS } from '../shizu-cocos/assets/scripts/core/run.js';
 
 test('触发枚举真源：事件/动作集合与文档口径一致', () => {
-  assert.equal(TRIGGER_EVENTS.size, 8);
+  assert.equal(TRIGGER_EVENTS.size, 9);
   assert.equal(TRIGGER_ACTIONS.size, 17);
   for (const e of ['onStageClear', 'onLowHp', 'onTimeTick']) assert.ok(TRIGGER_EVENTS.has(e));
   for (const a of ['surge', 'spawnElite', 'permGenes']) assert.ok(TRIGGER_ACTIONS.has(a));
