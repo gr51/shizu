@@ -848,6 +848,8 @@ export class RealtimeRun extends Run {
    * 元素减速只作用于接近阶段；冲刺一旦离手就是「提交过的」，不吃减速。
    */
   updateCharger(e, dx, dy, d, dt, slowMul = 1) {
+    // P2-11：涌潮/急袭生成的怪不带 cd 字段——undefined 参与减法得 NaN，永不冲刺
+    if (e.dashCd == null) e.dashCd = DASH_CD_MIN + this.rng() * (DASH_CD_MAX - DASH_CD_MIN);
     if (e.dashT > 0) {
       e.dashT -= dt;
       e.x += e.dashVx * dt;
@@ -885,6 +887,8 @@ export class RealtimeRun extends Run {
    * 第 1 阶段不践踏（SLAM_STAGE_FROM）：教学期温和，复杂度按阶段引入。
    */
   updateTank(e, dx, dy, d, dt, slowMul = 1) {
+    // P2-11 同款：涌潮生成的 tank 缺 slamCd——惰性初始化防 NaN
+    if (e.slamCd == null) e.slamCd = SLAM_CD_MIN + this.rng() * (SLAM_CD_MAX - SLAM_CD_MIN);
     if (e.slamWindup > 0) {
       e.slamWindup -= dt;   // 蓄力期：站定不动，收缩圈收缩到脚底就是落点
       if (e.slamWindup <= 0) this.doTankSlam(e);
