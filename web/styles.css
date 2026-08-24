@@ -629,6 +629,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .gear-stars { margin-left: 4px; font-size: 12px; color: #e8c46a; text-shadow: 0 0 4px rgba(232,196,106,.4); }
 .slot.empty { opacity: .5; }
 
+/* 装备槽双列网格：6 槽压成 3 行，状态面板免滚动即可看全 */
+.gear-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
+.gear-grid .gear-slot { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gear-grid .route-ic { width: 14px; height: 14px; vertical-align: -2px; }
+
 /* ===== 锻造槽位卡网格 ===== */
 .forge-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
 .forge-slots .diff-card { margin: 0; }

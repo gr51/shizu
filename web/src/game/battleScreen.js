@@ -156,8 +156,11 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     renderer.dispose();
   };
 
-  // 新手引导：首局显示一次
+  // 新手引导：首局显示一次。显示期间暂停仿真——否则玩家读教程的十几秒里
+  // 角色在挨打、计时在走、连击在掉（实测截图：教程未关时已 6 连击 + 掉血）
   if (ctx.save.player.totalRuns === 0) {
+    paused = true;
+    last = performance.now();
     view.showModal({
       title: '第一次苏醒',
       body: `<div class="tut">
@@ -168,7 +171,7 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
         <div class="tut-row"><em>变强</em><span>击杀掉落<b>基因</b>，攒满触发<b>三选一进化</b></span></div>
         <div class="tut-row"><em>目标</em><span>活着击破<b>位面之主</b>，带回战利品回巢</span></div>
       </div>`,
-      buttons: [{ text: '醒来，去吞噬', style: 'primary', onClick: () => view.closeModal() }],
+      buttons: [{ text: '醒来，去吞噬', style: 'primary', onClick: () => { view.closeModal(); paused = false; last = performance.now(); } }],
     });
   }
 

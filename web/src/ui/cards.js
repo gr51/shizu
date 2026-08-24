@@ -63,11 +63,11 @@ export function gearCard(save) {
     const item = gear[id];
     return `<div class="gear-slot ${item ? '' : 'empty'}"><img class="route-ic" src="../shizu-cocos/assets/art/items/gear_${id}.png" alt=""> ${GEAR_SLOTS[id].name}：`
       + (item
-        ? `<span class="r-${item.rarity}">${item.name}</span>${'★'.repeat(item.star)}`
-        : '空')
+        ? `<span class="r-${item.rarity}">${item.name}</span>${item.star ? `<span class="gear-stars">${'★'.repeat(item.star)}</span>` : ''}`
+        : '<span class="small">空</span>')
       + '</div>';
   }).join('');
-  return `<h4>装备栏（×${gearPowerBonus(gear).toFixed(2)}）</h4>${rows}`
+  return `<h4>装备栏（×${gearPowerBonus(gear).toFixed(2)}）</h4><div class="gear-grid">${rows}</div>`
     + `<p class="small">背包 ${save.player.gearBag.length} 件 · 精华 ${save.player.gearEssence}</p>`;
 }
 
