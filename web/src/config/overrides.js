@@ -93,8 +93,11 @@ export function applyOverridesData(o) {
       });
       continue;
     }
-    const { _new: _n2, codex: _c2, ...rest2 } = patch;   // codex 一律由系统分配，更新路径同样不可覆盖
-    if (Object.keys(rest2).length) assignShallow(p, rest2);
+    // 新增位面允许文件带回已解析的 codex；原生位面与未标记条目一律不可改编号
+    const clean = { ...patch };
+    delete clean._new;
+    if (!patch._new) delete clean.codex;
+    if (Object.keys(clean).length) assignShallow(p, clean);
   }
 
   // —— 位面机制参数 ——

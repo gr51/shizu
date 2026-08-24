@@ -556,6 +556,11 @@ function buildSideQuests(root) {
 // ——— 导出 ——
 function buildOutput() {
   const out = {};
+  // 为新增位面解析真实 codex（现役最大值递增），让文件侧拿到与运行时一致的编号
+  let cx = planes.reduce((m, p) => Math.max(m, Number(p.codex) || 0), 0);
+  for (const st of Object.values(state.planes)) {
+    if (st._new && !(Number(st.codex) >= 1)) st.codex = ++cx;
+  }
   out.planes = state.planes;
   out.mechanics = state.mechanics;
   out.stageSprites = state.stageSprites;
