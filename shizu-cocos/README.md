@@ -8,11 +8,11 @@ shizu-cocos/
 ├── package.json                    工程清单（Creator 3.8.8）
 ├── tsconfig.json                   allowJs（core/data 是 JS，game 是 TS）
 ├── types/cc.d.ts                   ⚠ 编辑器外类型检查用的**声明桩**，非官方定义
-├── settings/v2/packages/           引擎模块 / 设计分辨率 640×960 竖屏
+├── settings/v2/packages/           引擎模块 / 设计分辨率 960×640 横屏
 └── assets/
     ├── scenes/Main.scene           Canvas + Camera + GameRoot 组件
     └── scripts/
-        ├── core/    *.js           零 DOM、零 cc 依赖的游戏逻辑（65 项测试守护）
+        ├── core/    *.js           零 DOM、零 cc 依赖的游戏逻辑（177 项测试守护，含 Cocos 流程 smoke）
         ├── data/    *.js           位面 / 路线 / 技能 / 隐藏技能 / 装备 / 文案 配表
         ├── platform/storage.ts     Web · 微信 · 抖音 三端存档适配（注入式）
         └── game/                   Cocos 组件层
