@@ -559,6 +559,7 @@ export class RealtimeRun extends Run {
       this.closerSpawned = true;
       this.spawnEnemy(st.closer, true);
       if (st.extraElite) this.spawnEnemy({ ...st.closer, name: `${st.closer.name}·其二` }, true);
+      if (st.closer.kind === 'boss') this.runPlaneTriggers('onBossSpawn');
       this.emitFx(st.closer.kind === 'boss' ? 'boss' : 'elite', this.player.x, this.player.y);
       // Boss 登场演出：0.12s 时停——「大敌当前」的一拍停顿（0.3 实测与「卡死」反馈同类，压到有力不拖沓）
       if (st.closer.kind === 'boss') this.hitStop = 0.12;
