@@ -70,7 +70,7 @@ export function dutyCycle(skill) {
 }
 
 /** 触发器合法事件/动作枚举（唯一真源，测试守护防拼写漂移） */
-export const TRIGGER_EVENTS = new Set(['onFirstBlood', 'onEliteKill', 'onBossKill', 'onChestOpen', 'onStageClear', 'onLowHp', 'onTimeTick', 'onSurgeSpawn', 'onShopOpen', 'onChoiceOpen', 'onPlaneEnter', 'onDevour', 'onAmbushSpawn', 'onBossHalfHp', 'onMiniRushClear']);
+export const TRIGGER_EVENTS = new Set(['onFirstBlood', 'onEliteKill', 'onBossKill', 'onChestOpen', 'onStageClear', 'onLowHp', 'onTimeTick', 'onSurgeSpawn', 'onShopOpen', 'onChoiceOpen', 'onPlaneEnter', 'onDevour', 'onAmbushSpawn', 'onBossHalfHp', 'onMiniRushClear', 'onGearDrop']);
 export const TRIGGER_ACTIONS = new Set(['surge', 'heal', 'shield', 'genes', 'spawnElite', 'freeze', 'buffAtk', 'buffSpeed', 'buffRegen', 'revive', 'freeReroll', 'freeBanish', 'essence', 'permAtk', 'permHp', 'permSpeed', 'permGenes']);
 
 export const RunState = {
@@ -565,6 +565,7 @@ export class Run {
   addGear(item) {
     this.gearFound.push(item);
     this.emit(`🎁 掉落装备 <b class="r-${item.rarity}">${item.name}</b>`, 'drop');
+    this.runPlaneTriggers('onGearDrop');
   }
 
   /**

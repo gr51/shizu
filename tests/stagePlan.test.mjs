@@ -61,7 +61,7 @@ test('怪物技能组合：词缀池限定 + 多条叠加合并', () => {
 });
 
 test('触发枚举真源：事件/动作集合与文档口径一致', () => {
-  assert.equal(TRIGGER_EVENTS.size, 15);
+  assert.equal(TRIGGER_EVENTS.size, 16);
   assert.equal(TRIGGER_ACTIONS.size, 17);
   for (const e of ['onStageClear', 'onLowHp', 'onTimeTick', 'onPlaneEnter', 'onDevour', 'onAmbushSpawn', 'onBossHalfHp', 'onMiniRushClear']) assert.ok(TRIGGER_EVENTS.has(e));
   for (const a of ['surge', 'spawnElite', 'permGenes']) assert.ok(TRIGGER_ACTIONS.has(a));
