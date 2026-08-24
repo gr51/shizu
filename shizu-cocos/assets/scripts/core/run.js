@@ -425,6 +425,9 @@ export class Run {
         } else if (act.type === 'buffSpeed' && Number(act.pct) > 0) {
           this.stats.speed *= 1 + Math.min(1, Number(act.pct));
           this.emit(`⚡ 触发器：移速永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
+        } else if (act.type === 'buffKillHeal' && Number(act.pct) > 0) {
+          this.stats.killHealPct = (this.stats.killHealPct ?? 0) + Math.min(0.1, Number(act.pct));
+          this.emit(`⚡ 触发器：击杀回血永久 +${Math.round(Math.min(0.1, act.pct) * 100)}%`, 'win');
         } else if (act.type === 'buffVsElite' && Number(act.pct) > 0) {
           this.stats.vsEliteDmgPct = (this.stats.vsEliteDmgPct ?? 0) + Math.min(2, Number(act.pct));
           this.emit(`⚡ 触发器：对精英/主增伤永久 +${Math.round(Math.min(2, act.pct) * 100)}%`, 'win');
