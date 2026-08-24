@@ -424,6 +424,9 @@ export class Run {
         } else if (act.type === 'buffSpeed' && Number(act.pct) > 0) {
           this.stats.speed *= 1 + Math.min(1, Number(act.pct));
           this.emit(`⚡ 触发器：移速永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
+        } else if (act.type === 'buffExecute' && Number(act.pct) > 0) {
+          this.stats.execute = (this.stats.execute ?? 0) + Math.min(2, Number(act.pct));
+          this.emit(`⚡ 触发器：斩杀增伤永久 +${Math.round(Math.min(2, act.pct) * 100)}%`, 'win');
         } else if (act.type === 'buffThorn' && Number(act.value) > 0) {
           this.stats.thorn = (this.stats.thorn ?? 0) + Number(act.value);
           this.emit(`⚡ 触发器：反震永久 +${Math.round(Number(act.value) * 100)}% 攻`, 'win');
