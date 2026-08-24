@@ -385,6 +385,7 @@ export class Run {
       if (Number.isFinite(t.stage) && t.stage > 0 && Math.round(t.stage) !== this.stageNo) continue;
       for (const act of Array.isArray(t.actions) ? t.actions : []) {
         if (!act || typeof act !== 'object') continue;
+        if (!TRIGGER_ACTIONS.has(act.type)) { console.warn(`[triggers] 未知动作类型: ${act.type}`); continue; }
         if (act.type === 'spawnElite' && typeof this.spawnEnemy === 'function') {
           const n = Math.max(1, Math.min(3, Math.round(Number(act.count) || 1)));
           const stg = this.dungeon.stages[Math.min(this.stageIndex, this.dungeon.stages.length - 1)];
