@@ -70,7 +70,7 @@ export function dutyCycle(skill) {
 }
 
 /** 触发器合法事件/动作枚举（唯一真源，测试守护防拼写漂移） */
-export const TRIGGER_EVENTS = new Set(['onFirstBlood', 'onEliteKill', 'onBossKill', 'onChestOpen', 'onStageClear', 'onLowHp', 'onTimeTick', 'onSurgeSpawn', 'onShopOpen', 'onChoiceOpen']);
+export const TRIGGER_EVENTS = new Set(['onFirstBlood', 'onEliteKill', 'onBossKill', 'onChestOpen', 'onStageClear', 'onLowHp', 'onTimeTick', 'onSurgeSpawn', 'onShopOpen', 'onChoiceOpen', 'onPlaneEnter']);
 export const TRIGGER_ACTIONS = new Set(['surge', 'heal', 'shield', 'genes', 'spawnElite', 'freeze', 'buffAtk', 'buffSpeed', 'buffRegen', 'revive', 'freeReroll', 'freeBanish', 'essence', 'permAtk', 'permHp', 'permSpeed', 'permGenes']);
 
 export const RunState = {
@@ -211,6 +211,7 @@ export class Run {
     if (this.sideQuest) {
       this.emit(`📋 支线【${this.sideQuest.name}】：${this.sideQuest.desc}（奖励 ${this.sideQuest.reward} 基因）`, 'gene');
     }
+    this.runPlaneTriggers('onPlaneEnter');
   }
 
   /**
