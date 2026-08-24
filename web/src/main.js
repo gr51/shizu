@@ -8,8 +8,12 @@ import { renderLobby } from './ui/lobby.js';
 import { startBattle } from './game/battleScreen.js';
 import { startLobbyFx, stopLobbyFx } from './ui/fx.js';
 import * as view from './ui/view.js';
+import { applyConfigOverrides } from './config/overrides.js';
 
 function boot() {
+  // 后台管理界面的配置覆盖：在装配前改写数据表（本地预览，不落盘）
+  applyConfigOverrides();
+
   view.initView();
 
   const repo = createSaveRepo(createWebStorage());

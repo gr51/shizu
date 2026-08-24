@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <title>噬祖 · 后台管理</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body { margin: 0; background: #0d1116; color: #d8dde2; font-family: system-ui, sans-serif; }
+    #app { max-width: 860px; margin: 0 auto; padding: 20px 16px 80px; }
+    h2 { color: #e8c46a; border-bottom: 1px solid rgba(232,196,106,.25); padding-bottom: 6px; letter-spacing: 2px; }
+    .cfg-block { background: rgba(20,26,32,.55); border: 1px solid rgba(255,255,255,.08); border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; }
+    .cfg-block h3 { margin: 4px 0 8px; font-size: 14px; color: #9fb3c8; }
+    .af-field { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .af-field span { flex: 0 0 110px; font-size: 12px; color: #8a94a0; }
+    .af-field input { flex: 1; background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 5px 8px; font-size: 13px; }
+    .af-field input:focus { outline: none; border-color: #e8c46a; }
+    .af-row { display: flex; gap: 8px; }
+    #saveBar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; gap: 12px; align-items: center;
+      padding: 10px 20px; background: rgba(10,14,18,.95); border-top: 1px solid rgba(255,255,255,.1); z-index: 10; }
+    #saveBar button { padding: 7px 18px; border-radius: 4px; border: 1px solid rgba(255,255,255,.15);
+      background: #232c34; color: #d8dde2; cursor: pointer; }
+    #saveBar #applyBtn { background: #6b4d2a; border-color: #8f6a3c; color: #f2e6cf; font-weight: bold; }
+    #saveBar button:hover:not(:disabled) { filter: brightness(1.25); }
+    #saveBar button:disabled { opacity: .4; cursor: not-allowed; }
+    #saveBar .hint { flex: 1; text-align: right; font-size: 13px; color: #8a94a0; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="saveBar">
+    <button id="applyBtn" disabled>应用修改（本机预览）</button>
+    <button id="clearBtn">清除覆盖，恢复默认</button>
+    <button id="exportBtn">导出 JSON</button>
+    <span class="hint">未修改</span>
+  </div>
+  <script type="module" src="./src/admin.js"></script>
+</body>
+</html>
