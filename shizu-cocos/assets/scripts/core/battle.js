@@ -1767,6 +1767,7 @@ export class RealtimeRun extends Run {
     this.enemies = this.enemies.filter((x) => !x.dead);
     if (e.kind === 'elite' && !e.ambush) {
       this.emit(`击破 <b>${e.name}</b>`, 'gene');
+      this.runPlaneTriggers('onEliteKill');
       this.advanceStage();
     }
   }

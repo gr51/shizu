@@ -334,6 +334,7 @@ export class Run {
 
     if (enemy.kind === 'elite') {
       this.emit(`击破 <b>${enemy.name}</b>，基因 +${drop.genes}`, 'gene');
+      this.runPlaneTriggers?.('onEliteKill');
       this.advanceStage();
     }
   }
