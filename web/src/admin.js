@@ -205,7 +205,7 @@ function buildPlanes(root) {
       true,
     ));
     b.appendChild(jsonField(
-      '触发器 [{on,stage?,every?,actions:[{type,count|pct|amount}]}] —— 事件:FirstBlood/EliteKill/BossKill/ChestOpen/StageClear/LowHp/TimeTick(配every秒)；动作:surge/heal/shield/genes/spawnElite',
+      '触发器 [{on,stage?,every?,actions:[{type,count|pct|amount|duration}]}] —— 事件(8):FirstBlood/EliteKill/BossKill/ChestOpen/StageClear/LowHp/TimeTick(every秒)/SurgeSpawn；动作(17):surge/heal/shield/genes/spawnElite/freeze/buffAtk/buffSpeed/buffRegen/revive/freeReroll/freeBanish/essence/permAtk/permHp/permSpeed/permGenes',
       st.triggers ?? [],
       (v) => {
         if (Array.isArray(v) && v.length) st.triggers = v;
