@@ -390,6 +390,9 @@ export class Run {
         } else if (act.type === 'buffAtk' && Number(act.pct) > 0) {
           this.stats.atk *= 1 + Math.min(1, Number(act.pct));
           this.emit(`⚡ 触发器：攻击永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
+        } else if (act.type === 'buffSpeed' && Number(act.pct) > 0) {
+          this.stats.speed *= 1 + Math.min(1, Number(act.pct));
+          this.emit(`⚡ 触发器：移速永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
         } else if (act.type === 'freeze' && Number(act.duration) > 0 && typeof this.spawnSurge === 'function') {
           const dur = Math.min(5, Number(act.duration));
           for (const en of this.enemies ?? []) {
