@@ -12,6 +12,7 @@
     "e2e": "node tools/e2e.mjs",
     "sim": "node tools/simulate.mjs",
     "verify": "npm run test && npm run typecheck && npm run smoke",
+    "verify:admin": "node tools/verify-admin.mjs",
     "art": "node tools/gen-pixel-assets.mjs",
     "art:preview": "node tools/preview-pixel.mjs",
     "play": "node tools/play.mjs",

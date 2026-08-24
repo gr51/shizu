@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>噬祖 · 后台管理</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="styles.css" />
   <style>
     body { margin: 0; background: #0d1116; color: #d8dde2; font-family: system-ui, sans-serif; }
     #app { max-width: 860px; margin: 0 auto; padding: 20px 16px 80px; }
@@ -15,6 +15,26 @@
     .af-field input { flex: 1; background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 5px 8px; font-size: 13px; }
     .af-field input:focus { outline: none; border-color: #e8c46a; }
     .af-row { display: flex; gap: 8px; }
+    .af-row span { flex: 0 0 60px; font-size: 12px; color: #8a94a0; align-self: center; }
+    .af-row input { flex: 1; background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 5px 8px; font-size: 13px; }
+    .af-ta { flex-direction: column; align-items: stretch; }
+    .af-ta span { flex: none; margin-bottom: 3px; }
+    .af-ta textarea { flex: 1; background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 6px 8px; font-size: 13px; resize: vertical; }
+    .af-ta textarea:focus { outline: none; border-color: #e8c46a; }
+    .admin-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .admin-tabs button { padding: 6px 13px; border-radius: 4px; border: 1px solid rgba(255,255,255,.14);
+      background: #1a2129; color: #b9c4d0; cursor: pointer; font-size: 13px; }
+    .admin-tabs button:hover { filter: brightness(1.2); }
+    .admin-tabs button.active { background: #6b4d2a; border-color: #8f6a3c; color: #f2e6cf; font-weight: bold; }
+    .admin-pane section h2 { font-size: 15px; }
+    .admin-pane section { margin-bottom: 22px; }
+    .cfg-details { border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; }
+    .cfg-details summary { cursor: pointer; color: #c8a94f; font-size: 14px; padding: 2px 0; }
+    .small-hint { font-size: 12px; color: #6fbb8f; margin-top: 6px; }
+    .json-hint { font-size: 11px; margin-top: 2px; }
+    .sprite-prev { width: 44px; height: 44px; object-fit: contain; image-rendering: pixelated;
+      background: rgba(255,255,255,.04); border-radius: 4px; flex: none; }
+    .sprite-prev.missing { outline: 2px solid #e0653c; opacity: .35; }
     #saveBar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; gap: 12px; align-items: center;
       padding: 10px 20px; background: rgba(10,14,18,.95); border-top: 1px solid rgba(255,255,255,.1); z-index: 10; }
     #saveBar button { padding: 7px 18px; border-radius: 4px; border: 1px solid rgba(255,255,255,.15);
