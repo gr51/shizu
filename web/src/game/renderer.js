@@ -251,6 +251,18 @@ export class Renderer {
         ctx.stroke();
       }
     }
+    // 出生点标记：金环（位面自定义 spawn 的可视锚）
+    {
+      const sp = run.dungeon?.plane?.spawn;
+      const sx = Number(sp?.x), sy = Number(sp?.y);
+      if (Number.isFinite(sx) && Number.isFinite(sy)) {
+        ctx.strokeStyle = 'rgba(232,196,106,0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 28, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
 
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {
