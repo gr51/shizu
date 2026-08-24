@@ -8,6 +8,14 @@ import { generateDungeon } from '../shizu-cocos/assets/scripts/core/dungeon.js';
 import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
 import { freshSave } from './helpers.mjs';
 import { rollEliteAffix } from '../shizu-cocos/assets/scripts/data/eliteAffixes.js';
+import { TRIGGER_EVENTS, TRIGGER_ACTIONS } from '../shizu-cocos/assets/scripts/core/run.js';
+
+test('触发枚举真源：事件/动作集合与文档口径一致', () => {
+  assert.equal(TRIGGER_EVENTS.size, 7);
+  assert.equal(TRIGGER_ACTIONS.size, 17);
+  for (const e of ['onStageClear', 'onLowHp', 'onTimeTick']) assert.ok(TRIGGER_EVENTS.has(e));
+  for (const a of ['surge', 'spawnElite', 'permGenes']) assert.ok(TRIGGER_ACTIONS.has(a));
+});
 
 const jiguan = planes.find((p) => p.id === 'jiguan');
 

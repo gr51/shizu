@@ -69,6 +69,10 @@ export function dutyCycle(skill) {
   return Math.max(BURST_FLOOR, Math.min(1, duration / skill.cd));
 }
 
+/** 触发器合法事件/动作枚举（唯一真源，测试守护防拼写漂移） */
+export const TRIGGER_EVENTS = new Set(['onFirstBlood', 'onEliteKill', 'onBossKill', 'onChestOpen', 'onStageClear', 'onLowHp', 'onTimeTick']);
+export const TRIGGER_ACTIONS = new Set(['surge', 'heal', 'shield', 'genes', 'spawnElite', 'freeze', 'buffAtk', 'buffSpeed', 'buffRegen', 'revive', 'freeReroll', 'freeBanish', 'essence', 'permAtk', 'permHp', 'permSpeed', 'permGenes']);
+
 export const RunState = {
   FIGHTING: 'fighting',
   CHOOSING: 'choosing',
@@ -374,6 +378,7 @@ export class Run {
   runPlaneTriggers(eventName, only = null) {
     const triggers = this.dungeon.plane?.triggers;
     if (!Array.isArray(triggers)) return;
+    if (!TRIGGER_EVENTS.has(eventName)) return;
     for (const t of triggers) {
       if (!t || t.on !== eventName) continue;
       if (only && t !== only) continue;
