@@ -192,6 +192,9 @@ function buildPlanes(root) {
     b.appendChild(textarea('开场诗', st.poem, (v) => { st.poem = v; mark(); }));
     const mech = state.mechanics[pid];
     if (mech) b.appendChild(numField('机制间隔(s)', mech.interval, (v) => { mech.interval = v; mark(); }));
+    if (!st.spawn) st.spawn = {};
+    b.appendChild(field('出生点 X（可省）', st.spawn.x ?? '', (v) => { const n = Number(v); if (v !== '' && Number.isFinite(n)) st.spawn.x = n; else delete st.spawn.x; mark(); }));
+    b.appendChild(field('出生点 Y（可省）', st.spawn.y ?? '', (v) => { const n = Number(v); if (v !== '' && Number.isFinite(n)) st.spawn.y = n; else delete st.spawn.y; mark(); }));
     b.appendChild(jsonField(
       '触发器(实验) [{on,stage?,actions:[{type,count|pct|amount}]}]',
       st.triggers ?? [],

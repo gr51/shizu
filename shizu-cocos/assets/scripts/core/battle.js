@@ -164,9 +164,11 @@ export class RealtimeRun extends Run {
   constructor(save, dungeon, seed) {
     super(save, dungeon, seed);
 
+    // 出生点：位面可配 spawn:{x,y}（关卡编辑·地形轴第一项），缺省屏幕中心
+    const sp = this.dungeon.plane?.spawn ?? {};
     this.player = {
-      x: ARENA.w / 2,
-      y: ARENA.h / 2,
+      x: Number.isFinite(Number(sp.x)) && sp.x !== '' ? Number(sp.x) : ARENA.w / 2,
+      y: Number.isFinite(Number(sp.y)) && sp.y !== '' ? Number(sp.y) : ARENA.h / 2,
       vx: 0,
       vy: 0,
       r: Math.round(14 * (this.stats.size ?? 1)),
