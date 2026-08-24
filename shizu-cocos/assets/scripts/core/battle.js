@@ -399,6 +399,7 @@ export class RealtimeRun extends Run {
     this.spawnEnemy({ ...st.closer, name: `${st.closer.name}·伏击`, kind: 'elite', ambush: true }, false);
     this.emit('⚠ 一只伏击精英现身！击杀它获得丰厚回报', 'death');
     this.emitFx('elite', this.player.x, this.player.y);
+    this.runPlaneTriggers('onAmbushSpawn');
   }
 
   /** 小波急袭：阶段 2 后每 45~60 秒出现，严格服从同屏上限，只制造短时压力峰 */
