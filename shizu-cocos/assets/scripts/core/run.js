@@ -387,6 +387,9 @@ export class Run {
             this.spawnEnemy({ ...stg.closer, name: `${stg.closer.name}·触袭`, kind: 'elite', ambush: true }, false);
           }
           this.emit(`⚡ 触发器：触袭精英 ×${n}！`, 'death');
+        } else if (act.type === 'freeReroll' && Number(act.count) > 0) {
+          this.freeRerollLeft = (this.freeRerollLeft ?? 0) + Math.min(3, Math.round(Number(act.count)));
+          this.emit(`⚡ 触发器：免费重掷 +${Math.min(3, Math.round(act.count))}`, 'info');
         } else if (act.type === 'revive' && Number(act.count) > 0) {
           this.reviveLeft = (this.reviveLeft ?? 0) + Math.min(2, Math.round(Number(act.count)));
           this.emit(`⚡ 触发器：致死拦截 +${Math.min(2, Math.round(act.count))} 次`, 'win');
