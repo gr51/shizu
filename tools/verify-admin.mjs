@@ -78,6 +78,18 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     await effTa.fill('{"crit":0.42}');
     await effTa.blur();
 
+    // 5c. 隐藏技标签：eff 编辑（core 已接线，应端到端生效）
+    await page.locator('.admin-tabs button[data-key="hidden"]').click();
+    await wait(200);
+    const hidBox = page.locator('.admin-pane .cfg-block').filter({ hasText: 'wushuang' }).first();
+    const hidTa = hidBox.locator('textarea').last();
+    await hidTa.fill('{"crit":0.33}');
+    await hidTa.blur();
+    await wait(100);
+    const hidHint = await hidBox.locator('.json-hint').innerText();
+    if (hidHint.includes('✓')) ok('隐藏技 eff 编辑', '合法 JSON 通过');
+    else bad('隐藏技 eff 编辑', `被拒：${hidHint}`);
+
     // 6. 切到「攻击」标签，验证攻击方式存在
     await page.locator('.admin-tabs button[data-key="weapon"]').click();
     await wait(200);
@@ -112,6 +124,9 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     const withEff = (saved.skills ?? []).find((s) => s.eff && Number(s.eff.crit) === 0.42);
     if (withEff) ok('eff 落盘', `${withEff.id}.eff.crit = 0.42 已写入覆盖`);
     else bad('eff 落盘', '覆盖里没找到 eff.crit=0.42');
+    const hidSaved = (saved.hiddenSkills ?? {}).wushuang;
+    if (hidSaved?.eff && Number(hidSaved.eff.crit) === 0.33) ok('隐藏技 eff 落盘', 'wushuang.eff.crit=0.33 已写入');
+    else bad('隐藏技 eff 落盘', JSON.stringify(hidSaved ?? null));
 
     // 8. 刷新主游戏页，验证 overrides 被运行时消费（override 改的是 ESM 模块对象，
     //    主游戏页 boot 时已跑 applyConfigOverrides；读 planes 模块实例看 theme 是否被改）
@@ -137,6 +152,17 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     });
     if (effT.includes('0.42')) ok('eff 运行时消费', `dujie_1.eff = ${effT}`);
     else bad('eff 运行时消费', `dujie_1.eff = ${effT}（未合并）`);
+
+    // 8c. 隐藏技 eff 运行时消费
+    const hidT = await page.evaluate(async () => {
+      try {
+        const m = await import('/shizu-cocos/assets/scripts/data/hiddenSkills.js');
+        const h = m.findHiddenSkill('wushuang');
+        return h ? JSON.stringify(h.eff) : 'NO_HIDDEN';
+      } catch (e) { return 'ERR:' + e.message; }
+    });
+    if (hidT.includes('0.33')) ok('隐藏技 eff 运行时消费', `wushuang.eff = ${hidT}`);
+    else bad('隐藏技 eff 运行时消费', `wushuang.eff = ${hidT}（未合并）`);
 
     // 9. 清理覆盖并还原
     const admin2 = await page.goto(`http://localhost:${PORT}/web/admin.html`, { waitUntil: 'networkidle' });

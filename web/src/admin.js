@@ -39,7 +39,7 @@ const state = { planes: {}, mechanics: {}, riftMods: [], shopItems: [], sideQues
   state.shopItems = SHOP_ITEMS.map((s) => ({ id: s.id, name: s.name, desc: s.desc, price: s.price }));
   state.sideQuests = SIDE_QUESTS.map((q) => ({ id: q.id, name: q.name, desc: q.desc, reward: q.reward }));
   state.skills = skills.map((s) => ({ id: s.id, route: s.route, lv: s.lv, name: s.name, desc: s.desc, val: s.val ?? '', kind: s.kind, cd: s.cd ?? '', eff: { ...(s.eff ?? {}) } }));
-  for (const h of ALL_HIDDEN_SKILLS) state.hiddenSkills[h.id] = { name: h.name, desc: h.desc, route: h.route, kind: h.kind, cd: h.cd ?? '', slotPrefer: h.slotPrefer ?? '' };
+  for (const h of ALL_HIDDEN_SKILLS) state.hiddenSkills[h.id] = { name: h.name, desc: h.desc, route: h.route, kind: h.kind, cd: h.cd ?? '', slotPrefer: h.slotPrefer ?? '', eff: { ...(h.eff ?? {}) } };
   for (const r of ALL_ROUTES) state.routes[r] = { name: ROUTES[r].name, role: ROUTES[r].role, skin: ROUTES[r].skin ?? '' };
   state.combos = COMBO_SKILLS.map((c) => ({ id: c.id, name: c.name, desc: c.desc }));
   state.synergies = SYNERGIES.map((s) => ({ id: s.id, name: s.name, desc: s.desc, eff: { ...(s.eff ?? {}) } }));
@@ -289,11 +289,11 @@ function buildHiddenSkills(root) {
     b.appendChild(field('类型(kind)', st.kind, (v) => { st.kind = v; mark(); }));
     b.appendChild(field('CD', st.cd, (v) => { st.cd = v; mark(); }));
     b.appendChild(field('槽位偏好', st.slotPrefer, (v) => { st.slotPrefer = v; mark(); }));
+    b.appendChild(jsonField('效果 eff（被动型开局装载）', st.eff, (v) => { st.eff = v; }));
     {
       const note = document.createElement('div');
       note.className = 'small-hint';
-      note.style.color = '#c9a26a';
-      note.textContent = '⚠ 核心层尚未消费隐藏技能的战斗效果（已知缺陷）——此处改文案/绑定生效，改数值需先接 core';
+      note.textContent = '✓ 被动型刻印的效果已由 core 开局装载；主动型走 castSkill CD 循环';
       b.appendChild(note);
     }
     sec.appendChild(b);
