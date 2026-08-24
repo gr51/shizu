@@ -716,6 +716,7 @@ export class RealtimeRun extends Run {
         hitFlash: 0, attackT: 0, anim: this.rng() * 10, isCloser: false, eventTag,
       });
     }
+    if (eventTag !== 'trigger') this.runPlaneTriggers('onSurgeSpawn');
   }
 
   updateEnemies(dt) {
