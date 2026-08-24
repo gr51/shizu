@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { generateDungeon } from '../shizu-cocos/assets/scripts/core/dungeon.js';
 import { planes } from '../shizu-cocos/assets/scripts/data/planes.js';
 import { freshSave } from './helpers.mjs';
+import { rollEliteAffix } from '../shizu-cocos/assets/scripts/data/eliteAffixes.js';
 
 const jiguan = planes.find((p) => p.id === 'jiguan');
 
@@ -48,4 +49,14 @@ test('未覆盖的阶段不受影响；非法涌潮条目被过滤', () => {
   const d = generateDungeon(custom, freshSave(), 42);
   assert.equal(d.stages[1].duration, base.stages[1].duration);
   assert.deepEqual(d.stages[2].surges, [{ atSec: 60, count: 4 }]);
+});
+
+test('怪物技能组合：词缀池限定 + 多条叠加合并', () => {
+  let i = 0;
+  const seq = [0.0, 0.0, 0.9];   // chance 命中 → 选 idx0 → 再选 idx0(剩余池)
+  const rng = () => seq[Math.min(i++, seq.length - 1)];
+  const a = rollEliteAffix(rng, 1, { pool: ['shielded', 'swift'], count: 2 });
+  assert.ok(a.name.includes('·'), `双词缀名应串联：${a.name}`);
+  // 乘区键连乘：shielded.speedMul .8 × swift.speedMul 1.5 = 1.2
+  assert.ok(Math.abs(a.eff.speedMul - 1.2) < 1e-9, `speedMul 应为 .8×1.5：${a.eff.speedMul}`);
 });

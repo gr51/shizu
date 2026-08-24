@@ -271,6 +271,17 @@ function buildStagePlan(root) {
       else delete st.eliteAffixChance;
       mark();
     }));
+    b.appendChild(field('词缀池（逗号 id，留空=全部）', (st.eliteAffixPool ?? []).join(','), (v) => {
+      const list = v.split(',').map((s) => s.trim()).filter(Boolean);
+      if (list.length) st.eliteAffixPool = list;
+      else delete st.eliteAffixPool;
+      mark();
+    }));
+    b.appendChild(numField('词缀条数 1~3（技能组合）', st.eliteAffixCount ?? '', (v) => {
+      if (v >= 2) st.eliteAffixCount = Math.min(3, Math.round(v));
+      else delete st.eliteAffixCount;
+      mark();
+    }));
     sec.appendChild(b);
   }
   root.appendChild(sec);

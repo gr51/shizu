@@ -588,7 +588,10 @@ export class RealtimeRun extends Run {
     const affixChance = this.dungeon.mods?.affixChance
       ?? this.dungeon.plane?.eliteAffixChance   // 位面可固定词缀概率（关卡编辑）
       ?? AFFIX_CHANCE_BY_STAGE[Math.min(this.stageNo - 1, AFFIX_CHANCE_BY_STAGE.length - 1)];
-    const affix = tpl.kind === 'elite' ? rollEliteAffix(this.rng, affixChance) : null;
+    const planeElite = this.dungeon.plane ?? {};
+    const affix = tpl.kind === 'elite'
+      ? rollEliteAffix(this.rng, affixChance, { pool: planeElite.eliteAffixPool, count: planeElite.eliteAffixCount })
+      : null;
     const affixHp = affix?.eff.hpMul ?? 1;
     const affixSpeed = affix?.eff.speedMul ?? 1;
 

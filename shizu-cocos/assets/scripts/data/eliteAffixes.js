@@ -70,12 +70,39 @@ export const ELITE_AFFIXES = [
   },
 ];
 
-/** 按 rng 抽一条精英词缀；chance 未命中则返回 null（不是每只都带）
- *  概率不宜过高：精英是节奏锚点，词缀过密会持续拉长清怪时间，
- *  在单体型位面（小怪少、精英占比高）会明显压低怪潮密度。 */
-export function rollEliteAffix(rng, chance = 0.45) {
+/**
+ * 按 rng 抽词缀；chance 未命中返回 null。
+ * opts.pool：限定位面词缀池（id 数组，关卡编辑「这只怪会什么技能」）；
+ * opts.count：一次叠多条（怪物技能组合），eff 逐键合并、名字「·」串联。
+ */
+export function rollEliteAffix(rng, chance = 0.45, opts = {}) {
   if (rng() > chance) return null;
-  return ELITE_AFFIXES[Math.floor(rng() * ELITE_AFFIXES.length)] ?? null;
+  const pool = Array.isArray(opts.pool) && opts.pool.length
+    ? ELITE_AFFIXES.filter((a) => opts.pool.includes(a.id))
+    : ELITE_AFFIXES;
+  if (!pool.length) return null;
+  const count = Math.max(1, Math.min(Number(opts.count) || 1, 3, pool.length));
+  const picked = [];
+  const bag = [...pool];
+  for (let i = 0; i < count && bag.length; i++) {
+    picked.push(bag.splice(Math.floor(rng() * bag.length), 1)[0]);
+  }
+  if (picked.length === 1) return picked[0];
+  const merged = {
+    id: picked.map((a) => a.id).join('+'),
+    name: picked.map((a) => a.name).join('·'),
+    color: picked[picked.length - 1].color,
+    desc: picked.map((a) => a.desc).join('；'),
+    eff: {},
+  };
+  // 合并语义：乘区键（×速度/×血量/承伤系数等）连乘，其余（概率/触发强度）求和
+  const MUL_KEYS = new Set(['speedMul', 'hpMul', 'skillCdMul', 'auraSpeed', 'auraMul', 'dmgTaken']);
+  for (const a of picked) {
+    for (const [k, v] of Object.entries(a.eff ?? {})) {
+      merged.eff[k] = MUL_KEYS.has(k) ? (merged.eff[k] ?? 1) * v : (merged.eff[k] ?? 0) + v;
+    }
+  }
+  return merged;
 }
 
 export function eliteAffixById(id) {
