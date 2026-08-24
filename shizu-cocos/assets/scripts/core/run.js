@@ -390,6 +390,10 @@ export class Run {
           const n = Math.min(30, Math.round(Number(act.count)));
           this.spawnSurge({ name: '触发潮', hp: tpl.hp, atk: tpl.atk }, n, 'trigger');
           this.emit(`⚡ 触发器：涌潮 ×${n}`, 'wave');
+        } else if (act.type === 'shield' && Number(act.pct) > 0 && typeof this.hurtPlayer === 'function') {
+          const p = Math.min(1, Number(act.pct));
+          this.shield = Math.max(this.shield ?? 0, this.stats.maxHp * p);
+          this.emit(`⚡ 触发器：护盾（${Math.round(p * 100)}% 上限）`, 'win');
         } else if (act.type === 'heal' && Number(act.pct) > 0) {
           const p = Math.min(1, Number(act.pct));
           this.heal(this.stats.maxHp * p, '触发器', true);
