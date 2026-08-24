@@ -205,7 +205,7 @@ function buildPlanes(root) {
       true,
     ));
     b.appendChild(jsonField(
-      '触发器 [{on,stage?,every?,actions:[{type,count|pct|amount|duration}]}] —— 事件(13):PlaneEnter/FirstBlood/EliteKill/AmbushSpawn/BossKill/ChestOpen/StageClear/LowHp/TimeTick(every秒)/SurgeSpawn/ShopOpen/ChoiceOpen/Devour；动作(17):surge/heal/shield/genes/spawnElite/freeze/buffAtk/buffSpeed/buffCrit/buffCritDmg/buffLifesteal/buffDmgReduct/buffAoe/buffRange/buffAspd/buffSuck/buffRegen/buffDot/buffChain/buffGeneBonus/buffVsElite/buffKillHeal/buffDevourHeal/buffElemental/buffCounter/buffReflect/revive/freeReroll/freeBanish/essence/permAtk/permHp/permSpeed/permGenes',
+      '触发器 [{on,stage?,every?,actions:[{type,count|pct|amount|duration}]}] —— 事件(14):PlaneEnter/FirstBlood/EliteKill/AmbushSpawn/BossKill/BossHalfHp/ChestOpen/StageClear/LowHp/TimeTick(every秒)/SurgeSpawn/ShopOpen/ChoiceOpen/Devour；动作(17):surge/heal/shield/genes/spawnElite/freeze/buffAtk/buffSpeed/buffCrit/buffCritDmg/buffLifesteal/buffDmgReduct/buffAoe/buffRange/buffAspd/buffSuck/buffRegen/buffDot/buffChain/buffGeneBonus/buffVsElite/buffKillHeal/buffDevourHeal/buffElemental/buffCounter/buffReflect/revive/freeReroll/freeBanish/essence/permAtk/permHp/permSpeed/permGenes',
       st.triggers ?? [],
       (v) => {
         if (Array.isArray(v) && v.length) st.triggers = v;
