@@ -237,6 +237,21 @@ export class Renderer {
     // 中毒态集合：DoT 作用中的敌人 id（渲染层画持续毒蚀标识用）
     this._dotIds = new Set((run.dots ?? []).map((d) => d.eid));
 
+    // 位面障碍物：暗色圆 + 描边（关卡编辑地形可视化）
+    if (Array.isArray(run.dungeon?.plane?.obstacles)) {
+      for (const o of run.dungeon.plane.obstacles) {
+        const r = Number(o?.r) || 0;
+        if (!(r > 0)) continue;
+        ctx.fillStyle = 'rgba(8,12,16,0.82)';
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(143,232,203,0.35)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
     // —— 基因尸体（在脚下，先画）——
     for (const o of run.orbs) {
       this.blitClip('gene_orb_pulse', o.x, o.y + Math.sin(o.bob) * 2, o.bob * 4, 0.5)
