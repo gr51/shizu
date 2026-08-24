@@ -378,7 +378,14 @@ export class Run {
       if (Number.isFinite(t.stage) && t.stage > 0 && Math.round(t.stage) !== this.stageNo) continue;
       for (const act of Array.isArray(t.actions) ? t.actions : []) {
         if (!act || typeof act !== 'object') continue;
-        if (act.type === 'surge' && Number(act.count) > 0 && typeof this.spawnSurge === 'function') {
+        if (act.type === 'spawnElite' && typeof this.spawnEnemy === 'function') {
+          const n = Math.max(1, Math.min(3, Math.round(Number(act.count) || 1)));
+          const stg = this.dungeon.stages[Math.min(this.stageIndex, this.dungeon.stages.length - 1)];
+          for (let k = 0; k < n; k++) {
+            this.spawnEnemy({ ...stg.closer, name: `${stg.closer.name}·触袭`, kind: 'elite', ambush: true }, false);
+          }
+          this.emit(`⚡ 触发器：触袭精英 ×${n}！`, 'death');
+        } else if (act.type === 'surge' && Number(act.count) > 0 && typeof this.spawnSurge === 'function') {
           const tpl = this.dungeon.stages[this.stageIndex]?.minion ?? { hp: 20, atk: 3 };
           const n = Math.min(30, Math.round(Number(act.count)));
           this.spawnSurge({ name: '触发潮', hp: tpl.hp, atk: tpl.atk }, n, 'trigger');

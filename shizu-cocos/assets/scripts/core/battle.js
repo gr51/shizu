@@ -350,6 +350,7 @@ export class RealtimeRun extends Run {
     if (this.chestQueue) {
       this.chestQueue = false;
       this.openChest();
+      this.runPlaneTriggers('onChestOpen');
     }
 
     if (this.stats.regen > 0) {
@@ -1709,6 +1710,7 @@ export class RealtimeRun extends Run {
 
     if (e.kind === 'boss') {
       this.enemies = this.enemies.filter((x) => !x.dead);
+      this.runPlaneTriggers('onBossKill');
       this.onKill(e);            // 父类：BOSS 掉落 + 置为 WON
       return;
     }
