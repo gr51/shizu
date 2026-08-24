@@ -110,6 +110,23 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     if (prevInfo.total >= 120 && prevInfo.ok > 0) ok('敌人 sprite 预览', `共 ${prevInfo.total} 个：命中 ${prevInfo.ok}，缺图 ${prevInfo.missing}`);
     else bad('敌人 sprite 预览', `预览异常：${JSON.stringify(prevInfo)}`);
 
+    // 6c. 新增条目：共鸣标签点「+ 新增条目」，应用后运行时池应 +1
+    await page.locator('.admin-tabs button[data-key="synergies"]').click();
+    await wait(200);
+    const synBefore = await page.evaluate(async () => {
+      try { const m = await import('/shizu-cocos/assets/scripts/data/synergies.js'); return m.SYNERGIES.length; }
+      catch { return -1; }
+    });
+    await page.locator('button[data-add-for="synergies"]').click();
+    await wait(200);
+    const cnt = () => page.evaluate(() => {
+      const pane = [...document.querySelectorAll('.admin-pane')].find((p) => p.querySelector('[data-add-for="synergies"]'));
+      return pane ? pane.querySelectorAll('.cfg-block').length : -1;
+    });
+    const synCntAfter = await cnt();
+    if (synCntAfter >= 15) ok('新增条目 UI', `点击后区块数 = ${synCntAfter}（原 14 + 新增）`);
+    else bad('新增条目 UI', `点击新增后区块数 = ${synCntAfter}（预期 ≥15）`);
+
     // 7. 回到位面标签，改一个字段并应用
     await page.locator('.admin-tabs button[data-key="planes"]').click();
     await wait(200);
@@ -163,6 +180,14 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     });
     if (hidT.includes('0.33')) ok('隐藏技 eff 运行时消费', `wushuang.eff = ${hidT}`);
     else bad('隐藏技 eff 运行时消费', `wushuang.eff = ${hidT}（未合并）`);
+
+    // 8d. 新增共鸣的运行时消费：覆盖推送进 SYNERGIES 池
+    const synAfter = await page.evaluate(async () => {
+      try { const m = await import('/shizu-cocos/assets/scripts/data/synergies.js'); return m.SYNERGIES.length; }
+      catch { return -1; }
+    });
+    if (synBefore > 0 && synAfter === synBefore + 1) ok('新增条目运行时生效', `SYNERGIES ${synBefore} → ${synAfter}`);
+    else bad('新增条目运行时生效', `SYNERGIES ${synBefore} → ${synAfter}（应为 +1）`);
 
     // 9. 清理覆盖并还原
     const admin2 = await page.goto(`http://localhost:${PORT}/web/admin.html`, { waitUntil: 'networkidle' });

@@ -132,6 +132,26 @@ function jsonField(label, obj, onChange) {
   return wrap;
 }
 
+// ——— 新增条目支持：安全集合（纯数据、无函数依赖）可在后台直接加新条目 ———
+const PANES = {};
+let PANE_DEFS = [];
+let _n = 100;
+const nn = () => (_n++);
+function refreshPane(key) {
+  const pane = PANES[key];
+  const def = PANE_DEFS.find((d) => d[0] === key);
+  if (!pane || !def) return;
+  pane.innerHTML = '';
+  def[2](pane);
+}
+function addBtn(sec, key, make) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.dataset.addFor = key;
+  b.textContent = '+ 新增条目';
+  b.addEventListener('click', () => { make(); mark(); refreshPane(key); });
+  sec.appendChild(b);
+}
+
 // ——— 构建各维度区块 ———
 function buildPlanes(root) {
   const sec = document.createElement('section');
@@ -257,6 +277,9 @@ function buildEnemies(root) {
 function buildSkills(root) {
   const sec = document.createElement('section');
   sec.innerHTML = '<h2>技能 · 基因锁（10 路线 × 6 段）</h2>';
+  addBtn(sec, 'skills', () => {
+    state.skills.push({ id: `skill_${nn()}`, route: 'xiake', lv: 1, kind: 'passive', name: '新技能', desc: '', val: '', cd: '', eff: {} });
+  });
   const byRoute = {};
   for (const s of state.skills) { (byRoute[s.route] ??= []).push(s); }
   for (const route of Object.keys(byRoute)) {
@@ -317,6 +340,10 @@ function buildRoutes(root) {
     cb.appendChild(field(`${c.id} · 名`, c.name, (v) => { c.name = v; mark(); }));
     cb.appendChild(field(`${c.id} · 效果`, c.desc, (v) => { c.desc = v; mark(); }));
   }
+  addBtn(cb, 'routes', () => {
+    const cid = `combo_${nn()}`;
+    state.combos.push({ id: cid, name: '新组合技', desc: '', routes: ['xiake', 'shanhai'] });
+  });
   sec.appendChild(cb);
   root.appendChild(sec);
 }
@@ -324,6 +351,9 @@ function buildRoutes(root) {
 function buildSynergies(root) {
   const sec = document.createElement('section');
   sec.innerHTML = '<h2>构筑共鸣</h2>';
+  addBtn(sec, 'synergies', () => {
+    state.synergies.push({ id: `syn_${nn()}`, name: '新共鸣', desc: '', need: ['attr_atk', 'attr_crit'], eff: {} });
+  });
   for (const s of state.synergies) {
     const b = box(s.id);
     b.appendChild(field('名称', s.name, (v) => { s.name = v; mark(); }));
@@ -363,6 +393,9 @@ function buildRelics(root) {
 function buildCrises(root) {
   const sec = document.createElement('section');
   sec.innerHTML = '<h2>危机事件</h2>';
+  addBtn(sec, 'crises', () => {
+    state.crises.push({ id: `crisis_${nn()}`, name: '新危机', desc: '', warn: '⚠ 危机来袭！', duration: 8 });
+  });
   for (const c of state.crises) {
     const b = box(c.id);
     b.appendChild(field('名称', c.name, (v) => { c.name = v; mark(); }));
@@ -376,6 +409,9 @@ function buildCrises(root) {
 function buildEliteAffixes(root) {
   const sec = document.createElement('section');
   sec.innerHTML = '<h2>精英词缀</h2>';
+  addBtn(sec, 'elite', () => {
+    state.eliteAffixes.push({ id: `affix_${nn()}`, name: '新词缀', desc: '', color: '#9ac97f', eff: {} });
+  });
   for (const a of state.eliteAffixes) {
     const b = box(a.id);
     b.appendChild(field('名称', a.name, (v) => { a.name = v; mark(); }));
@@ -390,6 +426,9 @@ function buildEliteAffixes(root) {
 function buildAttrPool(root) {
   const sec = document.createElement('section');
   sec.innerHTML = '<h2>通用属性池（三选一属性通道）</h2>';
+  addBtn(sec, 'attr', () => {
+    state.attrPool.push({ id: `attr_${nn()}`, kind: 'attr', rarity: 'feature', weight: 10, name: '新属性', desc: '', eff: {} });
+  });
   for (const a of state.attrPool) {
     const b = box(`${a.id} · ${a.rarity} · 权重 ${a.weight ?? '默认'}`);
     b.appendChild(field('名称', a.name, (v) => { a.name = v; mark(); }));
@@ -458,6 +497,9 @@ function buildWeaponAttack(root) {
 function buildRiftMods(root) {
   const sec = document.createElement('section');
   sec.innerHTML = '<h2>裂缝变异</h2>';
+  addBtn(sec, 'rift', () => {
+    state.riftMods.push({ id: `mod_${nn()}`, name: '新变异', desc: '', risk: 2 });
+  });
   for (const m of state.riftMods) {
     const b = box(m.id);
     b.appendChild(field('名称', m.name, (v) => { m.name = v; mark(); }));
@@ -549,6 +591,7 @@ function init() {
     ['shop', '黑市', buildShop],
     ['quests', '支线', buildSideQuests],
   ];
+  PANE_DEFS = defs;
   const panes = {};
   for (const [key, label, fn] of defs) {
     const btn = document.createElement('button');
@@ -560,6 +603,7 @@ function init() {
     fn(pane);
     app.appendChild(pane);
     panes[key] = pane;
+    PANES[key] = pane;
   }
   app.prepend(tabs);
 

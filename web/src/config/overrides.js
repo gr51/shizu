@@ -90,10 +90,14 @@ export function applyConfigOverrides() {
     for (const s of o.rangedSprites) RANGED_SPRITES.add(s);
   }
 
-  // —— 技能（10 路线 × 6 段）——
+  // —— 技能（10 路线 × 6 段；未知 id 视为后台新增条目，追加进池）——
   for (const s2 of o.skills ?? []) {
     const t = findSkill(s2.id);
-    if (!t) continue;
+    if (!t) {
+      if (!s2.id || !s2.route || !s2.lv) continue;   // 缺关键键的残条目不入池
+      skills.push({ ...s2 });
+      continue;
+    }
     assignShallow(t, s2);
     if (s2.eff && typeof s2.eff === 'object') t.eff = { ...t.eff, ...s2.eff };
   }
@@ -107,22 +111,26 @@ export function applyConfigOverrides() {
     }
   }
 
-  // —— 路线 / 组合技 ——
+  // —— 路线（未知 id 允许注册新路线；互斥缺省为空）——
   for (const [rid, patch] of Object.entries(o.routes ?? {})) {
     const t = ROUTES[rid];
-    if (!t) continue;
+    if (!t) { if (!rid.startsWith('route_')) continue; ROUTES[rid] = { id: rid, mutexWith: [], ...patch }; continue; }
     assignShallow(t, patch);
   }
   for (const c of o.combos ?? []) {
     const t = COMBO_SKILLS.find((x) => x.id === c.id);
-    if (!t) continue;
+    if (!t) { if (!c.id || !Array.isArray(c.routes)) continue; COMBO_SKILLS.push({ ...c }); continue; }
     assignShallow(t, c);
   }
 
   // —— 共鸣 ——
   for (const s2 of o.synergies ?? []) {
     const t = SYNERGIES.find((x) => x.id === s2.id);
-    if (!t) continue;
+    if (!t) {
+      if (!s2.id || !Array.isArray(s2.need)) continue;
+      SYNERGIES.push({ ...s2 });
+      continue;
+    }
     assignShallow(t, s2);
     if (s2.eff && typeof s2.eff === 'object') t.eff = { ...t.eff, ...s2.eff };
   }
@@ -136,33 +144,33 @@ export function applyConfigOverrides() {
     if (a.reward != null) t.reward = a.reward;
   }
 
-  // —— 传承 ——
+  // —— 传承（未知 id = 后台新增传承，直接注册）——
   for (const [rid, patch] of Object.entries(o.relics ?? {})) {
     const t = RELICS[rid];
-    if (!t) continue;
+    if (!t) { if (!rid.startsWith('relic_')) continue; RELICS[rid] = { id: rid, name: '新传承', story: '', eff: {}, ...patch }; continue; }
     assignShallow(t, patch);
     if (patch.eff && typeof patch.eff === 'object') t.eff = { ...t.eff, ...patch.eff };
   }
 
-  // —— 危机事件 ——
+  // —— 危机事件（未知 id 追加进池；不在位面子集过滤名单里=全开位面可抽到）——
   for (const c of o.crises ?? []) {
     const t = CRISES.find((x) => x.id === c.id);
-    if (!t) continue;
+    if (!t) { if (!c.id || !c.duration) continue; CRISES.push({ ...c }); continue; }
     assignShallow(t, c);
   }
 
-  // —— 精英词缀 ——
+  // —— 精英词缀（未知 id 追加；rollEliteAffix 均匀索引即时可见）——
   for (const a of o.eliteAffixes ?? []) {
     const t = ELITE_AFFIXES.find((x) => x.id === a.id);
-    if (!t) continue;
+    if (!t) { if (!a.id) continue; ELITE_AFFIXES.push({ ...a }); continue; }
     assignShallow(t, a);
     if (a.eff && typeof a.eff === 'object') t.eff = { ...t.eff, ...a.eff };
   }
 
-  // —— 通用属性池 ——
+  // —— 通用属性池（未知 id 追加；三选一池实时读取）——
   for (const a of o.attrPool ?? []) {
     const t = GENERIC_ATTR_POOL.find((x) => x.id === a.id);
-    if (!t) continue;
+    if (!t) { if (!a.id || !a.rarity) continue; GENERIC_ATTR_POOL.push({ kind: 'attr', weight: 10, ...a }); continue; }
     assignShallow(t, a);
     if (a.eff && typeof a.eff === 'object') t.eff = { ...t.eff, ...a.eff };
   }
@@ -189,6 +197,31 @@ export function applyConfigOverrides() {
     const t = WEAPON_ATTACK[rid];
     if (!t) continue;
     assignShallow(t, patch);
+  }
+
+  // —— 裂缝变异（未知 id 追加进池）——
+  for (const m of o.riftMods ?? []) {
+    const t = RIFT_MODS.find((x) => x.id === m.id);
+    if (!t) { if (!m.id || !m.risk) continue; RIFT_MODS.push({ ...m }); continue; }
+    Object.assign(t, m);
+  }
+
+  // —— 黑市（文案/价格可改；apply 是函数不可序列化，新增条目不安全 → 仅改写）——
+  for (const s2 of o.shopItems ?? []) {
+    const t = SHOP_ITEMS.find((x) => x.id === s2.id);
+    if (!t) continue;
+    if (s2.name != null) t.name = s2.name;
+    if (s2.desc != null) t.desc = s2.desc;
+    if (s2.price != null) t.price = s2.price;
+  }
+
+  // —— 支线协议（progress 是函数 → 仅改写）——
+  for (const q of o.sideQuests ?? []) {
+    const t = SIDE_QUESTS.find((x) => x.id === q.id);
+    if (!t) continue;
+    if (q.name != null) t.name = q.name;
+    if (q.desc != null) t.desc = q.desc;
+    if (q.reward != null) t.reward = q.reward;
   }
 
   // —— 成套重写逃生门：routes 里新来的（后台新增位面/路线场景），不在此处理 ——
