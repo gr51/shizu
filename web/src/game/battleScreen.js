@@ -550,6 +550,11 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
         + `<span class="small">　战力 +${((c.to - c.from) * 2).toFixed(0)}%</span></div>`);
     }
     if (r.hiddenSkill) lines.push(`<div class="diff-row hidden">🔥 禁忌显现：<b>${r.hiddenSkill.name}</b></div>`);
+    // 支线协议完成行（与 Cocos 结算同口径）：独立可读，不混进基因总数
+    const sq = run.sideQuest;
+    if (sq && run.isSideQuestDone()) {
+      lines.push(`<div class="diff-row gold">✅ 支线协议【${sq.name}】完成 —— 额外基因 +${sq.reward}</div>`);
+    }
     for (const a of r.achievements ?? []) {
       lines.push(`<div class="diff-row gold">🏅 成就达成「${a.name}」 —— 奖励：${a.reward}</div>`);
     }
