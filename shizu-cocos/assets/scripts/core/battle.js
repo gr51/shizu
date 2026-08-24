@@ -1467,6 +1467,7 @@ export class RealtimeRun extends Run {
     this.heal(this.stats.maxHp * DEVOUR_HEAL_PCT, '吞噬', true);
     this.emitFx('devour', p.x, p.y);
     this.emitFx('surge', p.x, p.y);
+    this.runPlaneTriggers('onDevour');
     this.hitStop = 0.06;   // 吞噬的「压实」停顿——0.15 实测像卡死，压到仍有力但不拖沓
     this.emit(`【吞噬爆发】吸取 ${sucked} 基因 · 噬咬周围 · 狂暴 ${DEVOUR_BERSERK}s`, 'gene');
     return true;
