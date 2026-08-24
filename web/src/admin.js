@@ -165,6 +165,10 @@ function buildPlanes(root) {
       _new: true, name: '新位面', theme: '', boss: '新位面之主', bossDesc: '', poem: '',
       codex: 0, group: '自定义', routes: [], waves: [3, 4, 3, 4], eliteStages: [3, 4], spawnStyle: 'standard',
     };
+    // 播种默认切面：敌人阶段表 / Boss / 招牌机制——让新位面在敌人·Boss 标签立即可配
+    state.stageSprites[pid] = Array.from({ length: 5 }, () => ['', '']);
+    state.bossSprites[pid] = `boss_${pid.replace('plane_', '')}`;
+    state.mechanics[pid] = { type: 'laser', interval: 12 };
   });
   // 遍历 原生位面 + 后台新增位面（仅存在于 state 的 id）
   const extraIds = Object.keys(state.planes).filter((id) => !planes.some((p) => p.id === id));
@@ -211,9 +215,11 @@ function spritePreview(getName) {
 function buildEnemies(root) {
   const sec = document.createElement('section');
   sec.innerHTML = '<h2>敌人 · 形象绑定（5 阶段小怪 / Boss / 远程集）。缩略图红框 = 引用的贴图不存在</h2>';
-  for (const p of planes) {
-    const b = box(`${p.id} · ${p.name}`);
-    const pairs = state.stageSprites[p.id];
+  const extraIds = Object.keys(state.planes).filter((id) => !planes.some((p) => p.id === id));
+  for (const pid of [...planes.map((p) => p.id), ...extraIds]) {
+    const title = state.planes[pid]?.name ?? pid;
+    const b = box(`${pid} · ${title}${state.planes[pid]?._new ? '（新增）' : ''}`);
+    const pairs = state.stageSprites[pid];
     if (pairs) {
       pairs.forEach((pair, i) => {
         const row = document.createElement('div');
@@ -233,19 +239,20 @@ function buildEnemies(root) {
     }
     const br = document.createElement('div');
     br.className = 'af-row';
-    const bs = document.createElement('input'); bs.value = state.bossSprites[p.id] ?? '';
-    const bp = spritePreview(() => state.bossSprites[p.id]);
-    bs.addEventListener('input', (e) => { state.bossSprites[p.id] = e.target.value; mark(); bp.updateSprite(); });
+    const bs = document.createElement('input'); bs.value = state.bossSprites[pid] ?? '';
+    const bp = spritePreview(() => state.bossSprites[pid]);
+    bs.addEventListener('input', (e) => { state.bossSprites[pid] = e.target.value; mark(); bp.updateSprite(); });
     const bl = document.createElement('span'); bl.textContent = 'Boss:';
     br.appendChild(bl); br.appendChild(bs); br.appendChild(bp);
     b.appendChild(br);
     // 派生美术切面（planeModules.art 约定路径）：地砖 / 背景 / 首路线皮肤——缺图红框
     {
-      const codex2 = String(p.codex).padStart(2, '0');
+      const src = planes.find((x) => x.id === pid);
+      const codex2 = String(src?.codex ?? (state.planes[pid]?.codex ?? 0)).padStart(2, '0');
       const arts = [
-        ['地砖', `backgrounds/floor_${p.id}.png`],
-        ['背景', `backgrounds/plane_${codex2}_${p.id}.png`],
-        ...((p.routes ?? []).slice(0, 1).map((r) => ['皮肤', `units/player_${r}.png`])),
+        ['地砖', `backgrounds/floor_${pid}.png`],
+        ['背景', `backgrounds/plane_${codex2}_${pid}.png`],
+        ...((state.planes[pid]?.routes ?? []).slice(0, 1).map((r) => ['皮肤', `units/player_${r}.png`])),
       ];
       const ar = document.createElement('div');
       ar.className = 'af-row';
