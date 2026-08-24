@@ -425,6 +425,9 @@ export class Run {
         } else if (act.type === 'buffSpeed' && Number(act.pct) > 0) {
           this.stats.speed *= 1 + Math.min(1, Number(act.pct));
           this.emit(`⚡ 触发器：移速永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
+        } else if (act.type === 'buffDot' && Number(act.pct) > 0) {
+          this.stats.dotMul = (this.stats.dotMul ?? 0) + Number(act.pct);
+          this.emit(`⚡ 触发器：持续伤害永久 +${Math.round(Number(act.pct) * 100)}%`, 'win');
         } else if (act.type === 'buffCooldown' && Number(act.pct) > 0) {
           this.stats.cooldown = Math.max(0.4, (this.stats.cooldown ?? 1) * (1 - Math.min(0.6, Number(act.pct))));
           this.emit(`⚡ 触发器：技能冷却永久 -${Math.round(Math.min(0.6, act.pct) * 100)}%`, 'win');
