@@ -24,11 +24,11 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   const results = [];
   const ok = (k, m) => { results.push(`✓ ${k}: ${m}`); console.log(`✓ ${k}: ${m}`); };
   const bad = (k, m) => { results.push(`✗ ${k}: ${m}`); console.log(`✗ ${k}: ${m}`); };
+  const jsErrors = [];
+  const res404 = [];
 
   try {
     const page = await browser.newPage();
-    const jsErrors = [];
-    const res404 = [];
     page.on('console', (msg) => {
       const t = msg.text();
       if (msg.type() === 'error' && t.includes('Failed to load resource')) return;
@@ -127,6 +127,18 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     if (synCntAfter >= 15) ok('新增条目 UI', `点击后区块数 = ${synCntAfter}（原 14 + 新增）`);
     else bad('新增条目 UI', `点击新增后区块数 = ${synCntAfter}（预期 ≥15）`);
 
+    // 6d. 新增位面：位面标签点「+ 新增条目」
+    await page.locator('.admin-tabs button[data-key="planes"]').click();
+    await wait(200);
+    await page.locator('button[data-add-for="planes"]').click();
+    await wait(200);
+    const planeBlocks = await page.evaluate(() => {
+      const pane = [...document.querySelectorAll('.admin-pane')].find((p) => p.querySelector('[data-add-for="planes"]'));
+      return pane ? [...pane.querySelectorAll('.cfg-block')].filter((b) => b.textContent.includes('（新增）')).length : -1;
+    });
+    if (planeBlocks === 1) ok('新增位面 UI', '出现 1 个「（新增）」位面块');
+    else bad('新增位面 UI', `新增块数 = ${planeBlocks}（预期 1）`);
+
     // 7. 回到位面标签，改一个字段并应用
     await page.locator('.admin-tabs button[data-key="planes"]').click();
     await wait(200);
@@ -189,6 +201,17 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     if (synBefore > 0 && synAfter === synBefore + 1) ok('新增条目运行时生效', `SYNERGIES ${synBefore} → ${synAfter}`);
     else bad('新增条目运行时生效', `SYNERGIES ${synBefore} → ${synAfter}（应为 +1）`);
 
+    // 8e. 新增位面的运行时注册：planes 数组多一条且带完整骨架
+    const planeT = await page.evaluate(async () => {
+      try {
+        const m = await import('/shizu-cocos/assets/scripts/data/planes.js');
+        const np = m.planes.find((x) => String(x.id).startsWith('plane_'));
+        return np ? `${m.planes.length}:${np.id}:codex${np.codex}:waves${Array.isArray(np.waves)}` : `NO_NEW(total ${m.planes.length})`;
+      } catch (e) { return 'ERR:' + e.message; }
+    });
+    if (/^1[35]:plane_\d+:codex(?:[1-9]\d*):wavestrue$/.test(planeT)) ok('新增位面运行时注册', planeT);
+    else bad('新增位面运行时注册', planeT);
+
     // 9. 清理覆盖并还原
     const admin2 = await page.goto(`http://localhost:${PORT}/web/admin.html`, { waitUntil: 'networkidle' });
     await wait(300);
@@ -205,6 +228,7 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     if (res404.length) console.log(`ℹ 资源 404（网络层，非逻辑错误）: ${[...new Set(res404)].join('/')}`);
   } catch (e) {
     bad('脚本异常', e.message);
+    if (typeof jsErrors !== 'undefined' && jsErrors.length) bad('页面错误详情', jsErrors.slice(0, 3).join(' | '));
   } finally {
     await browser.close();
     server.kill();

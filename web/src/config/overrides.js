@@ -63,10 +63,28 @@ export function applyConfigOverrides() {
   const o = loadOverrides();
   if (!o) return;
 
-  // —— 位面叙事与 Boss 词 ——
+  // —— 位面叙事与 Boss 词；带 _new 标记的未知 id = 后台新增位面，补默认骨架后注册 ——
   for (const [pid, patch] of Object.entries(o.planes ?? {})) {
     const p = planes.find((x) => x.id === pid);
-    if (!p) continue;
+    if (!p) {
+      if (!patch || !patch._new || !pid.startsWith('plane_')) continue;
+      const { _new, codex: _ignored, ...rest } = patch;   // 忽略后台占位 codex，统一由运行时递增分配
+      const nextCodex = planes.reduce((m, x) => Math.max(m, Number(x.codex) || 0), 0) + 1;
+      planes.push({
+        id: pid,
+        codex: nextCodex,
+        name: rest.name ?? '新位面',
+        group: '自定义',
+        routes: [],
+        waves: [3, 4, 3, 4],
+        eliteStages: [3, 4],
+        spawnStyle: 'standard',
+        poem: '',
+        bossDesc: '',
+        ...rest,
+      });
+      continue;
+    }
     assignShallow(p, patch);
   }
 

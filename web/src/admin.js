@@ -53,11 +53,14 @@ const state = { planes: {}, mechanics: {}, riftMods: [], shopItems: [], sideQues
   for (const [rid, w] of Object.entries(WEAPON_ATTACK)) state.weaponAttack[rid] = { projectile: w.projectile, color: w.color, pattern: w.pattern };
   state.weaponAttack.__default = { projectile: DEFAULT_WEAPON.projectile, color: DEFAULT_WEAPON.color, pattern: DEFAULT_WEAPON.pattern };
 
-  // 合并已保存覆盖
-  for (const [pid, patch] of Object.entries(o.planes ?? {})) Object.assign(state.planes[pid] ?? {}, patch);
+  // 合并已保存覆盖（未知 id = 上次后台新增的条目，直接并入状态）
+  for (const [pid, patch] of Object.entries(o.planes ?? {})) {
+    if (state.planes[pid]) Object.assign(state.planes[pid], patch);
+    else state.planes[pid] = { ...patch };
+  }
   for (const [pid, mech] of Object.entries(o.mechanics ?? {})) if (state.mechanics[pid]) Object.assign(state.mechanics[pid], mech);
   for (const [pid, pairs] of Object.entries(o.stageSprites ?? {})) if (Array.isArray(pairs)) state.stageSprites[pid] = pairs.map((x) => [...x]);
-  for (const [pid, name] of Object.entries(o.bossSprites ?? {})) if (state.bossSprites[pid] != null) state.bossSprites[pid] = name;
+  for (const [pid, name] of Object.entries(o.bossSprites ?? {})) state.bossSprites[pid] = name;
   for (const l of [['riftMods', state.riftMods], ['shopItems', state.shopItems], ['sideQuests', state.sideQuests], ['skills', state.skills], ['combos', state.combos], ['synergies', state.synergies], ['achievements', state.achievements], ['crises', state.crises], ['eliteAffixes', state.eliteAffixes], ['attrPool', state.attrPool], ['nestUpgrades', state.nestUpgrades], ['mechUpgrades', state.mechUpgrades]]) {
     const [k, arr] = l;
     for (const patch of o[k] ?? []) { const t = arr.find((x) => x.id === patch.id); if (t) Object.assign(t, patch); }
@@ -156,14 +159,23 @@ function addBtn(sec, key, make) {
 function buildPlanes(root) {
   const sec = document.createElement('section');
   sec.innerHTML = '<h2>位面 · 进入事件与叙事</h2>';
-  for (const p of planes) {
-    const st = state.planes[p.id];
-    const b = box(`${p.id} · ${p.name}`);
+  addBtn(sec, 'planes', () => {
+    const pid = `plane_${nn()}`;
+    state.planes[pid] = {
+      _new: true, name: '新位面', theme: '', boss: '新位面之主', bossDesc: '', poem: '',
+      codex: 0, group: '自定义', routes: [], waves: [3, 4, 3, 4], eliteStages: [3, 4], spawnStyle: 'standard',
+    };
+  });
+  // 遍历 原生位面 + 后台新增位面（仅存在于 state 的 id）
+  const extraIds = Object.keys(state.planes).filter((id) => !planes.some((p) => p.id === id));
+  for (const pid of [...planes.map((p) => p.id), ...extraIds]) {
+    const st = state.planes[pid];
+    const b = box(`${pid} · ${st.name}${st._new ? '（新增）' : ''}`);
     b.appendChild(field('主题', st.theme, (v) => { st.theme = v; mark(); }));
     b.appendChild(field('Boss 名', st.boss, (v) => { st.boss = v; mark(); }));
     b.appendChild(field('Boss 机制词', st.bossDesc, (v) => { st.bossDesc = v; mark(); }));
     b.appendChild(textarea('开场诗', st.poem, (v) => { st.poem = v; mark(); }));
-    const mech = state.mechanics[p.id];
+    const mech = state.mechanics[pid];
     if (mech) b.appendChild(numField('机制间隔(s)', mech.interval, (v) => { mech.interval = v; mark(); }));
     sec.appendChild(b);
   }
