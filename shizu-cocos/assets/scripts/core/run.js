@@ -425,6 +425,9 @@ export class Run {
         } else if (act.type === 'buffSpeed' && Number(act.pct) > 0) {
           this.stats.speed *= 1 + Math.min(1, Number(act.pct));
           this.emit(`⚡ 触发器：移速永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
+        } else if (act.type === 'invuln' && Number(act.duration) > 0 && typeof this.spawnSurge === 'function' && this.player) {
+          this.player.invuln = Math.max(this.player.invuln ?? 0, Math.min(8, Number(act.duration)));
+          this.emit(`⚡ 触发器：无敌 ${Math.min(8, act.duration)} 秒`, 'win');
         } else if (act.type === 'buffReflect' && Number(act.pct) > 0) {
           this.stats.reflect = Math.min(1, (this.stats.reflect ?? 0) + Number(act.pct));
           this.emit(`⚡ 触发器：受击反伤永久 +${Math.round(Math.min(1, act.pct) * 100)}%`, 'win');
