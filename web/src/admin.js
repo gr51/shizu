@@ -205,7 +205,7 @@ function buildPlanes(root) {
       true,
     ));
     b.appendChild(jsonField(
-      '触发器(实验) [{on,stage?,actions:[{type,count|pct|amount}]}]',
+      '触发器 [{on,stage?,every?,actions:[{type,count|pct|amount}]}] —— 事件:FirstBlood/EliteKill/BossKill/ChestOpen/StageClear/LowHp/TimeTick(配every秒)；动作:surge/heal/shield/genes/spawnElite',
       st.triggers ?? [],
       (v) => {
         if (Array.isArray(v) && v.length) st.triggers = v;
