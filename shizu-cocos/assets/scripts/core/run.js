@@ -14,6 +14,7 @@ import { adjustDynamicFactor, applyPermGrowth, calcDamage, combatStats } from '.
 import { applyAttrOption, rollUpgradeOptions } from './upgrade.js';
 import { GENERIC_ATTR_POOL } from '../data/attrPool.js';
 import { applyHiddenSkill, engravedSkills, learnSkill } from './skillSlots.js';
+import { findHiddenSkill } from '../data/hiddenSkills.js';
 import { rollBossDrop, rollKillDrop } from './drop.js';
 import { buildEndlessStage, ENDLESS_GENE_PER_LAYER } from './dungeon.js';
 import { ZHUTIAN_ID } from '../data/planes.js';
@@ -171,6 +172,9 @@ export class Run {
     this.engraved = engravedSkills(save);
     for (const s of this.engraved) {
       this.learnedSkills.add(s.skillId);
+      // P1-6：刻印技能接入战斗效果——此前只登记 id，全游戏最稀有的掉落纯文案空转
+      const hs = findHiddenSkill(s.skillId);
+      if (hs?.eff) this.applySkillEff({ ...hs, kind: hs.kind ?? 'passive' });
       this.emit(`【刻印生效】${s.name}`, 'hidden');
     }
 
