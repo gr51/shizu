@@ -199,7 +199,10 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
     const real = Math.min((now - last) / 1000, 0.05);
     last = now;
 
-    if (!paused) {
+    // P2-15：暂停期间丢弃输入动作——否则暂停/弹窗时按下的空格/Shift
+    // 会在恢复瞬间补发（「我还没按它就自己放了」的粘滞手感）
+    if (paused) { input.takeActions(); }
+    else {
       // 固定步长推进（fix your timestep）：仿真恒定 1/60 一步。
       // 变步长会让 144Hz / 30Hz 设备打出不同结果，而全部平衡测试都在 1/60 下校准，
       // 这里对齐后线上手感与测试基线一致；余下不足一步的时间留到下一帧累计。
