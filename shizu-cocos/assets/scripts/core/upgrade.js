@@ -55,6 +55,7 @@ export function skillPool(routes, save, learnedIds) {
         route: s.route,
         lv: s.lv,
         eff: s.eff,
+        visual: s.visual ? { ...s.visual } : undefined,
       });
     }
   }

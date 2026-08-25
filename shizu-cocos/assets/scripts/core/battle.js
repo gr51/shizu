@@ -165,7 +165,9 @@ export class RealtimeRun extends Run {
     super(save, dungeon, seed);
 
     // 出生点：位面可配 spawn:{x,y}（关卡编辑·地形轴第一项），缺省屏幕中心
-    const sp = this.dungeon.plane?.spawn ?? {};
+    const editorObjects = Array.isArray(this.dungeon.plane?.editor?.objects) ? this.dungeon.plane.editor.objects : [];
+    const editorSpawn = editorObjects.find((o) => o?.type === 'spawn' && o.role === 'player');
+    const sp = this.dungeon.plane?.spawn ?? editorSpawn ?? {};
     this.player = {
       x: Number.isFinite(Number(sp.x)) && sp.x !== '' ? Number(sp.x) : ARENA.w / 2,
       y: Number.isFinite(Number(sp.y)) && sp.y !== '' ? Number(sp.y) : ARENA.h / 2,
@@ -195,6 +197,7 @@ export class RealtimeRun extends Run {
     this.hits = [];           // 特效请求（渲染层消费后清空）
     this.time = 0;            // 本局已过秒数（父类 elapsed 同步）
     this.spawnCarry = 0;
+    this.ambientSpawned = 0;  // 当前阶段已刷的常规小怪（不含涌潮/召唤），受 stage.spawnCount 预算约束
     this.crisis = null;        // { def, warnT, activeT, beatT } —— 当前危机
     this.crisisTimer = 0;      // 距下次危机的计时
     this.surgeDone = 0;
@@ -252,6 +255,33 @@ export class RealtimeRun extends Run {
     this.chestQueue = false;     // 击破守卫后排队开箱（update 消费）
     this.playerSlowT = 0;        // 玩家踉跄剩余秒（tank 践踏；禅心 ccResist 缩短它）
     this.elementalSlows = new Map(); // 元素减速：enemyId → 剩余减速秒
+
+    // —— 位面工程对象实例 ——
+    this.worldObjects = editorObjects.map((o) => ({ ...o }));
+    this.spawnPoints = this.worldObjects.filter((o) => o.type === 'spawn');
+    this.doodads = this.worldObjects.filter((o) => o.type === 'doodad');
+    this.regions = this.worldObjects.filter((o) => o.type === 'region');
+    this.skillFxAnchors = this.worldObjects.filter((o) => o.type === 'skillFx');
+    this.enteredRegions = new Set();
+    for (const o of this.worldObjects) {
+      if (o.type !== 'unit' && o.type !== 'boss') continue;
+      const kind = o.type === 'boss' ? 'boss' : 'minion';
+      const variant = kind === 'minion' && MINION_VARIANTS[o.variant] ? o.variant : null;
+      const v = variant ? MINION_VARIANTS[variant] : null;
+      const hp = Math.max(1, Number(o.hp) || (kind === 'boss' ? 300 : 20));
+      this.enemies.push({
+        id: this.nextId++, kind, variant, sprite: o.sprite || null, name: o.name || (kind === 'boss' ? '地图Boss' : '地图小怪'),
+        hp, maxHp: hp, atk: Math.max(0, Number(o.atk) || 0), x: Number(o.x) || 0, y: Number(o.y) || 0,
+        r: kind === 'boss' ? 40 : 12, speed: (kind === 'boss' ? 135 : 105) * (v?.speedMul ?? 1),
+        bossSkill: o.bossSkill || o.skill || null, mapPlaced: true, winOnDeath: o.winOnDeath === true,
+        spitCd: v?.ranged ? this.rng() * SPIT_CD : 0, hitFlash: 0, attackT: 0, anim: 0, isCloser: false, phase: 1,
+        bossSkillCd: kind === 'boss' ? 2.5 : 0,
+      });
+    }
+    // 登场预警（Anticipation）：预放的大件开局发一次抬手圈，玩家进图即读得到威胁位置
+    for (const e of this.enemies) {
+      if (e.kind === 'boss') { this.emitFx('boss', e.x, e.y); this.emit(`【地图威胁】${e.name} 在此蛰伏`, 'death'); }
+    }
   }
 
   /** 难度对应的时间坡分母（困难更快变强，简单更慢） */
@@ -302,8 +332,21 @@ export class RealtimeRun extends Run {
     return fx;
   }
 
-  /**
-   * 发一个特效事件给渲染层。
+  updateWorldRegions() {
+    if (!this.regions?.length) return;
+    const p = this.player;
+    for (const r of this.regions) {
+      const inside = Math.abs(p.x - Number(r.x)) <= Math.max(1, Number(r.width) || 1) / 2
+        && Math.abs(p.y - Number(r.y)) <= Math.max(1, Number(r.height) || 1) / 2;
+      if (!inside || this.enteredRegions.has(r.id)) continue;
+      this.enteredRegions.add(r.id);
+      if (r.event) this.runPlaneTriggers(r.event);
+      this.emitFx('regionPing', r.x, r.y, { width: Number(r.width) || 240, height: Number(r.height) || 160 });
+      this.emit(`进入区域 <b>${r.name || r.id}</b>`, 'stage');
+    }
+  }
+
+  /** 发一个特效事件给渲染层。
    * data 是可选的类型专属参数（如激光的朝向）——渲染层要画得对，光有坐标不够：
    * 位面机制的激光是横扫还是竖扫，只看 x/y 是分辨不出来的。
    */
@@ -331,6 +374,7 @@ export class RealtimeRun extends Run {
     this.stageElapsed += dt;
 
     this.updatePlayer(dt, input);
+    this.updateWorldRegions();
     this.spawnTick(dt);
     this.updateEnemies(dt);
     this.updateDeaths(dt);
@@ -537,9 +581,18 @@ export class RealtimeRun extends Run {
   spawnTick(dt) {
     const st = this.stage;
 
-    this.spawnCarry += st.spawnRate * this.diffSpawnMul * this.crisisSpawnMul * dt;
+    const limited = st.spawnCount !== null && st.spawnCount !== undefined && st.spawnCount !== ''
+      && Number.isFinite(Number(st.spawnCount)) && Number(st.spawnCount) >= 0;
+    const spawnMul = limited ? 1 : this.diffSpawnMul * this.crisisSpawnMul;
+    this.spawnCarry += st.spawnRate * spawnMul * dt;
     let n = Math.floor(this.spawnCarry);
-    this.spawnCarry -= n;
+    if (limited) {
+      const remaining = Math.max(0, Number(st.spawnCount) - this.ambientSpawned);
+      n = Math.min(n, remaining);
+      this.spawnCarry = Math.min(this.spawnCarry, remaining);
+    } else {
+      this.spawnCarry -= n;
+    }
 
     while (this.surgeDone < st.surges.length && this.stageElapsed >= st.surges[this.surgeDone].atSec) {
       const surge = st.surges[this.surgeDone];
@@ -557,8 +610,11 @@ export class RealtimeRun extends Run {
 
     if (!this.closerSpawned && this.stageElapsed >= st.closerAt) {
       this.closerSpawned = true;
-      this.spawnEnemy(st.closer, true);
-      if (st.extraElite) this.spawnEnemy({ ...st.closer, name: `${st.closer.name}·其二` }, true);
+      const count = Math.max(1, Math.min(10, Math.round(Number(st.closerCount) || (st.extraElite ? 2 : 1))));
+      for (let i = 0; i < count; i++) {
+        const suffix = i === 0 ? '' : `·其${i + 1}`;
+        this.spawnEnemy({ ...st.closer, name: `${st.closer.name}${suffix}`, closerGroup: this.stageNo }, true);
+      }
       if (st.closer.kind === 'boss') this.runPlaneTriggers('onBossSpawn');
       this.emitFx(st.closer.kind === 'boss' ? 'boss' : 'elite', this.player.x, this.player.y);
       // Boss 登场演出：0.12s 时停——「大敌当前」的一拍停顿（0.3 实测与「卡死」反馈同类，压到有力不拖沓）
@@ -583,10 +639,15 @@ export class RealtimeRun extends Run {
     }
 
     const room = MAX_ONSCREEN - this.enemies.length;
-    for (let i = 0; i < Math.min(n, room); i++) {
+    const actual = Math.max(0, Math.min(n, room));
+    for (let i = 0; i < actual; i++) {
       this.spawnEnemy({
         kind: 'minion', name: st.minionName, hp: st.minion.hp, atk: st.minion.atk,
       }, false);
+    }
+    if (limited) {
+      this.ambientSpawned += actual;
+      this.spawnCarry = Math.max(0, this.spawnCarry - actual);
     }
   }
 
@@ -599,8 +660,13 @@ export class RealtimeRun extends Run {
     const m = 24;
     const hw = ARENA.w;
     const hh = ARENA.h;
+    const spawnRole = tpl.kind === 'boss' ? 'boss' : 'minion';
+    const placedSpawns = this.spawnPoints?.filter((s) => s.role === spawnRole) ?? [];
     let x; let y;
-    if (edge === 0) { x = p.x + (this.rng() * 2 - 1) * hw; y = p.y - hh - m; }
+    if (placedSpawns.length) {
+      const point = placedSpawns[Math.floor(this.rng() * placedSpawns.length)];
+      x = Number(point.x) || 0; y = Number(point.y) || 0;
+    } else if (edge === 0) { x = p.x + (this.rng() * 2 - 1) * hw; y = p.y - hh - m; }
     else if (edge === 1) { x = p.x + hw + m; y = p.y + (this.rng() * 2 - 1) * hh; }
     else if (edge === 2) { x = p.x + (this.rng() * 2 - 1) * hw; y = p.y + hh + m; }
     else { x = p.x - hw - m; y = p.y + (this.rng() * 2 - 1) * hh; }
@@ -613,10 +679,12 @@ export class RealtimeRun extends Run {
     // 不串味；其余位面维持权重随机——全量硬派实测会让远程占比暴涨（各表约半数名为远程），
     // 盲走机器人 0.4 分钟即死。串味修复需逐位面调远程配比（美术战役后的独立平衡课题）。
     const HARD_ASSIGN = this.dungeon.plane.id === 'wuxia' || this.dungeon.plane.id === 'jiguan';
+    const forcedVariant = this.dungeon.plane?.minionVariants?.[sprite];
     const variant = isBig ? null
-      : (HARD_ASSIGN
-        ? (RANGED_SPRITES.has(sprite) ? 'spitter' : (this.rng() < 0.7 ? 'walker' : 'charger'))
-        : this.rollVariant());
+      : (forcedVariant && MINION_VARIANTS[forcedVariant] ? forcedVariant
+        : HARD_ASSIGN
+          ? (RANGED_SPRITES.has(sprite) ? 'spitter' : (this.rng() < 0.7 ? 'walker' : 'charger'))
+          : this.rollVariant());
     const v = variant ? MINION_VARIANTS[variant] : null;
     // 阶段越后敌人越快（整体策划 3.2「数量 → **速度** → 复杂度 → 精度」的第二项）
     const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
@@ -650,7 +718,9 @@ export class RealtimeRun extends Run {
       x, y,
       r: isBig ? (tpl.kind === 'boss' ? 40 : 24) : 12,
       speed: (isBig ? (tpl.kind === 'boss' ? 135 : 150) : 95 + this.rng() * 25)
-        * (v?.speedMul ?? 1) * stageSpeed * affixSpeed * (this.dungeon.mods?.enemySpeedMul ?? 1),
+        * (v?.speedMul ?? 1) * stageSpeed * affixSpeed
+        * ((this.dungeon.mods?.enemySpeedMul ?? 1)
+          * (1 + (Number(this.dungeon.plane?.statMods?.enemySpeedPct) || 0) / 100)),   // 位面数值覆盖·移速%
       // 接触攻击的手感纹理（见 MINION_VARIANTS 注释）；精英/Boss 走默认值
       atkWindup: v?.atkWindup ?? DEFAULT_ATK_WINDUP,
       atkMul: v?.atkMul ?? 1,
@@ -714,8 +784,8 @@ export class RealtimeRun extends Run {
       const a = (i / count) * Math.PI * 2 + this.rng() * 0.3;
       const x = p.x + Math.cos(a) * ringR;
       const y = p.y + Math.sin(a) * ringR;
-      const variant = this.rollVariant();
-      const v = MINION_VARIANTS[variant];
+      const variant = this.dungeon.plane?.minionVariants?.[tpl.name] ?? this.rollVariant();
+      const v = MINION_VARIANTS[variant] ?? MINION_VARIANTS.walker;
       const stageSpeed = 1 + (this.stageNo - 1) * 0.09;
       const timeScale = this.timeScale;
       this.enemies.push({
@@ -1017,6 +1087,25 @@ export class RealtimeRun extends Run {
     const base = Math.atan2(p.y - e.y, p.x - e.x);
     const rage = e.phase === 3 ? 1.6 : e.phase === 2 ? 1.3 : 1;
     const mul = (e.kind === 'boss' ? 2.5 : 1.8) * rage;
+    const bossSkill = e.bossSkill ?? PLANE_MECHANICS[plane]?.bossSkill;
+    if (e.kind === 'boss' && bossSkill) {
+      if (bossSkill === 'fan') {
+        for (let i = 0; i < 14; i++) { const a = base - Math.PI * 1.6 / 2 + (Math.PI * 1.6 * i) / 13; this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, atk: e.atk * mul, life: 3.5, sprite: 'projectile' }); }
+      } else if (bossSkill === 'ring') {
+        for (let i = 0; i < 18; i++) { const a = (i / 18) * Math.PI * 2; this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 200, vy: Math.sin(a) * 200, atk: e.atk * mul, life: 3.2, sprite: 'magic_orb' }); }
+      } else if (bossSkill === 'laser') {
+        for (let i = 0; i < 2; i++) this.shots.push({ x: e.x, y: e.y, vx: Math.cos(base) * 320, vy: Math.sin(base) * 320, atk: e.atk * mul, life: 2.5, r: 10, sprite: 'gear_blade' });
+      } else if (bossSkill === 'lightning') {
+        for (let i = 0; i < 7; i++) { const a = this.rng() * Math.PI * 2; this.shots.push({ x: e.x, y: e.y, vx: Math.cos(a) * 240, vy: Math.sin(a) * 240, atk: e.atk * mul, life: 3, sprite: 'lightning' }); }
+        this.emitFx('surge', e.x, e.y);
+      } else if (bossSkill === 'missile') {
+        for (let i = 0; i < 4; i++) this.mechProjectiles.push({ x: e.x, y: e.y, vx: 0, vy: 0, kind: 'missile', atk: e.atk * 1.2, life: 4, r: 9 });
+      } else if (bossSkill === 'summon') {
+        for (let i = 0; i < 3; i++) this.spawnEnemy({ kind: 'minion', name: 'Boss召唤物', hp: this.stage.minion.hp, atk: this.stage.minion.atk }, false);
+      }
+      this.emitFx('burst', e.x, e.y);
+      return;
+    }
 
     if (e.kind === 'boss') {
       // —— 每位面之主一套专属技能（不再人人同款扇形弹幕）——
@@ -1558,7 +1647,7 @@ export class RealtimeRun extends Run {
       }
       // 变身用专属表现：原来发的是 surge，那只震屏、连个圈都不画 ——
       // 一个「终极形态」放出去屏幕上什么都没有
-      this.emitFx('skill', p.x, p.y, { skillKind: 'form' });
+      this.emitFx('skill', p.x, p.y, { skillKind: skill.visual?.fxKind ?? 'form', color: skill.visual?.color ?? null, projectile: skill.visual?.projectile ?? null });
       return;
     }
 
@@ -1607,14 +1696,15 @@ export class RealtimeRun extends Run {
     // 13 个主动技横跨 6 类语义（全屏爆发 / 范围爆发 / 召唤 / 治疗 / 无敌 / 变身），
     // 此前全部共用同一个 emitFx('skill') —— 屏幕上一律是同一个金色圆环，
     // 玩家分不出自己放的是「九重雷劫」还是「饕餮巨口」。按语义分派表现。
-    const skillKind = (e.aoeMul || e.burstMul) ? 'nuke'
+    const inferredSkillKind = (e.aoeMul || e.burstMul) ? 'nuke'
       : e.summon ? 'summon'
       : (e.trapMul || e.missileMul) ? 'blast'
       : e.devourHealPct ? 'heal'
       : e.invuln ? 'invuln'
       : e.allStatsPct ? 'berserk'
       : 'generic';
-    this.emitFx('skill', p.x, p.y, { skillKind });
+    const skillKind = skill.visual?.fxKind ?? inferredSkillKind;
+    this.emitFx('skill', p.x, p.y, { skillKind, color: skill.visual?.color ?? null, projectile: skill.visual?.projectile ?? null });
     this.emit(`释放 <b>${skill.name}</b>`, 'learn');
   }
 
@@ -1765,8 +1855,20 @@ export class RealtimeRun extends Run {
 
     if (e.kind === 'boss') {
       this.enemies = this.enemies.filter((x) => !x.dead);
+      if (e.mapPlaced && !e.winOnDeath) {
+        const drop = rollKillDrop(this.dungeon, this.save, 'stageBoss', this.rng);
+        if (drop.gear) this.addGear(drop.gear);
+        this.orbs.push({ x: e.x, y: e.y, genes: drop.genes, bob: this.rng() * 6 });
+        this.emit(`击破地图 Boss <b>${e.name}</b>`, 'gene');
+        return;
+      }
       this.runPlaneTriggers('onBossKill');
-      this.onKill(e);            // 父类：BOSS 掉落 + 置为 WON
+      const remainingBosses = this.enemies.filter((x) => x.kind === 'boss' && !x.dead && x.isCloser).length;
+      if (remainingBosses > 0) {
+        this.emit(`击破 <b>${e.name}</b>！仍有 ${remainingBosses} 位面之主`, 'death');
+        return;
+      }
+      this.onKill(e);            // 最后一只 Boss 才掉最终奖励并置为 WON
       return;
     }
 
@@ -1814,6 +1916,7 @@ export class RealtimeRun extends Run {
     this.surgeDone = 0;
     this.closerSpawned = false;
     this.spawnCarry = 0;
+    this.ambientSpawned = 0;
     // 阶段叙事节拍（backlog 剧情单薄）：关键阶段注入位面级氛围文本
     const plane = this.dungeon.plane;
     if (this.stageNo === 3) {

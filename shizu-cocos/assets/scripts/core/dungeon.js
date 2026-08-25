@@ -103,6 +103,17 @@ export function generateDungeon(plane, save, seed, riftMods = [], opts = {}) {
   const D = dungeonDifficulty(power, p.difficultyLevel);
   const dyn = p.dynFactor;
 
+  // 位面数值覆盖（关卡编辑·手动配数）：百分比乘区，缺省 0 = 不干预。
+  // plane.statMods = { minionHpPct?, minionAtkPct?, bossHpPct?, bossAtkPct?, eliteHpPct?, eliteAtkPct? }
+  const sm = plane.statMods ?? {};
+  const pct = (v) => (Number.isFinite(Number(v)) && Number(v) ? Number(v) : 0);
+  const minionHpMods = 1 + pct(sm.minionHpPct) / 100;
+  const minionAtkMods = 1 + pct(sm.minionAtkPct) / 100;
+  const bossHpMods = 1 + pct(sm.bossHpPct) / 100;
+  const bossAtkMods = 1 + pct(sm.bossAtkPct) / 100;
+  const eliteHpMods = 1 + pct(sm.eliteHpPct) / 100;
+  const eliteAtkMods = 1 + pct(sm.eliteAtkPct) / 100;
+
   const hpMul = spawnStyleHpMul(plane.spawnStyle) * mods.minionHpMul;
   const rateMul = spawnStyleRateMul(plane.spawnStyle) * mods.spawnMul;
   const stages = [];
@@ -122,7 +133,7 @@ export function generateDungeon(plane, save, seed, riftMods = [], opts = {}) {
     }
 
     const minion = buildEnemy(
-      { baseHp: UNIT_BASE.minion.baseHp * hpMul, baseAtk: UNIT_BASE.minion.baseAtk },
+      { baseHp: UNIT_BASE.minion.baseHp * hpMul * minionHpMods, baseAtk: UNIT_BASE.minion.baseAtk * minionAtkMods },
       D, coef, dyn,
     );
 
@@ -132,30 +143,45 @@ export function generateDungeon(plane, save, seed, riftMods = [], opts = {}) {
           kind: 'boss',
           name: plane.boss,
           desc: plane.bossDesc,
-          ...buildEnemy(UNIT_BASE.boss, D, coef, dyn),
+          ...buildEnemy({ baseHp: UNIT_BASE.boss.baseHp * bossHpMods, baseAtk: UNIT_BASE.boss.baseAtk * bossAtkMods }, D, coef, dyn),
         }
       : {
           kind: 'elite',
           name: `${plane.theme}·${stage >= 3 ? '精英' : '首领'}`,
-          ...buildEnemy(UNIT_BASE.elite, D, coef, dyn),
+          ...buildEnemy({ baseHp: UNIT_BASE.elite.baseHp * eliteHpMods, baseAtk: UNIT_BASE.elite.baseAtk * eliteAtkMods }, D, coef, dyn),
         };
 
-    // 位面自定义时间轴（关卡编辑器）：覆盖默认 时长/刷怪率/涌潮表/收尾时点。
-    // plane.stagePlan[stage-1] = { duration?, ratePct?(100 基准), surges?:[{atSec,count}], closerAt?(≥30) }
+    // 位面自定义时间轴（关卡编辑器）：覆盖默认 时长/小怪预算/刷怪率/涌潮/收尾时点与数量。
+    // plane.stagePlan[stage-1] = {
+    //   duration?, minionCount?(常规小怪预算，不含涌潮), ratePct?(无 minionCount 时使用),
+    //   surges?:[{atSec,count}], closerAt?(≥30), closerCount?(1~10)
+    // }
     let spawnRate = SPAWN_RATE[stage - 1] * rateMul;
+    let spawnCount = null;
     let closerAt = Math.max(30, duration - CLOSER_LEAD_SEC);
+    let closerCount = stage === 4 && plane.eliteStages.includes(4) ? 2 : 1;
     {
       const plan = plane.stagePlan?.[stage - 1];
       if (plan && typeof plan === 'object') {
         if (Number(plan.duration) > 0) duration = Math.round(Number(plan.duration));
+        // duration 改动后，未显式填写 closerAt 时也要跟着重算
+        closerAt = Number(plan.closerAt) >= 30
+          ? Math.max(30, Math.round(Number(plan.closerAt)))
+          : Math.max(30, duration - CLOSER_LEAD_SEC);
         if (Number(plan.ratePct) > 0) spawnRate = Math.round(spawnRate * (Number(plan.ratePct) / 100) * 100) / 100;
+        if (plan.minionCount !== '' && Number.isFinite(Number(plan.minionCount)) && Number(plan.minionCount) >= 0) {
+          spawnCount = Math.min(5000, Math.round(Number(plan.minionCount)));
+          spawnRate = Math.round((spawnCount / Math.max(1, closerAt)) * 1000) / 1000;
+        }
+        if (plan.closerCount !== '' && Number.isFinite(Number(plan.closerCount)) && Number(plan.closerCount) >= 1) {
+          closerCount = Math.min(10, Math.round(Number(plan.closerCount)));
+        }
         if (Array.isArray(plan.surges)) {
           const custom = plan.surges
             .map((s) => ({ atSec: Math.round(Number(s?.atSec) || 0), count: Math.round(Number(s?.count) || 0) }))
             .filter((s) => s.count > 0 && s.atSec >= 0);
           if (custom.length) surges.splice(0, surges.length, ...custom);
         }
-        if (Number(plan.closerAt) >= 30) closerAt = Math.max(30, Math.round(Number(plan.closerAt)));
       }
     }
 
@@ -164,13 +190,15 @@ export function generateDungeon(plane, save, seed, riftMods = [], opts = {}) {
       coef,
       duration,
       spawnRate,
+      spawnCount,
       surges,
       minionName: `${plane.theme}·喽啰`,
       minion,
       closer,
       closerAt,
-      // 关卡策划「阶段4：精英×2」—— 第 4 阶段夹击加一只
-      extraElite: stage === 4 && plane.eliteStages.includes(4),
+      closerCount,
+      // 旧字段保留给外部工具读，但实时战斗统一消费 closerCount
+      extraElite: closerCount > 1,
     });
   }
 
@@ -219,9 +247,11 @@ export function buildEndlessStage(dungeon, layer) {
   const D = dungeon.D;
   const hpMul = spawnStyleHpMul(plane.spawnStyle) * (dungeon.mods?.minionHpMul ?? 1);
   const rateMul = spawnStyleRateMul(plane.spawnStyle) * (dungeon.mods?.spawnMul ?? 1) * rate;
+  const sm = plane.statMods ?? {};
+  const pc = (v) => (Number.isFinite(Number(v)) && Number(v) ? Number(v) : 0);
 
   const minion = buildEnemy(
-    { baseHp: UNIT_BASE.minion.baseHp * hpMul, baseAtk: UNIT_BASE.minion.baseAtk },
+    { baseHp: UNIT_BASE.minion.baseHp * hpMul * (1 + pc(sm.minionHpPct) / 100), baseAtk: UNIT_BASE.minion.baseAtk * (1 + pc(sm.minionAtkPct) / 100) },
     D, coef, dyn,
   );
 
@@ -241,7 +271,7 @@ export function buildEndlessStage(dungeon, layer) {
       kind: 'boss',
       name: `${plane.boss}·深渊第 ${layer} 层`,
       desc: plane.bossDesc,
-      ...buildEnemy(UNIT_BASE.boss, D, coef, dyn),
+      ...buildEnemy({ baseHp: UNIT_BASE.boss.baseHp * (1 + pc(sm.bossHpPct) / 100), baseAtk: UNIT_BASE.boss.baseAtk * (1 + pc(sm.bossAtkPct) / 100) }, D, coef, dyn),
     },
     closerAt: Math.max(30, ENDLESS_LAYER_SECONDS - CLOSER_LEAD_SEC),
     extraElite: false,

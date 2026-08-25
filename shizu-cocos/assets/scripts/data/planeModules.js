@@ -10,6 +10,7 @@
 
 import { planes } from './planes.js';
 
+
 // —— 敌人资产：每阶段刷的小怪 sprite（每阶段一对，5 阶段各不同）——
 export const MINION_SPRITE_BY_STAGE = {
   jiguan: [['jixie_xie', 'lu_kuilei'], ['jixie_xie', 'paotai_ji'], ['lu_kuilei', 'paotai_ji'], ['jixie_xie', 'lu_kuilei'], ['paotai_ji', 'jixie_xie']],
@@ -78,12 +79,12 @@ export function getPlaneModule(id) {
       ranged: RANGED_SPRITES,
       mechanic: PLANE_MECHANICS[id] ?? null,
     },
-    /** 美术切面：相对 assets/art 的路径约定 */
+    /** 美术切面：可由后台 plane.art 覆盖；缺省仍走旧命名约定 */
     art: {
-      floor: `backgrounds/floor_${id}.png`,
-      background: `backgrounds/plane_${codex2}_${id}.png`,
-      /** 该位面首条路线的角色形象（未激活位面无皮肤） */
-      playerSkin: plane.routes?.[0] ? `units/player_${plane.routes[0]}.png` : null,
+      floor: plane.art?.floor ?? `backgrounds/floor_${id}.png`,
+      background: plane.art?.background ?? `backgrounds/plane_${codex2}_${id}.png`,
+      /** 该位面首条路线的角色形象（也允许后台显式覆盖） */
+      playerSkin: plane.art?.playerSkin ?? (plane.routes?.[0] ? `units/player_${plane.routes[0]}.png` : null),
     },
     /** 技能切面：本位面通关激活的路线（= 可学技能的来源路线） */
     skillRoutes: plane.routes ?? [],

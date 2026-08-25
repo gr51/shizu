@@ -69,9 +69,10 @@ export function dutyCycle(skill) {
   return Math.max(BURST_FLOOR, Math.min(1, duration / skill.cd));
 }
 
-/** 触发器合法事件/动作枚举（唯一真源，测试守护防拼写漂移） */
+/** 触发器合法事件/动作枚举（唯一真源；tests/triggers.test.mjs 做源码扫描守护，
+ *  分发器实现的所有动作必须全部入列——历史坑：22 种 buff 动作实现后未入白名单，永远走不到。 */
 export const TRIGGER_EVENTS = new Set(['onFirstBlood', 'onEliteKill', 'onBossKill', 'onChestOpen', 'onChestSpawn', 'onStageClear', 'onLowHp', 'onTimeTick', 'onSurgeSpawn', 'onShopOpen', 'onChoiceOpen', 'onPlaneEnter', 'onDevour', 'onAmbushSpawn', 'onBossHalfHp', 'onMiniRushClear', 'onGearDrop', 'onCrisis', 'onEndlessLayer', 'onBossSpawn']);
-export const TRIGGER_ACTIONS = new Set(['surge', 'heal', 'shield', 'genes', 'spawnElite', 'freeze', 'buffAtk', 'buffSpeed', 'buffRegen', 'revive', 'freeReroll', 'freeBanish', 'essence', 'permAtk', 'permHp', 'permSpeed', 'permGenes']);
+export const TRIGGER_ACTIONS = new Set(['surge', 'heal', 'shield', 'genes', 'spawnElite', 'freeze', 'invuln', 'buffAtk', 'buffSpeed', 'buffRegen', 'revive', 'freeReroll', 'freeBanish', 'essence', 'permAtk', 'permHp', 'permSpeed', 'permGenes', 'buffReflect', 'buffCounter', 'buffElemental', 'buffDevourHeal', 'buffKillHeal', 'buffVsElite', 'buffGeneBonus', 'buffChain', 'buffDot', 'buffCooldown', 'buffDmg', 'buffExecute', 'buffThorn', 'buffCritDmg', 'buffSuck', 'buffAspd', 'buffRange', 'buffAoe', 'buffDmgReduct', 'buffLifesteal', 'buffCrit']);
 
 export const RunState = {
   FIGHTING: 'fighting',
