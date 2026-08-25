@@ -1421,7 +1421,7 @@ function init() {
   tabs.className = 'admin-tabs';
   const defs = [
     ['planes', '位面', buildPlanes],
-    ['world', '位面工程', (root) => buildWorldEditor(root, { state, planes, mark, getArt: () => ART, applyNow: () => { try { localStorage.setItem(KEY, JSON.stringify(buildOutput())); } catch {} } })],
+    ['world', '位面工程', (root) => buildWorldEditor(root, { state, planes, mark, getArt: () => ART, makeId: () => nn(), applyNow: () => { try { localStorage.setItem(KEY, JSON.stringify(buildOutput())); } catch {} } })],
     ['map', '地图地形', buildMapEditor],
     ['assets', '资产库', buildAssets],
     ['stages', '关卡·波次', buildStagePlan],

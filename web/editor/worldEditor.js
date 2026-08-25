@@ -39,7 +39,7 @@ function makeObject(type, x, y, nextId) {
   return { ...base, name: '技能特效点', fxKind: 'generic', color: '#d8bd6a', radius: 80 };
 }
 
-export function buildWorldEditor(root, { state, planes, mark, getArt = () => null, applyNow = () => {} }) {
+export function buildWorldEditor(root, { state, planes, mark, getArt = () => null, applyNow = () => {}, makeId = () => Date.now() % 1000000 }) {
   const sec = document.createElement('section');
   sec.className = 'world-editor';
   sec.innerHTML = '<h2>位面工程编辑器 · 对象层 / 地图层 / 检查器</h2>';
@@ -57,12 +57,13 @@ export function buildWorldEditor(root, { state, planes, mark, getArt = () => nul
   const fit = document.createElement('button'); fit.type = 'button'; fit.textContent = '适配视图';
   const play = document.createElement('button'); play.type = 'button'; play.id = 'worldPlaytest'; play.title = '在新标签页直接进入该位面战斗（含当前全部工程对象）'; play.textContent = '▶ 试玩此位面';
   const exp = document.createElement('button'); exp.type = 'button'; exp.textContent = '导出工程';
+  const cloneBtn = document.createElement('button'); cloneBtn.type = 'button'; cloneBtn.id = 'worldClonePlane'; cloneBtn.title = '深拷贝当前位面全部工程数据为新位面（多地图管理起步）'; cloneBtn.textContent = '⧉ 克隆此位面';
   const imp = document.createElement('button'); imp.type = 'button'; imp.textContent = '导入工程';
   const ioHint = document.createElement('span'); ioHint.className = 'world-io-hint';
   const tileBrush = document.createElement('input'); tileBrush.id = 'worldTileBrush'; tileBrush.placeholder = '地砖画笔名(如 floor_dujie)'; tileBrush.setAttribute('list', 'dl-backgrounds'); tileBrush.style.width = '150px';
   const paintBtn = document.createElement('button'); paintBtn.type = 'button'; paintBtn.id = 'worldPaintToggle'; paintBtn.title = '开启后左键拖拽涂刷/右键或选 __erase 擦除 (B)'; paintBtn.textContent = '🪣 涂砖模式 (B)';
   const grid = document.createElement('label'); grid.className = 'map-lbl'; grid.innerHTML = '<input type="checkbox" checked> 网格';
-  toolbar.append('位面 ', plane, ' 对象类型 ', type, add, fit, play, exp, imp, ioHint, grid);
+  toolbar.append('位面 ', plane, ' 对象类型 ', type, add, fit, play, exp, cloneBtn, imp, ioHint, grid);
   toolbar.append(tileBrush, paintBtn);
   sec.appendChild(toolbar);
 
@@ -391,6 +392,24 @@ export function buildWorldEditor(root, { state, planes, mark, getArt = () => nul
   grid.querySelector('input').addEventListener('change', (e) => { showGrid = e.target.checked; draw(); });
   paintBtn.addEventListener('click', togglePaint);
   plane.addEventListener('change', () => { pid = plane.value; selected = null; fitView(); initHistory(); renderList(); renderInspector(); draw(); });
+  cloneBtn.addEventListener('click', () => {
+    const newName = prompt(`克隆位面「${st().name}」为新位面，请命名：`, st().name + '·副本');
+    if (!newName) return;
+    const newId = `plane_${makeId()}`;
+    const src = JSON.parse(JSON.stringify(st()));
+    delete src._new; src.id = newId; src._new = true; src.name = newName; src.codex = 0;   // 导出时自动递增分配
+    state.planes[newId] = src;
+    // 播种衍生切面（与「新增条目」同口径）：敌人阶段表/Boss/机制默认
+    state.stageSprites[newId] = Array.from({ length: 5 }, () => ['', '']);
+    state.bossSprites[newId] = `boss_${newId.replace('plane_', '')}`;
+    state.mechanics[newId] = { type: 'laser', interval: 12 };
+    // 下拉注册新选项并切换过去
+    const opt = document.createElement('option'); opt.value = newId; opt.textContent = `${newId} · ${newName}`;
+    plane.appendChild(opt); plane.value = newId;
+    pid = newId; selected = null; multiSel.clear(); initHistory();
+    mark(); applyNow(); renderList(); renderInspector(); fitView(); draw();
+    ioHint.textContent = `✓ 已克隆为 ${newId}（应用后大厅可见可进）`;
+  });
   canvas.addEventListener('mousedown', (e) => {
     const w = screenToWorld(e.offsetX, e.offsetY); const hit = objectHit(w);
     if (paintMode && !hit) {

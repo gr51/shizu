@@ -292,6 +292,21 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     if (openUrl?.includes('worldTest=jiguan')) ok('工程·一键试玩', openUrl);
     else bad('工程·一键试玩', String(openUrl));
 
+    // 克隆位面工程：深拷贝当前位面为新位面，下拉自动切换，对象/地砖/模板随行
+    await page.evaluate(() => { window.prompt = () => '机关城二号'; });
+    const planeOptsBefore = await page.locator('#worldPlane option').count();
+    await page.locator('#worldClonePlane').click();
+    await wait(200);
+    const cloneSel = await page.locator('#worldPlane').inputValue();
+    if (/^plane_\d+$/.test(cloneSel) && cloneSel !== 'jiguan') ok('工程·克隆位面', `新 id = ${cloneSel}`);
+    else bad('工程·克隆位面', `下拉值 = ${cloneSel}`);
+    const planeOptsAfter = await page.locator('#worldPlane option').count();
+    if (planeOptsAfter === planeOptsBefore + 1) ok('工程·克隆下拉', `选项 ${planeOptsBefore} → ${planeOptsAfter}`);
+    else bad('工程·克隆下拉', `${planeOptsBefore} → ${planeOptsAfter}`);
+    const clonedState = await page.evaluate(() => globalThis.__worldEditorApi.objects().length);
+    if (clonedState === 5) ok('工程·克隆对象随行', `副本对象 ${clonedState} 个`);
+    else bad('工程·克隆对象随行', String(clonedState));
+
     // 6e0. 关卡数量自由度：每阶段常规小怪预算 + 收尾单位数量
     await page.locator('.admin-tabs button[data-key="stages"]').click();
     await wait(250);
@@ -526,6 +541,17 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     if (/^battle\|机关城\|objs[3-9]\|placedBoss=true$/.test(playT)) ok('一键试玩闭环', playT);
     else bad('一键试玩闭环', playT);
 
+    // 克隆位面运行时注册：新 id 进 planes，工程对象随行
+    const cloneT = await page.evaluate(async (cid) => {
+      try {
+        const m = await import('/shizu-cocos/assets/scripts/data/planes.js');
+        const np = m.planes.find((x) => x.id === cid);
+        return np ? `${np.id}|${np.name}|${np.editor?.objects?.length ?? -1}|${np._new ? 'new' : 'native'}` : 'NO_CLONE';
+      } catch (e) { return 'ERR:' + e.message; }
+    }, [cloneSel]);
+    if (/^plane_\d+\|机关城二号\|5\|new$/.test(cloneT)) ok('克隆位面运行时注册', cloneT);
+    else bad('克隆位面运行时注册', cloneT);
+
     // 地砖运行时消费：涂刷单元应进入 plane.editor.tiles 并随局生效
     const tilesT = await page.evaluate(() => {
       try {
@@ -565,7 +591,7 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
         return np ? `${m.planes.length}:${np.id}:codex${np.codex}:waves${Array.isArray(np.waves)}` : `NO_NEW(total ${m.planes.length})`;
       } catch (e) { return 'ERR:' + e.message; }
     });
-    if (/^1[35]:plane_\d+:codex(?:[1-9]\d*):wavestrue$/.test(planeT)) ok('新增位面运行时注册', planeT);
+    if (/^1[3-9]:plane_\d+:codex(?:[1-9]\d*):wavestrue$/.test(planeT)) ok('新增位面运行时注册', planeT);
     else bad('新增位面运行时注册', planeT);
 
     // 8f. 地图编辑器运行时消费：拖出来的障碍物/出生点应写进位面对象，双端 core 直接读
