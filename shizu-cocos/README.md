@@ -12,7 +12,7 @@ shizu-cocos/
 └── assets/
     ├── scenes/Main.scene           Canvas + Camera + GameRoot 组件
     └── scripts/
-        ├── core/    *.js           零 DOM、零 cc 依赖的游戏逻辑（177 项测试守护，含 Cocos 流程 smoke）
+        ├── core/    *.js           零 DOM、零 cc 依赖的游戏逻辑（207 项测试守护，含 Cocos 流程 smoke）
         ├── data/    *.js           位面 / 路线 / 技能 / 隐藏技能 / 装备 / 文案 配表
         ├── platform/storage.ts     Web · 微信 · 抖音 三端存档适配（注入式）
         └── game/                   Cocos 组件层
