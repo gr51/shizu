@@ -25,9 +25,31 @@ const MIME = {
 };
 
 const OVERRIDE_FILE = 'web/src/config/overrides.data.json';
+const COCOS_OVERRIDE_FILE = 'shizu-cocos/assets/resources/config/overrides.json';
+
+// 资产清单端点白名单目录（后台「资产库」与 sprite 自动补全用；只报文件名，防目录遍历）
+const ART_DIRS = ['units', 'backgrounds', 'effects', 'items', 'lobby'];
+const IMG_RE = /\.(png|webp|jpg)$/i;
+
+function listArt() {
+  const out = {};
+  const base = path.join(root, 'shizu-cocos/assets/art');
+  for (const dir of ART_DIRS) {
+    const p = path.join(base, dir);
+    out[dir] = fs.existsSync(p)
+      ? fs.readdirSync(p).filter((f) => IMG_RE.test(f)).map((f) => f.replace(IMG_RE, '')).sort()
+      : [];
+  }
+  return out;
+}
 
 http.createServer((req, res) => {
   const urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  // 后台资产清单：只读、固定根、文件名去扩展名（供 datalist 自动补全与资产库网格）
+  if (req.method === 'GET' && urlPath === '/api/art-list') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }).end(JSON.stringify(listArt()));
+    return;
+  }
   // 后台「保存到项目」：唯一写入端点（固定路径 / 限 256KB / 必须合法 JSON）
   if (req.method === 'POST' && urlPath === '/web/src/config/overrides.data.json') {
     const chunks = [];
@@ -41,7 +63,9 @@ http.createServer((req, res) => {
       try {
         const body = Buffer.concat(chunks);
         JSON.parse(body.toString('utf8'));   // 非 JSON 直接拒绝
+        fs.mkdirSync(path.dirname(path.join(root, COCOS_OVERRIDE_FILE)), { recursive: true });
         fs.writeFileSync(path.join(root, OVERRIDE_FILE), body);
+        fs.writeFileSync(path.join(root, COCOS_OVERRIDE_FILE), body);
         res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' }).end(`bad json: ${e.message}`);
