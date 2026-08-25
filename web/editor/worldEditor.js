@@ -1,6 +1,7 @@
 // ===== web/editor/worldEditor.js · 位面工程编辑器（World Editor 垂直切片）=====
 // 目标不是再加一个数值表，而是把「地图对象实例」建模为可选、可摆放、可检查、可保存的工程数据。
 // 对象类型：unit / boss / doodad / spawn / region / skillFx。
+import { TRIGGER_EVENTS } from '../../shizu-cocos/assets/scripts/core/run.js';
 
 const WORLD_W = 1920;
 const WORLD_H = 1080;
@@ -312,7 +313,13 @@ export function buildWorldEditor(root, { state, planes, mark, getArt = () => nul
     if (o.type === 'boss') inspector.append(inputField('模型 sprite', 'sprite'), inputField('HP', 'hp', 'number', 1, 999999), inputField('攻击', 'atk', 'number', 0, 999999), inputField('技能ID', 'skill'), selectField('Boss技能', 'bossSkill', [['', '默认'], ['fan', '扇形'], ['ring', '环形'], ['laser', '激光'], ['lightning', '落雷'], ['missile', '导弹'], ['summon', '召唤']]), checkField('死亡即通关', 'winOnDeath'));
     if (o.type === 'doodad') inspector.append(inputField('模型/资产', 'sprite'));
     if (o.type === 'spawn') inspector.append(selectField('出生角色', 'role', [['player', '玩家'], ['minion', '小怪'], ['boss', 'Boss']]));
-    if (o.type === 'region') inspector.append(inputField('宽', 'width', 'number', 1, WORLD_W), inputField('高', 'height', 'number', 1, WORLD_H), inputField('进入事件', 'event'));
+    if (o.type === 'region') {
+      // 进入事件与触发器真源同源：19 枚举下拉；历史自定义值追加为额外选项不丢失
+      const evVals = [...TRIGGER_EVENTS].map((v) => [v, v]);
+      const cur = String(o.event ?? '');
+      if (cur && !evVals.some(([v]) => v === cur)) evVals.push([cur, `${cur}（自定义）`]);
+      inspector.append(inputField('宽', 'width', 'number', 1, WORLD_W), inputField('高', 'height', 'number', 1, WORLD_H), selectField('进入事件', 'event', evVals));
+    }
     if (o.type === 'skillFx') inspector.append(selectField('特效类型', 'fxKind', FX_KINDS.map((v) => [v, v])), inputField('颜色', 'color'), inputField('半径', 'radius', 'number', 1, 999));
     const stb = document.createElement('button'); stb.type = 'button'; stb.className = 'world-dup'; stb.textContent = '存为模板';
     stb.addEventListener('click', () => saveSelectedAsTemplate()); inspector.appendChild(stb);

@@ -171,7 +171,7 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     await page.locator('#worldObjectType').selectOption('region');
     await page.locator('#worldAddObject').click();
     await inspector.locator('.world-field').filter({ hasText: '名称' }).locator('input').fill('伏击区域');
-    await inspector.locator('.world-field').filter({ hasText: '进入事件' }).locator('input').fill('onAmbushSpawn');
+    await inspector.locator('.world-field').filter({ hasText: '进入事件' }).locator('select').selectOption('onAmbushSpawn');
     const worldRows = await page.locator('.world-object-row').count();
     if (worldRows === 3) ok('位面工程·对象实例', '小怪/Boss/区域共3个对象已创建');
     else bad('位面工程·对象实例', `对象数=${worldRows}（预期3）`);
@@ -432,8 +432,9 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     else bad('Boss数量落盘', JSON.stringify(savedPlan));
     const worldObjectsSaved = savedPlane?.editor?.objects ?? [];
     const types = new Set(worldObjectsSaved.map((o) => o.type));
-    if (worldObjectsSaved.length >= 3 && types.has('unit') && types.has('boss') && types.has('region')) {
-      ok('位面工程落盘', `plane.editor.objects ×${worldObjectsSaved.length}（unit/boss/region 齐全）`);
+    const regionSaved = worldObjectsSaved.find((o) => o.type === 'region');
+    if (worldObjectsSaved.length >= 3 && types.has('unit') && types.has('boss') && types.has('region') && regionSaved?.event === 'onAmbushSpawn') {
+      ok('位面工程落盘', `plane.editor.objects ×${worldObjectsSaved.length}（unit/boss/region 齐全，region.event=onAmbushSpawn）`);
     } else bad('位面工程落盘', JSON.stringify(worldObjectsSaved));
     const hidSaved = (saved.hiddenSkills ?? {}).wushuang;
     if (hidSaved?.eff && Number(hidSaved.eff.crit) === 0.33) ok('隐藏技 eff 落盘', 'wushuang.eff.crit=0.33 已写入');
