@@ -115,6 +115,16 @@ declare module 'cc' {
   export class ImageAsset { width: number; height: number; }
   export class JsonAsset { json: any; }
 
+  export class AudioClip { duration: number; }
+  export class AudioSource extends Component {
+    clip: AudioClip | null;
+    loop: boolean;
+    volume: number;
+    play(): void;
+    stop(): void;
+    playOneShot(clip: AudioClip, volume?: number): number;
+  }
+
   export class Texture2D {
     image: ImageAsset;
     setFilters(min: number, mag: number): void;

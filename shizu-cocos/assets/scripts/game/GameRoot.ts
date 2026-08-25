@@ -4,13 +4,16 @@
 //
 // 竖屏 640×960（整体策划 1.1）。当前无美术资源，全部程序化绘制（见 UiKit.ts）。
 
-import { Component, EventKeyboard, Graphics, Input, KeyCode, Label, Node, Sprite, UITransform, _decorator, input } from 'cc';
+import { Component, EventKeyboard, Graphics, Input, JsonAsset, KeyCode, Label, Node, Sprite, UITransform, _decorator, input, resources, AudioSource } from 'cc';
+// AudioSource 按需引入：仅用于 Bgm 节点；shim 环境由 try/catch 兑底
+import { AudioBank } from './AudioBank';
 import { C, DESIGN, clearChildren, drawBar, drawPanel, hex, makeButton, makeDivider, makeLabel, makeNode, sizeOf } from './UiKit';
 import { ModalLayer, ModalRow } from './ModalLayer';
 import { SpriteBank, applyFrame } from './SpriteBank';
 import { createStorage } from '../platform/storage';
 
 import { createSaveRepo } from '../core/save.js';
+import { applyProjectOverrides } from '../core/projectOverrides.js';
 import { computePower, dungeonDifficulty, DIFFICULTY_COEF, DIFFICULTY_LABEL, combatStats, geneLockPowerBonus } from '../core/balance.js';
 import { generateDungeon, MAX_ONSCREEN } from '../core/dungeon.js';
 import { previewPlane, rollPlane } from '../core/planePool.js';
@@ -52,8 +55,13 @@ export class GameRoot extends Component {
   private riftWeapon: any = null;
   private riftPlane: any = null;
   private bank = new SpriteBank();
+  private audio = new AudioBank();
   /** 战场实体的显示节点池：entityId → { node, sprite } */
   private pool = new Map<number, { node: Node; sprite: Sprite }>();
+  /** 工程装饰物独立池：键为对象 id 字符串，静态不动画，战斗开始时随 pool 一起清 */
+  private doodadPool = new Map<string, { node: Node; sprite: Sprite }>();
+  /** 工程地砖独立池：键为 cell 坐标字符串 */
+  private tilePool = new Map<string, { node: Node; sprite: Sprite }>();
   private field: Node | null = null;
   private playerNode: { node: Node; sprite: Sprite } | null = null;
 
@@ -84,7 +92,22 @@ export class GameRoot extends Component {
     input.on(Input.EventType.KEY_UP, (e: EventKeyboard) => this.keys.delete(e.keyCode), this);
 
     this.exposeDebugApi();
-    this.renderLobby();
+    // BGM 常驻源：shim/无头环境缺 AudioSource 时静默降级（AudioBank 内部再兑一层守卫）
+    try {
+      const n = makeNode('Bgm', this.node);
+      const src = n.addComponent<AudioSource>(AudioSource as any);
+      this.audio.attach(src);
+    } catch { /* 无音频环境：保持静默 */ }
+    // 后台「保存到项目」同步产出的 resources/config/overrides.json：Cocos 与 Web 共用同一配置。
+    // 缺文件/加载失败时保持默认表，不阻塞启动。
+    if (!resources?.load) {
+      this.renderLobby();
+      return;
+    }
+    resources.load('config/overrides', JsonAsset, (err, asset) => {
+      if (!err && asset) applyProjectOverrides((asset as any).json);
+      this.renderLobby();
+    });
   }
 
   onDestroy(): void {
@@ -178,6 +201,7 @@ export class GameRoot extends Component {
 
   private renderLobby(): void {
     this.run = null;
+    this.audio.leaveBattle();   // 回大厅停 BGM
     this.save = this.repo.load();
     this.refreshHeader();
     const s = this.resetScreen();
@@ -457,10 +481,14 @@ export class GameRoot extends Component {
     this.run = new RealtimeRun(this.save, dungeon, seed ^ 0x9e3779b9);
     this.lastState = null;
     this.pool.clear();
+    this.doodadPool.clear();
+    this.tilePool.clear();
     this.playerNode = null;
     this.renderBattle();
     // 资产异步装载；装完之前先用色块顶着，不阻塞开局
     this.bank.load(plane.id).catch(() => { /* 缺图时保持色块回退 */ });
+    // BGM：异步切到位面曲（缺资产静默）
+    this.audio.enterBattle(plane.id).catch(() => {});
   }
 
   /**
@@ -474,7 +502,10 @@ export class GameRoot extends Component {
 
     if (run.state === RunState.FIGHTING) {
       run.update(dt, this.readMove());
-      run.drainEffects();
+      const fxs = run.drainEffects();
+      for (const f of fxs) this.procFx.push({ ...f, t: 0 });
+      for (const f of this.procFx) f.t += dt;
+      this.procFx = this.procFx.filter((f) => f.t < (GameRoot.FX_DUR[f.type] ?? 0));
       this.refreshBattleHud();
       this.drawField(run);        // 每帧只**移动节点、换帧**，不重建节点树
     }
@@ -524,6 +555,8 @@ export class GameRoot extends Component {
     drawPanel(field, ARENA.w * GameRoot.K, ARENA.h * GameRoot.K, C.panelDeep, C.line, 4);
     this.field = field;
     this.pool.clear();
+    this.doodadPool.clear();
+    this.tilePool.clear();
     this.playerNode = null;
     this.drawField(run);
 
@@ -546,6 +579,15 @@ export class GameRoot extends Component {
   /** 战场缩放：逻辑坐标（ARENA 960×560）→ 屏幕坐标 */
   private static readonly K = 0.62;
 
+  /** 机制特效时长表（秒）—— 与 web renderer PROC_FX 子集对齐 */
+  private static readonly FX_DUR: Record<string, number> = {
+    lightning: 0.38, laser: 0.3, stomp: 0.42, slam: 0.42, spit: 0.16,
+    elite: 0.5, boss: 0.6, devour: 0.4, dodge: 0.22, shield: 0.4,
+    skill: 0.26, meteor: 0.5, regionPing: 0.55,
+  };
+  private procFx: any[] = [];
+  private fxG: Graphics | null = null;
+
   /**
    * 画战场。资产装载完成后用 SpriteFrame，未完成时回退到 Graphics 色块。
    * 节点走**对象池**：割草同屏 60 只，每帧新建/销毁节点会直接卡死
@@ -560,13 +602,47 @@ export class GameRoot extends Component {
 
     if (!this.bank.loaded) { this.drawFieldFallback(run, toX, toY); return; }
 
+    // 位面工程地砖：静态铺在战场最底层（先于敌人/装饰创建，兄弟序即绘制序）
+    for (const t of (run.dungeon?.plane?.editor?.tiles ?? []) as any[]) {
+      const key = `tile_${Math.round(Number(t.x) / 256)}_${Math.round(Number(t.y) / 256)}`;
+      let ent = this.tilePool.get(key);
+      if (!ent) {
+        const sf = this.bank.frame(String(t.sprite || ''));
+        if (!sf) continue;
+        ent = this.makeEntityNode(field);
+        applyFrame(ent.sprite, sf);
+        this.tilePool.set(key, ent);
+      }
+      ent.node.setPosition(toX(Number(t.x) + 128), toY(Number(t.y) + 128), 0);
+      ent.node.setScale(GameRoot.K, GameRoot.K, 1);
+    }
+
+    // 位面工程装饰物：静态摆放（core 已在 run.doodads 暴露），缺图静默跳过
+    for (const d of (run.doodads ?? []) as any[]) {
+      let ent = this.doodadPool.get(String(d.id));
+      if (!ent) {
+        const base = String(d.sprite || '').replace(/\.png$/, '');
+        const sf = this.bank.frame(base) ?? this.bank.frame(`${base}_walk0`);
+        if (!sf) continue;
+        ent = this.makeEntityNode(field);
+        applyFrame(ent.sprite, sf);
+        this.doodadPool.set(String(d.id), ent);
+      }
+      ent.node.setPosition(toX(Number(d.x) || 0), toY(Number(d.y) || 0), 0);
+      const ds = 0.75 * (Number(d.scale) || 1);
+      ent.node.setScale(ds, ds, 1);
+    }
+
     const alive = new Set<number>();
     const planeId = run.dungeon.plane.id;
 
     for (const e of run.enemies) {
       alive.add(e.id);
-      const name = e.kind === 'minion' ? `minion_${planeId}_move`
+      const fallbackName = e.kind === 'minion' ? `minion_${planeId}_move`
         : e.kind === 'elite' ? `elite_${planeId}_idle` : `boss_${planeId}_idle`;
+      // core 的 e.sprite 是后台绑定后的真实单位名；Cocos 优先读取它，缺图才退回旧的位面通用 clip。
+      const customName = e.sprite ? `${e.sprite}_walk0` : null;
+      const name = customName && this.bank.frame(customName) ? customName : fallbackName;
       const scale = e.kind === 'boss' ? 0.55 : e.kind === 'elite' ? 0.6 : 0.75;
       const ent = this.entity(e.id, field);
       ent.node.setPosition(toX(e.x), toY(e.y), 0);
@@ -583,6 +659,10 @@ export class GameRoot extends Component {
       applyFrame(ent.sprite, this.bank.frameAt('gene_orb_pulse', o.bob * 0.2));
     });
 
+    // —— 机制特效层：消耗 procFx 队列（与 web PROC_FX 同语义子集）——
+    if (!this.fxG) this.fxG = field.getComponent(Graphics) ?? field.addComponent(Graphics);
+    this.drawProcFx(toX, toY);
+
     // 回收本帧没出现的节点
     for (const [id, ent] of this.pool) {
       if (!alive.has(id)) { ent.node.active = false; this.pool.delete(id); ent.node.destroy(); }
@@ -597,6 +677,91 @@ export class GameRoot extends Component {
     this.playerNode.node.active = !(p.invuln > 0 && Math.floor(p.invuln * 20) % 2 === 0);
     applyFrame(this.playerNode.sprite, this.bank.frameAt(clip, p.anim * 0.1));
     this.playerNode.node.setSiblingIndex(field.children.length - 1);
+  }
+
+  /** 机制特效：单 Graphics 每帧重绘（数量少，无需节点池） */
+  private drawProcFx(toX: (n: number) => number, toY: (n: number) => number): void {
+    const g = this.fxG!;
+    g.clear();
+    for (const f of this.procFx) {
+      const dur = GameRoot.FX_DUR[f.type] ?? 0.3;
+      const k = Math.min(1, f.t / dur);          // 0→1 进度
+      const fade = 1 - k;
+      const x = toX(f.x), y = toY(f.y);
+      switch (f.type) {
+        case 'lightning': {
+          g.strokeColor = hex('#cfa8ff'); g.lineWidth = 3;
+          g.moveTo(x, toY(f.y) - 160);
+          for (let i2 = 1; i2 <= 6; i2++) {
+            const tt = i2 / 6;
+            g.lineTo(x + Math.sin(i2 * 2.3 + f.x) * 10 * (1 - tt), toY(f.y) - 160 + 160 * tt);
+          }
+          g.stroke();
+          g.strokeColor = hex('#ffffff'); g.lineWidth = 2;
+          g.circle(x, y, 12 + k * 36); g.stroke();
+          break;
+        }
+        case 'laser': {
+          const half = ARENA.w * GameRoot.K / 2 + 40;
+          g.strokeColor = hex('#ff8f6b'); g.lineWidth = 4 * fade + 1;
+          if (f.data?.horiz ?? true) { g.moveTo(x - half, y); g.lineTo(x + half, y); }
+          else { g.moveTo(x, y - half); g.lineTo(x, y + half); }
+          g.stroke();
+          break;
+        }
+        case 'stomp': case 'slam': {
+          g.strokeColor = hex(f.type === 'slam' ? '#c9a227' : '#7fa8c9'); g.lineWidth = 3;
+          g.circle(x, y, (20 + k * 90) * 0.62); g.stroke();
+          break;
+        }
+        case 'spit': {
+          g.fillColor = hex('#b88a6a'); g.circle(x, y, 3 + k * 6); g.fill();
+          break;
+        }
+        case 'elite': case 'boss': {
+          g.strokeColor = hex(f.type === 'boss' ? '#a678d4' : '#e08a4c');
+          g.lineWidth = f.type === 'boss' ? 4 : 3;
+          const r0 = f.type === 'boss' ? 120 : 80;
+          g.circle(x, y, r0 * (1 - k) + 14); g.stroke();
+          break;
+        }
+        case 'devour': {
+          g.strokeColor = hex('#5fb8a6'); g.lineWidth = 4;
+          g.circle(x, y, 30 + k * 200); g.stroke();
+          break;
+        }
+        case 'dodge': {
+          g.strokeColor = hex('#e8e2d6'); g.lineWidth = 2;
+          g.circle(x, y, 10 + k * 18); g.stroke();
+          break;
+        }
+        case 'shield': {
+          g.strokeColor = hex('#7fa8c9'); g.lineWidth = 3;
+          g.circle(x, y, 26); g.stroke();
+          break;
+        }
+        case 'meteor': {
+          g.strokeColor = hex('#ff6b4a'); g.lineWidth = 2;
+          g.circle(x, y, 20 + k * 50); g.stroke();
+          break;
+        }
+        case 'regionPing': {
+          const w0 = (f.data?.width ?? 240) * GameRoot.K;
+          const h0 = (f.data?.height ?? 160) * GameRoot.K;
+          const grow = 1 + k * 0.25;
+          g.strokeColor = hex('#a678d4'); g.lineWidth = 2;
+          g.rect(x - w0 * grow / 2, y - h0 * grow / 2, w0 * grow, h0 * grow);
+          g.stroke();
+          break;
+        }
+        case 'skill': {
+          g.strokeColor = hex('#d8bd6a'); g.lineWidth = 3;
+          g.circle(x, y, 20 + k * 110); g.stroke();
+          break;
+        }
+        default: break;   // 其余类型暂无专属表现
+      }
+    }
   }
 
   private entity(id: number, parent: Node): { node: Node; sprite: Sprite } {
