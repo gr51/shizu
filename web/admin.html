@@ -39,6 +39,62 @@
       background: rgba(107,77,42,.25); color: #e8c46a; cursor: pointer; font-size: 13px; margin-bottom: 10px; }
     button[data-add-for]:hover { background: rgba(107,77,42,.5); }
 
+    /* —— 地图编辑器 —— */
+    .map-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+    .map-toolbar select, .map-toolbar input { background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 4px 7px; font-size: 12px; }
+    .map-lbl { font-size: 12px; color: #8a94a0; display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; }
+    .map-toolbar button { padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,.14); background: #1a2129; color: #b9c4d0; cursor: pointer; font-size: 12px; }
+    .map-toolbar button:hover { filter: brightness(1.2); }
+    .map-toolbar button.active { background: #6b4d2a; border-color: #8f6a3c; color: #f2e6cf; font-weight: bold; }
+    .map-wrap { height: 540px; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; overflow: hidden; user-select: none; background: #10151b; }
+    #mapCanvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    .map-status { font-size: 11px; color: #6fbb8f; margin-top: 5px; font-family: ui-monospace, monospace; }
+    .map-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+    .map-obs-row { display: flex; gap: 6px; align-items: center; padding: 3px 6px; border-radius: 4px; cursor: default; }
+    .map-obs-row:hover { background: rgba(143,232,203,.07); }
+    .map-obs-row .map-id { flex: 0 0 30px; font-size: 12px; color: #8fe8cb; }
+    .map-obs-row input { width: 76px; background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 3px 6px; font-size: 12px; }
+    .map-obs-row button { margin-left: auto; padding: 2px 10px; font-size: 11px; border-radius: 4px; border: 1px solid rgba(224,101,60,.4); background: rgba(224,101,60,.12); color: #e08a6d; cursor: pointer; }
+    .map-empty { font-size: 12px; color: #6b7683; padding: 6px 2px; }
+
+    /* —— 触发器结构化编辑 / 机制编辑器 / 资产库 —— */
+    .trg-card { border: 1px solid rgba(143,232,203,.18); border-radius: 5px; padding: 5px 7px; background: rgba(20,26,32,.4); }
+    .trg-head { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+    .trg-action { display: flex; gap: 6px; align-items: center; padding-left: 14px; }
+    .trg-card select, .trg-action select { background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 3px 5px; font-size: 12px; max-width: 210px; }
+    .trg-action input[type=number] { background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 3px 5px; font-size: 12px; }
+    .trg-del { padding: 1px 8px; font-size: 11px; border-radius: 4px; border: 1px solid rgba(224,101,60,.4); background: rgba(224,101,60,.12); color: #e08a6d; cursor: pointer; }
+    button[data-trg-add], button[data-act-add] { align-self: flex-start; padding: 2px 10px; font-size: 11px; border-radius: 4px; border: 1px dashed #8f6a3c; background: rgba(107,77,42,.25); color: #e8c46a; cursor: pointer; }
+    .mech-select { background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 3px 5px; font-size: 12px; }
+    .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin-top: 8px; }
+    .asset-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; border-radius: 4px; background: rgba(255,255,255,.03); }
+    .asset-cell img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; }
+    .asset-cell span { font-size: 10px; color: #9fb3c8; cursor: copy; word-break: break-all; text-align: center; }
+
+    /* —— 位面工程编辑器 —— */
+    .world-layout { display: grid; grid-template-columns: 170px minmax(420px, 1fr) 190px; gap: 8px; align-items: stretch; }
+    .world-objects, .world-inspector { background: rgba(20,26,32,.7); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 8px; min-height: 540px; }
+    .world-objects h3, .world-inspector h3 { margin: 2px 0 8px; color: #e8c46a; font-size: 13px; }
+    .world-object-list { display: flex; flex-direction: column; gap: 4px; max-height: 510px; overflow: auto; }
+    .world-object-row { text-align: left; padding: 6px 7px; border: 1px solid rgba(255,255,255,.08); border-radius: 4px; background: #141a20; color: #b9c4d0; cursor: pointer; font-size: 11px; }
+    .world-object-row:hover, .world-object-row.active { background: #6b4d2a; color: #f2e6cf; border-color: #8f6a3c; }
+    .world-canvas-wrap { position: relative; height: 540px; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; overflow: hidden; background: #0d1116; }
+    #worldCanvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+    .world-status { position: absolute; left: 8px; right: 8px; bottom: 6px; color: #6fbb8f; font: 11px ui-monospace, monospace; pointer-events: none; }
+    .world-field { display: flex; flex-direction: column; gap: 3px; margin: 7px 0; }
+    .world-field span { font-size: 11px; color: #8a94a0; }
+    .world-field input, .world-field select { width: 100%; box-sizing: border-box; background: #141a20; color: #e8ecf0; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 5px 6px; font-size: 12px; }
+    .world-delete { width: 100%; margin-top: 10px; padding: 6px; border: 1px solid rgba(224,101,60,.45); border-radius: 4px; background: rgba(224,101,60,.12); color: #e08a6d; cursor: pointer; }
+    .world-dup { width: 100%; margin-top: 10px; padding: 6px; border: 1px solid rgba(143,232,203,.4); border-radius: 4px; background: rgba(143,232,203,.08); color: #8fe8cb; cursor: pointer; }
+    .world-batch { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+    .world-batch button { padding: 4px 9px; font-size: 11px; border-radius: 4px; border: 1px solid rgba(143,232,203,.35); background: #141a20; color: #8fe8cb; cursor: pointer; }
+    .world-batch button:hover { filter: brightness(1.25); }
+    .world-tpl-row { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
+    .world-tpl-place { flex: 1; text-align: left; padding: 5px 6px; border: 1px solid rgba(232,196,106,.25); border-radius: 4px; background: rgba(107,77,42,.2); color: #e8c46a; cursor: pointer; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .world-tpl-del { padding: 3px 7px; font-size: 11px; border-radius: 4px; border: 1px solid rgba(224,101,60,.4); background: rgba(224,101,60,.12); color: #e08a6d; cursor: pointer; }
+    .world-empty { color: #6b7683; font-size: 11px; line-height: 1.5; padding: 4px; }
+    @media (max-width: 980px) { .world-layout { grid-template-columns: 130px minmax(300px, 1fr); } .world-inspector { grid-column: 1 / -1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; } .world-inspector h3 { grid-column: 1 / -1; } .world-delete { grid-column: 1 / -1; } }
+
     #saveBar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; gap: 12px; align-items: center;
       padding: 10px 20px; background: rgba(10,14,18,.95); border-top: 1px solid rgba(255,255,255,.1); z-index: 10; }
     #saveBar button { padding: 7px 18px; border-radius: 4px; border: 1px solid rgba(255,255,255,.15);

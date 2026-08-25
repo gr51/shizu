@@ -5,7 +5,8 @@
 
 const ART = '../shizu-cocos/assets/art';
 
-import { MINION_SPRITE_BY_STAGE, BOSS_BY_PLANE } from '../../../shizu-cocos/assets/scripts/core/battle.js';
+import { MINION_SPRITE_BY_STAGE, BOSS_BY_PLANE, getPlaneModule } from '../../../shizu-cocos/assets/scripts/data/planeModules.js';
+import { skills } from '../../../shizu-cocos/assets/scripts/data/skills.js';
 
 /** 画了专属刀光贴图的敌人（目前只有武侠那批）。其余敌人回退到 effects/slash.png。 */
 const SLASH_FX_UNITS = new Set([
@@ -28,6 +29,8 @@ export class Assets {
   }
 
   async load(planeId) {
+    const module = getPlaneModule(planeId);
+    this.art = module?.art ?? { floor: `backgrounds/floor_${planeId}.png`, background: `backgrounds/plane_${planeId}.png` };
     const manifest = await fetch(`${ART}/anim.json`).then((r) => r.json()).catch(() => null);
     const need = [];
 
@@ -38,6 +41,7 @@ export class Assets {
     for (let f = 0; f < 4; f++) want(`units/player_walk${f}.png`);   // 玩家走路帧
     for (let f = 0; f < 3; f++) want(`units/player_atk${f}.png`);    // 玩家攻击帧
     want('units/player_death.png');
+    if (this.art.playerSkin) want(this.art.playerSkin);
     // 10 进化路线皮肤
     for (const r of ['dujie', 'gongde', 'sangshi', 'gongsheng', 'xiake', 'shanhai', 'mofa', 'qiji', 'jijia', 'juhua']) {
       want(`units/player_${r}.png`);
@@ -69,7 +73,21 @@ export class Assets {
       // 无脑请求会让每个非武侠位面每局白跑十几个 404。
       if (SLASH_FX_UNITS.has(m)) want(`effects/${m}_slash.png`);
     }
-    // 通用命名兜底：renderer.spriteBase() 在没有专属 sprite 时会回落到
+    // 位面工程对象自带的单位/装饰资产
+    for (const o of module?.data?.editor?.objects ?? []) {
+      if (!o?.sprite) continue;
+      if (o.type === 'unit' || o.type === 'boss') {
+        for (const n of FULL_FRAMES) want(`units/${o.sprite}_${n}.png`);
+        want(`units/${o.sprite}.png`);
+      } else if (o.type === 'doodad') {
+        want(o.sprite.includes('/') ? o.sprite : `units/${o.sprite}.png`);
+      }
+    }
+    // 位面工程涂刷的地砖单元
+    for (const t of module?.data?.editor?.tiles ?? []) {
+      if (t?.sprite) want(`backgrounds/${t.sprite}.png`);
+    }
+    // 通用命名兜底
     // minion_{variant}_{plane}，也正是 tools/ai-art/generate.mjs 产出的名字。
     // 不预载它们的话，缺席阶段表的位面（如首个教学位面 jiguan）会一张贴图都没有，
     // 满屏敌人全部退化成 dot() 色块。这一族只有单帧走路 + 待机图。
@@ -89,7 +107,12 @@ export class Assets {
     // 才真的回落到 boss_{plane}.png —— 无条件请求会让另外 11 个位面每局白跑一个 404。
     if (!bossName) want(`units/boss_${planeId}.png`);
     want('items/gene_orb.png');
-    want(`backgrounds/floor_${planeId}.png`);   // 无缝地砖
+    // 技能对象编辑器绑定的 icon / projectile 资产：进入本局即预载，三选一卡片与主动技都能直接消费
+    for (const skill of skills) {
+      for (const rel of [skill.visual?.icon, skill.visual?.projectile]) if (rel) want(rel);
+    }
+    want(this.art.floor);
+    want(this.art.background);
 
     // 动画片段
     if (manifest) {

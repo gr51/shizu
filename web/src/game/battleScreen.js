@@ -397,8 +397,11 @@ export async function startBattle(ctx, plane, riftMods = [], opts = {}) {
         : (deltas(o) || o.desc);   // 属性只给实数，desc 是同义的抽象百分比
       const sub = o.kind === 'skill'
         ? `<span class="pick-sub">${ROUTES[o.route].name} · 第 ${o.lv} 段</span>` : '';
+      const icon = o.kind === 'skill' && o.visual?.icon
+        ? `<img class="pick-icon" src="../shizu-cocos/assets/art/${o.visual.icon.replace(/^.*?art\//, '')}" alt="">`
+        : '';
       return `<div class="pick pick-btn k-${o.kind}" data-pick="${i}" role="button" tabindex="0">
-          <span class="pick-head"><em class="pick-tag">${TAG[o.kind] ?? '进化'}</em><b>${o.name}</b>${sub}</span>
+          <span class="pick-head">${icon}<em class="pick-tag">${TAG[o.kind] ?? '进化'}</em><b>${o.name}</b>${sub}</span>
           <span class="pick-detail">${detail}</span>
           ${run.banishLeft > 0
             ? `<button type="button" class="pick-banish" data-banish="${i}" title="永久放逐，本局不再出现">✕ 放逐</button>`

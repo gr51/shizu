@@ -80,6 +80,14 @@ async function boot() {
 
   renderLobby(ctx);
   startLobbyFx();
+
+  // 位面工程编辑器「试玩」：?worldTest=<pid> 跳过大厅直入该位面（编辑→验证闭环）
+  const testPid = new URLSearchParams(location.search).get('worldTest');
+  if (testPid) {
+    const p = findPlaneById(testPid);
+    if (p) { stopLobbyFx(); ctx.startRun(p); }
+    else console.warn('[worldTest] 未知位面：' + testPid);
+  }
 }
 
 if (document.readyState === 'loading') {

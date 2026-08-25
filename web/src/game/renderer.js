@@ -36,6 +36,7 @@ const PROC_FX = {
   killBurst: 0.26,   // 蚀爆体：击杀连锁爆炸
   chainZap: 0.14,    // 渡劫·雷链弹射：跳与跳之间的锯齿闪电
   meteor: 0.5,       // 危机·陨石雨：落点冲击
+  regionPing: 0.55,  // 位面工程·进入区域确认（紫框扩散）
 };
 
 /**
@@ -83,6 +84,7 @@ export class Renderer {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: false });
     this.assets = assets;
+    this.art = assets.art ?? null;
     this.planeId = planeId;
     this.fx = [];             // 活跃特效实例
     this.procFx = [];         // 程序化特效实例（无贴图，见 PROC_FX）
@@ -180,7 +182,8 @@ export class Renderer {
 
     // —— 地面（无缝地砖，一块一块平铺；镜像拼贴保证接缝无缝）——
     const TILE = 256;   // 每块地砖的世界尺寸（单位：世界坐标）
-    const floor = A.img(`backgrounds/floor_${this.planeId}.png`);
+    const floorPath = A.art?.floor ?? `backgrounds/floor_${this.planeId}.png`;
+    const floor = A.img(floorPath);
     if (floor) {
       const startX = Math.floor(camX / TILE) * TILE;
       const startY = Math.floor(camY / TILE) * TILE;
@@ -198,7 +201,8 @@ export class Renderer {
       }
     } else {
       // 兜底：旧的整图背景
-      const bg = A.img(`backgrounds/${BG_FILE[this.planeId] ?? 'nest'}.png`);
+      const bgPath = A.art?.background ?? `backgrounds/${BG_FILE[this.planeId] ?? 'nest'}.png`;
+      const bg = A.img(bgPath);
       if (bg) {
         const startX = Math.floor(camX / ARENA.w) * ARENA.w;
         const startY = Math.floor(camY / ARENA.h) * ARENA.h;
@@ -206,6 +210,18 @@ export class Renderer {
           for (let y = startY; y < camY + ARENA.h; y += ARENA.h)
             ctx.drawImage(bg, Math.round(x), Math.round(y), ARENA.w, ARENA.h);
       } else { ctx.fillStyle = PAL.bgFallback; ctx.fillRect(camX, camY, ARENA.w, ARENA.h); }
+    }
+
+    // —— 工程地砖层：涂刷单元覆盖基础地砖（与编辑器同坐标系，256 单元）——
+    const editorTiles = run.dungeon?.plane?.editor?.tiles;
+    if (Array.isArray(editorTiles) && editorTiles.length) {
+      for (const t of editorTiles) {
+        if (t.x > camX + ARENA.w || t.y > camY + ARENA.h || t.x + TILE < camX || t.y + TILE < camY) continue;
+        const img = A.img(`backgrounds/${t.sprite}.png`);
+        if (!img) continue;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, t.x, t.y, 256, 256);
+      }
     }
 
     // —— 地面压暗罩 ——
@@ -236,6 +252,20 @@ export class Renderer {
     this._slows = run.elementalSlows ?? null;
     // 中毒态集合：DoT 作用中的敌人 id（渲染层画持续毒蚀标识用）
     this._dotIds = new Set((run.dots ?? []).map((d) => d.eid));
+
+    // 位面工程对象层：装饰物/区域/技能特效锚点（对象实例坐标与 World Editor 一致）
+    this._worldT = (this._worldT ?? 0) + 0.016;   // 锚点脉动用的近似时钟（无需精确）
+    const pulse = 1 + Math.sin(this._worldT * 3) * 0.08;
+    for (const o of run.dungeon?.plane?.editor?.objects ?? []) {
+      if (o.type === 'doodad' && o.sprite) {
+        const img = this.assets.img(`units/${o.sprite}.png`) || this.assets.img(o.sprite);
+        if (img) { const size = 48 * (Number(o.scale) || 1); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, o.x - size / 2, o.y - size / 2, size, size); }
+      } else if (o.type === 'region') {
+        ctx.save(); ctx.strokeStyle = 'rgba(166,120,212,.45)'; ctx.setLineDash([8, 5]); ctx.strokeRect(o.x - (o.width || 240) / 2, o.y - (o.height || 160) / 2, o.width || 240, o.height || 160); ctx.restore();
+      } else if (o.type === 'skillFx') {
+        ctx.save(); ctx.strokeStyle = o.color || '#d8bd6a'; ctx.globalAlpha = 0.28 + Math.sin(this._worldT * 3) * 0.12; ctx.beginPath(); ctx.arc(o.x, o.y, (o.radius || 80) * pulse, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      }
+    }
 
     // 位面障碍物：暗色圆 + 描边（关卡编辑地形可视化）
     if (Array.isArray(run.dungeon?.plane?.obstacles)) {
@@ -398,7 +428,8 @@ export class Renderer {
     const ctx = this.ctx;
     for (const f of this.procFx) f.t += dt;
     this.procFx = this.procFx.filter((f) => {
-      const spec = f.type === 'skill' ? (SKILL_FX[f.data?.skillKind] ?? SKILL_FX.generic) : null;
+      const specBase = f.type === 'skill' ? (SKILL_FX[f.data?.skillKind] ?? SKILL_FX.generic) : null;
+      const spec = specBase ? { ...specBase, ...(f.data?.color ? { color: f.data.color } : {}) } : null;
       const dur = spec ? spec.dur : (PROC_FX[f.type] ?? 0.3);
       if (f.t >= dur) return false;
       const k = f.t / dur;              // 0→1 进度
@@ -499,6 +530,18 @@ export class Renderer {
           ctx.beginPath();
           ctx.arc(f.x, f.y, 26, 0, Math.PI * 2);
           ctx.stroke();
+          break;
+        }
+        case 'regionPing': {
+          // 区域进入确认：紫色矩形从区域尺寸向外扩散一档后淡出
+          const w0 = (f.data?.width ?? 240), h0 = (f.data?.height ?? 160);
+          const grow = 1 + k * 0.25;
+          ctx.globalAlpha = fade * 0.85;
+          ctx.strokeStyle = '#a678d4';
+          ctx.lineWidth = 3;
+          ctx.setLineDash([9, 6]);
+          ctx.strokeRect(f.x - w0 * grow / 2, f.y - h0 * grow / 2, w0 * grow, h0 * grow);
+          ctx.setLineDash([]);
           break;
         }
         case 'skill': {
@@ -1151,9 +1194,7 @@ export class Renderer {
     // 统一形象（用户反馈：AI 分次生成的 idle/walk 帧是两个角色，观感割裂）——
     // 全状态只用同一张基础像（皮肤优先），动感改由程序化表达：
     //   移动 = 跑步颠步（bob）+ 前倾；待机 = 呼吸起伏；攻击 = 向前突刺
-    const skinBase = run.skin ? `units/player_${run.skin}.png` : 'units/player.png';
-    let rel = 'units/player.png';
-    if (run.skin) rel = skinBase;
+    const rel = this.art?.playerSkin ?? (run.skin ? `units/player_${run.skin}.png` : 'units/player.png');
     const moving = p.state === 'walk';
     const bob = moving ? Math.abs(Math.sin(p.anim * 1.6)) * 3.5 : Math.sin(p.anim * 0.5) * 1.2;
     const lunge = p.state === 'attack' ? p.facing * 7 : 0;

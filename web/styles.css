@@ -495,7 +495,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .pick-btn.k-attr  { background: linear-gradient(90deg, rgba(40,80,105,.24), #141a20 46%); }
 .pick-btn.k-skill:hover, .pick-btn.k-mech:hover, .pick-btn.k-attr:hover { background-position: 0 0; filter: brightness(1.18); }
 
-.pick-head { display: block; margin: 0; }
+.pick-head { display: flex; align-items: center; gap: 7px; margin: 0; }
+.pick-icon { width: 30px; height: 30px; object-fit: contain; image-rendering: pixelated; border-radius: 4px; background: rgba(255,255,255,.06); flex: none; }
 .pick-head b { font-size: 15px; }
 .pick-tag {
   display: inline-block;
